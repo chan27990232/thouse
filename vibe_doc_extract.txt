@@ -1,0 +1,35 @@
+T-House Rental App V1.0 詳細設計指南 (Vibe Coding 版)
+1. 執行摘要 (Executive Summary)
+T-House 是一款專為香港租賃市場設計的行動優先應用程式，核心目標是為租客（特別是劏房租客）與業主提供「低壓、高頻、正回饋」的租賃體驗。本指南旨在將美學靈感轉化為可開發的組件與邏輯流程。
+2. 使用者角色與權限 (User Roles & Authentication)
+租客 (Guest/Tenant)： 可瀏覽房源、篩選條件、透過匿名方式聯繫業主、提交租賃申請。
+業主 (Landlord)： 可上傳租盤、管理 dashboard、查看提現狀態。
+身份驗證： 採用簡約的登入界面，支持手機號快速驗證。
+3. 應用程式架構 (Application Architecture)
+前端： React + Tailwind CSS + Framer Motion (負責動效)。
+後端： FastAPI (高性能、異步處理)。
+AI 集成： DeepSeek API (用於房源描述自動優化與智能溝通助手)。
+4. 設計系統 (Design System)
+元素
+規格描述
+核心視覺
+輕氧美學、高負空間、大圓角設計。
+色彩規範
+柔和中性色背景，配合鮮明的正回饋強調色。
+交互動效
+水滴暈染點擊效果 (Ripple)、彈性律動頁面切換 (Spring Physics)。
+5. 核心功能模組 (Core Features)
+5.1 房源瀏覽與搜尋 (Property Browsing & Search)
+支援多維度篩選（租金、地區、標籤）。採用單列或雙列卡片佈局，優化移動端觸控體驗。
+5.2 溝通聊天室 (Contact Landlord)
+具備匿名通話功能，支持發送圖片與錄音。AI 會根據溝通情境提供「蘇格拉底式」建議，引導雙方友善交流。
+5.3 支付系統 (Payment System)
+結合記憶曲線與正回饋機制，將付租提醒設計為「能量修復」體驗，減少租客焦慮。
+6. 數據模型 (Data Models)
+interface Property {  id: string;  owner_id: string;  price: number;  tags: string[];  location: { lat: number, lng: number };}
+7. 香港合規與安全 (Compliance & Security)
+隱私保護： 遵循香港《個人資料（私隱）條例》，敏感數據 AES-256 加密。
+法規守護： 內置符合香港《業主與租客（綜合）條例》的標準合約範本。
+8. 未來發展與 KPI (Future & KPIs)
+Phase 2： AI 語音直覺搜尋、社福機構接入接口。
+關鍵指標： 二次作答正確率 > 85%，AI 響應延遲 < 1.5s。
