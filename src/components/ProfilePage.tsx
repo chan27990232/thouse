@@ -235,18 +235,18 @@ export function ProfilePage({ onBack, onSignOut }: ProfilePageProps) {
   };
 
   return (
-    <div className="max-w-3xl mx-auto bg-white min-h-screen">
-      <div className="p-4 border-b flex items-center justify-between">
-        <button onClick={onBack} className="flex items-center gap-2 text-gray-600 hover:text-black">
-          <ArrowLeft className="w-5 h-5" />
+    <div className="mx-auto min-h-screen w-full min-w-0 max-w-3xl overflow-x-hidden bg-white">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b p-4">
+        <button onClick={onBack} className="flex min-w-0 items-center gap-2 text-gray-600 hover:text-black">
+          <ArrowLeft className="h-5 w-5 shrink-0" />
           <span>返回</span>
         </button>
-        <Button variant="outline" onClick={onSignOut}>
+        <Button variant="outline" onClick={onSignOut} className="shrink-0">
           登出
         </Button>
       </div>
 
-      <div className="px-6 py-10">
+      <div className="px-4 py-8 sm:px-6 sm:py-10">
         <div className="flex flex-col items-center text-center mb-8">
           <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center mb-4">
             <User className="w-10 h-10 text-gray-500" />

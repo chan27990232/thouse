@@ -217,7 +217,7 @@ export function RentalApplication({ open, onOpenChange, property, onProceedToPay
               <div className="space-y-2">
                 <Label>租期</Label>
                 <RadioGroup value={leaseDuration} onValueChange={setLeaseDuration}>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                     {['6', '12', '24', '36'].map((months) => (
                       <div key={months} className="flex items-center space-x-2">
                         <RadioGroupItem value={months} id={`duration-${months}`} />

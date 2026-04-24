@@ -6,8 +6,8 @@ interface Props {
 
 export const LandlordDashboard: React.FC<Props> = ({ onBack }) => {
   return (
-    <div className="min-h-screen flex flex-col">
-      <header className="px-4 py-3 border-b flex items-center gap-3">
+    <div className="flex min-h-screen min-w-0 flex-col overflow-x-hidden">
+      <header className="flex flex-wrap items-center gap-2 border-b px-4 py-3 sm:gap-3">
         <button
           type="button"
           onClick={onBack}

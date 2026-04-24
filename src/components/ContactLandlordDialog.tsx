@@ -320,7 +320,7 @@ export function ContactLandlordDialog({ open, onOpenChange, property, isAuthenti
 
           {/* Contact Methods Tabs */}
           <Tabs value={contactMethod} onValueChange={(v) => setContactMethod(v as any)}>
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-1 gap-1 sm:grid-cols-3">
               <TabsTrigger value="message">
                 <MessageCircle className="w-4 h-4 mr-1" />
                 訊息

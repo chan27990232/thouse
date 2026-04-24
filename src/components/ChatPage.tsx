@@ -193,32 +193,32 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
   const chatPaneVisible = Boolean(activeId);
 
   return (
-    <div className="min-h-screen bg-white">
-      <div className="border-b bg-white sticky top-0 z-20">
-        <div className="max-w-[1600px] mx-auto px-4 md:px-6 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-4 min-w-0">
-            <button type="button" onClick={onBack} className="p-2 rounded-full hover:bg-gray-100 shrink-0">
-              <ArrowLeft className="w-5 h-5" />
+    <div className="min-h-screen min-w-0 overflow-x-hidden bg-white">
+      <div className="sticky top-0 z-20 border-b bg-white">
+        <div className="mx-auto flex min-h-14 max-w-[1600px] flex-wrap items-center justify-between gap-x-2 gap-y-2 px-3 py-2 sm:px-4 sm:py-0 md:h-14 md:px-6 md:py-0">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-4">
+            <button type="button" onClick={onBack} className="shrink-0 rounded-full p-2 hover:bg-gray-100">
+              <ArrowLeft className="h-5 w-5" />
             </button>
-            <div className="flex items-center gap-2 min-w-0">
-              <img src={thouseLogo} alt="簡屋" className="w-8 h-8 shrink-0" />
-              <span className="font-semibold tracking-wide hidden sm:inline">Thouse</span>
+            <div className="flex min-w-0 items-center gap-2">
+              <img src={thouseLogo} alt="簡屋" className="h-8 w-8 shrink-0" />
+              <span className="hidden font-semibold tracking-wide sm:inline">Thouse</span>
             </div>
-            <div className="hidden lg:flex items-center gap-5 text-sm text-gray-600">
+            <div className="hidden items-center gap-5 text-sm text-gray-600 lg:flex">
               <span>首頁</span>
               <span>租盤</span>
               <span>聊天</span>
             </div>
           </div>
-          <div className="flex items-center gap-3 text-gray-500">
-            <Heart className="w-5 h-5" />
-            <Bell className="w-5 h-5" />
-            <div className="w-8 h-8 rounded-full bg-gray-100" />
+          <div className="ml-auto flex shrink-0 items-center gap-2 text-gray-500 sm:gap-3">
+            <Heart className="hidden h-5 w-5 sm:block" />
+            <Bell className="hidden h-5 w-5 sm:block" />
+            <div className="h-8 w-8 rounded-full bg-gray-100" />
           </div>
         </div>
       </div>
 
-      <div className="max-w-[1600px] mx-auto h-[calc(100vh-3.5rem)]">
+      <div className="mx-auto h-[calc(100vh-3.5rem)] max-w-[1600px] min-h-0 min-w-0">
         {loadError ? <p className="p-4 text-sm text-red-600">{loadError}</p> : null}
 
         <div className="flex h-full min-h-0">

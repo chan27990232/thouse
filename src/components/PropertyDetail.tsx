@@ -36,40 +36,41 @@ export function PropertyDetail({ property, onBack, isAuthenticated }: PropertyDe
   };
 
   return (
-    <div className="max-w-5xl mx-auto bg-white min-h-screen">
+    <div className="mx-auto min-h-screen w-full min-w-0 max-w-5xl overflow-x-hidden bg-white">
       {/* Header */}
       <div className="relative">
         <ImageWithFallback
           src={property.image}
           alt={property.title}
-          className="w-full h-64 md:h-80 lg:h-[26rem] object-cover"
+          className="h-48 w-full object-cover sm:h-64 md:h-80 lg:h-[26rem]"
         />
-        <button 
+        <button
           onClick={onBack}
-          className="absolute top-4 left-4 bg-white p-2 rounded-full shadow-lg hover:bg-gray-100"
+          className="absolute left-3 top-3 rounded-full bg-white p-2 shadow-lg hover:bg-gray-100 sm:left-4 sm:top-4"
+          type="button"
         >
-          <ArrowLeft className="w-5 h-5" />
+          <ArrowLeft className="h-5 w-5" />
         </button>
       </div>
 
       {/* Content */}
-      <div className="p-6 md:px-8 lg:px-10">
-        <div className="flex items-start justify-between mb-4">
-          <div>
-            <h1 className="text-2xl mb-1">{property.title}</h1>
+      <div className="p-4 sm:p-6 md:px-8 lg:px-10">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <h1 className="mb-1 text-xl sm:text-2xl">{property.title}</h1>
             <div className="flex items-center gap-2 text-gray-600">
-              <MapPin className="w-4 h-4" />
+              <MapPin className="h-4 w-4 shrink-0" />
               <span>香港</span>
             </div>
           </div>
-          <div className="text-right">
-            <div className="text-3xl">${property.price}</div>
+          <div className="shrink-0 sm:text-right">
+            <div className="text-2xl sm:text-3xl">${property.price}</div>
             <div className="text-gray-500">/月</div>
           </div>
         </div>
 
-        {/* Property Details */}
-        <div className="grid grid-cols-4 gap-4 py-6 border-y">
+        {/* Property Details：手機 2×2，sm+ 四欄 */}
+        <div className="grid grid-cols-2 gap-3 border-y py-5 sm:grid-cols-4 sm:gap-4 sm:py-6">
           <div className="text-center">
             <Home className="w-6 h-6 mx-auto mb-2 text-gray-600" />
             <div>{property.area}</div>
@@ -103,9 +104,9 @@ export function PropertyDetail({ property, onBack, isAuthenticated }: PropertyDe
         </div>
 
         {/* Amenities */}
-        <div className="py-6 border-t">
+        <div className="border-t py-6">
           <h2 className="mb-3">設施</h2>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3">
             {['冷氣', '暖氣', 'WiFi', '停車場', '升降機', '保安'].map((amenity) => (
               <div key={amenity} className="flex items-center gap-2 text-gray-600">
                 <div className="w-2 h-2 bg-black rounded-full" />
@@ -116,16 +117,18 @@ export function PropertyDetail({ property, onBack, isAuthenticated }: PropertyDe
         </div>
 
         {/* CTA */}
-        <div className="flex gap-3 mt-6">
-          <Button 
-            variant="outline" 
-            className="flex-1"
+        <div className="mt-6 flex min-h-11 flex-col gap-2.5 sm:flex-row sm:gap-3">
+          <Button
+            variant="outline"
+            className="w-full min-h-11 flex-1 sm:min-h-10"
             onClick={() => setShowContactDialog(true)}
+            type="button"
           >
             聯絡業主
           </Button>
           <Button
-            className="flex-1 bg-black text-white hover:bg-gray-800"
+            className="w-full min-h-11 flex-1 bg-black text-white hover:bg-gray-800 sm:min-h-10"
+            type="button"
             onClick={() => {
               if (!isAuthenticated) {
                 toast.error('請先登入，以便完成線上簽約與支付首期。');

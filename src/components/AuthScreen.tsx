@@ -137,9 +137,9 @@ export function AuthScreen({ role, onBack, onAuthSuccess }: AuthScreenProps) {
   };
 
   return (
-    <div className="max-w-xl mx-auto bg-white min-h-screen">
+    <div className="mx-auto min-h-screen w-full min-w-0 max-w-xl overflow-x-hidden bg-white">
       {/* Header */}
-      <div className="p-4 border-b">
+      <div className="border-b p-4">
         <button 
           onClick={onBack}
           className="flex items-center gap-2 text-gray-600 hover:text-black"
@@ -150,7 +150,7 @@ export function AuthScreen({ role, onBack, onAuthSuccess }: AuthScreenProps) {
       </div>
 
       {/* Content */}
-      <div className="px-6 py-12">
+      <div className="min-w-0 px-4 py-10 sm:px-6 sm:py-12">
         <div className="text-center mb-8">
           <img src={thouseLogo} alt="簡屋" className="w-20 h-20 mx-auto mb-4" />
           <h1 className="text-2xl mb-2">

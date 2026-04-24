@@ -112,7 +112,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen min-w-0 overflow-x-hidden bg-gray-50">
       {currentScreen === 'home' && (!isAuthenticated || userRole !== 'landlord') && (
         <Home
           onAuthClick={(role) => setCurrentScreen(role === 'tenant' ? 'auth-tenant' : 'auth-landlord')}

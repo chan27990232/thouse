@@ -162,10 +162,10 @@ export function Home({
   };
 
   return (
-    <div className="flex min-h-screen flex-col bg-white">
-      {/* 主視覺：banner 約 40–50% 視高；搜尋卡以負 margin 疊在下緣，半在圖、半在下方白底 */}
+    <div className="flex min-h-screen min-w-0 flex-col overflow-x-hidden bg-white">
+      {/* 主視覺：banner 約 40–55% 視高；搜尋白卡負 margin 往上疊，較大面積覆蓋在圖上 */}
       <div className="relative w-full min-w-0">
-        <div className="relative h-[min(50vh,560px)] min-h-[300px] w-full max-h-[640px] overflow-hidden sm:min-h-[360px]">
+        <div className="relative h-[min(58vh,620px)] min-h-[360px] w-full max-h-[700px] overflow-hidden sm:min-h-[380px]">
           <img
             src="/thouse-banner.png"
             alt="簡約明亮客廳空間，淺色牆面與木儲物櫃"
@@ -177,8 +177,88 @@ export function Home({
           />
 
           <div className="relative z-10 flex h-full min-h-0 flex-col">
-          <header className="shrink-0 px-4 pt-4 md:px-8 md:pt-5 lg:px-10">
-            <div className="flex items-center justify-between gap-2">
+          <header className="shrink-0 pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] pt-2 sm:px-4 sm:pt-4 md:px-8 md:pt-5 lg:px-10">
+            {/* 手機：單一橫列 — logo、首頁/最愛、右側操作，避免分頁掉到第二行 */}
+            <div className="flex min-w-0 items-center justify-between gap-1 sm:hidden">
+              <div className="flex min-w-0 min-h-0 flex-1 items-center gap-1">
+                <div className="flex shrink-0 items-center rounded-lg border border-white/80 bg-white p-0.5 pl-0.5 pr-1 text-gray-900 shadow-sm">
+                  <img src={thouseLogo} alt="簡屋" className="h-10 w-10 shrink-0" />
+                </div>
+                <div className="flex min-w-0 items-center gap-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('home')}
+                    className={`shrink-0 rounded-full border border-white/80 bg-white px-2 py-1.5 text-[11px] leading-none text-gray-900 shadow-sm ${
+                      activeTab === 'home' ? 'font-medium ring-1 ring-gray-300' : 'font-normal ring-0 hover:bg-gray-50'
+                    }`}
+                  >
+                    首頁
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('favorites')}
+                    className={`shrink-0 rounded-full border border-white/80 bg-white px-2 py-1.5 text-[11px] leading-none text-gray-900 shadow-sm ${
+                      activeTab === 'favorites' ? 'font-medium ring-1 ring-gray-300' : 'font-normal ring-0 hover:bg-gray-50'
+                    }`}
+                  >
+                    最愛
+                  </button>
+                </div>
+              </div>
+              <div className="ml-0.5 flex min-w-0 shrink-0 items-center justify-end gap-0.5">
+                <button
+                  type="button"
+                  onClick={() => setNoticeOpen(true)}
+                  className="relative rounded-full border border-white/80 bg-white p-2 text-gray-900 shadow-sm transition-colors hover:bg-gray-50"
+                  aria-label="通知"
+                >
+                  <Bell className="h-4 w-4" />
+                  {unreadCount > 0 && <span className="absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full bg-red-500" />}
+                </button>
+                <button
+                  type="button"
+                  onClick={onChatClick}
+                  className="relative rounded-full border border-white/80 bg-white p-2 text-gray-900 shadow-sm transition-colors hover:bg-gray-50"
+                  aria-label="聊天"
+                >
+                  <MessageCircle className="h-4 w-4" />
+                  {unreadCount > 0 && <span className="absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full bg-red-500" />}
+                </button>
+                {!isAuthenticated ? (
+                  <button
+                    type="button"
+                    onClick={() => setRoleSelectOpen(true)}
+                    className="inline-flex min-h-8 items-center gap-0.5 rounded-full border border-white/80 bg-white px-2 py-1 text-[11px] font-medium text-gray-900 shadow-sm transition-colors hover:bg-gray-50"
+                  >
+                    <User className="h-3.5 w-3.5" />
+                    登入
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-0.5">
+                    {userRole === 'landlord' && (
+                      <button
+                        type="button"
+                        onClick={onLandlordDashboard}
+                        className="min-h-8 max-w-[3.25rem] truncate rounded-full px-1.5 py-1 text-[11px] text-white shadow-sm transition-colors"
+                        style={{ backgroundColor: NAVY }}
+                      >
+                        管理
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={onProfileClick}
+                      className="rounded-full bg-white/95 p-1.5 shadow-sm ring-1 ring-black/5 transition-colors hover:bg-white"
+                      aria-label="個人資料"
+                    >
+                      <User className="h-4 w-4" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="hidden items-center justify-between gap-2 sm:flex">
               <div className="flex min-w-0 items-center gap-2 md:gap-4">
                 <div className="flex min-w-0 items-center gap-2 rounded-lg border border-white/80 bg-white px-2 py-1.5 pr-3 text-gray-900 shadow-sm">
                   <img src={thouseLogo} alt="簡屋" className="h-8 w-8 shrink-0 md:h-9 md:w-9" />
@@ -256,10 +336,10 @@ export function Home({
             </div>
           </header>
 
-          <div className="shrink-0 px-4 pb-2 pt-2 md:px-10 md:pt-4 lg:px-14">
-            <div className="max-w-2xl">
+          <div className="shrink-0 pb-1 pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] pt-1 sm:px-4 sm:pb-2 sm:pt-2 md:px-10 md:pt-4 lg:px-14">
+            <div className="max-w-3xl">
               <h1
-                className="text-3xl font-bold leading-tight drop-shadow-sm md:text-4xl md:leading-tight lg:text-5xl"
+                className="text-[clamp(2.625rem,9.75vw,3.6rem)] font-bold leading-[1.15] drop-shadow-sm sm:text-[3.375rem] sm:leading-tight md:text-[3.375rem] md:leading-tight lg:text-[4.5rem]"
                 style={{ color: NAVY }}
               >
                 簡屋 · 揀好屋
@@ -269,37 +349,37 @@ export function Home({
         </div>
         </div>
 
-        <div className="relative z-20 w-full -mt-[clamp(3.5rem,11vw,7.5rem)] px-3 pb-2 sm:px-5 md:px-6">
-            {/* 白卡：寬約 80–88%、半疊在 banner 上；陰影與圓角對齊參考稿 */}
-            <div className="mx-auto w-full max-w-6xl rounded-2xl border border-gray-200/90 bg-white p-6 shadow-lg sm:w-[min(100%,_88%)] sm:p-7 md:p-8 md:shadow-[0_12px_40px_rgba(15,23,42,0.12),0_4px_12px_rgba(15,23,42,0.06)]">
-                {/* 上列：關鍵字與搜尋鈕分開，中留間隙；鈕為圓頭膠囊 */}
-                <div className="flex w-full min-w-0 flex-row items-center gap-3 sm:gap-4">
-                  <div className="flex min-h-0 min-w-0 flex-1 items-center gap-2.5 rounded-full border border-gray-200 bg-gray-50/60 px-4 py-2.5 shadow-sm ring-1 ring-gray-200/60">
-                    <Search className="h-[18px] w-[18px] shrink-0 text-gray-400" />
+        <div className="relative z-20 w-full -mt-[clamp(10.5rem,44vw,22rem)] px-2 pb-2 sm:-mt-[clamp(5.5rem,16vw,11rem)] sm:px-4 md:px-6 lg:-mt-[clamp(6rem,14vw,12rem)]">
+            {/* 白卡：手機用更大 -mt 讓白卡多壓在 banner 上；觸控區加高 */}
+            <div className="mx-auto w-full max-w-7xl rounded-2xl border border-gray-200/90 bg-white p-3.5 shadow-lg sm:w-[min(100%,_96%)] sm:rounded-3xl sm:p-7 md:p-9 md:shadow-[0_12px_40px_rgba(15,23,42,0.12),0_4px_12px_rgba(15,23,42,0.06)]">
+                {/* 關鍵字列：手機直向堆疊；手機欄高加大利於觸控 */}
+                <div className="flex w-full min-w-0 flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:gap-4">
+                  <div className="flex h-14 w-full min-w-0 flex-1 items-center gap-2.5 rounded-2xl border border-gray-200 bg-gray-50/60 px-3 shadow-sm ring-1 ring-gray-200/60 sm:h-auto sm:min-h-0 sm:rounded-full sm:px-5 sm:py-3.5">
+                    <Search className="h-5 w-5 shrink-0 text-gray-400 sm:h-[18px] sm:w-[18px]" />
                     <Input
                       type="text"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && runHeroSearch()}
                       placeholder="輸入地區、屋苑或關鍵字"
-                      className="min-w-0 flex-1 border-0 bg-transparent p-0 text-sm text-gray-800 placeholder:text-gray-400 shadow-none focus-visible:ring-0"
+                      className="h-full min-w-0 flex-1 border-0 bg-transparent p-0 text-base text-gray-800 placeholder:text-gray-400 shadow-none focus-visible:ring-0 sm:min-h-[2.5rem] sm:text-sm"
                     />
                   </div>
                   <Button
                     type="button"
                     onClick={runHeroSearch}
-                    className="!h-auto shrink-0 rounded-full border-0 px-6 !py-2.5 text-sm font-medium text-white shadow-sm transition hover:opacity-95 focus-visible:ring-2 focus-visible:ring-[#1a365d] focus-visible:ring-offset-2"
+                    className="!h-14 w-full min-h-14 shrink-0 rounded-2xl border-0 px-6 !py-3 text-base font-medium text-white shadow-sm transition hover:opacity-95 focus-visible:ring-2 focus-visible:ring-[#1a365d] focus-visible:ring-offset-2 sm:!h-12 sm:min-h-12 sm:rounded-full sm:!py-2.5 sm:text-sm sm:w-auto sm:px-8"
                     style={{ backgroundColor: NAVY }}
                   >
                     搜尋
                   </Button>
                 </div>
 
-                <div className="my-5 border-t border-gray-100 sm:my-6" role="separator" aria-hidden />
+                <div className="my-4 border-t border-gray-100 sm:my-5 md:my-6" role="separator" aria-hidden />
 
-                {/* 下排：單一橫列 + 欄間淺灰直線；窄螢幕可橫向捲動 */}
-                <div className="flex w-full min-w-0 flex-nowrap items-stretch gap-0 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] sm:items-end [&::-webkit-scrollbar]:hidden">
-                  <div className="flex min-w-[7.5rem] max-w-[200px] shrink-0 flex-col gap-2 pr-3 sm:min-w-[8.5rem] sm:pr-4">
+                {/* 手機：直向堆疊全寬；lg+ 橫向捲動與欄間分隔線（與參考桌面稿一致） */}
+                <div className="flex w-full min-w-0 flex-col gap-4 md:flex-nowrap md:flex-row md:items-stretch md:gap-0 md:overflow-x-auto md:[-ms-overflow-style:none] md:[scrollbar-width:none] [&::-webkit-scrollbar]:md:hidden">
+                  <div className="flex w-full min-w-0 flex-col gap-2 md:min-w-[7.5rem] md:max-w-[200px] md:shrink-0 md:pr-3">
                     <Label className="block text-left text-xs font-medium leading-none" style={{ color: '#4a5568' }}>
                       地區
                     </Label>
@@ -324,9 +404,9 @@ export function Home({
                     </Select>
                   </div>
 
-                  <div aria-hidden className="my-1 w-px shrink-0 self-stretch bg-gray-200" />
+                  <div aria-hidden className="my-1 hidden w-px shrink-0 self-stretch bg-gray-200 md:block" />
 
-                  <div className="flex min-w-[200px] flex-1 flex-col gap-2 px-3 sm:min-w-[240px] sm:px-4">
+                  <div className="flex w-full min-w-0 flex-1 flex-col gap-2 px-0 md:min-w-[200px] md:px-3 lg:min-w-[240px] lg:px-4">
                     <Label className="block text-left text-xs font-medium leading-none" style={{ color: '#4a5568' }}>
                       租金範圍 (HK$ / 月)
                     </Label>
@@ -370,9 +450,9 @@ export function Home({
                     </div>
                   </div>
 
-                  <div aria-hidden className="my-1 w-px shrink-0 self-stretch bg-gray-200" />
+                  <div aria-hidden className="my-1 hidden w-px shrink-0 self-stretch bg-gray-200 md:block" />
 
-                  <div className="flex w-[min(100%,7.5rem)] min-w-[5.5rem] shrink-0 flex-col gap-2 px-2 sm:w-[6.5rem] sm:min-w-[6.5rem] sm:px-3">
+                  <div className="flex w-full min-w-0 flex-col gap-2 px-0 sm:max-w-sm md:w-[6.5rem] md:min-w-[5.5rem] md:shrink-0 md:px-2">
                     <Label className="block text-left text-xs font-medium leading-none" style={{ color: '#4a5568' }}>
                       單位類型
                     </Label>
@@ -388,9 +468,9 @@ export function Home({
                     </Select>
                   </div>
 
-                  <div aria-hidden className="my-1 w-px shrink-0 self-stretch bg-gray-200" />
+                  <div aria-hidden className="my-1 hidden w-px shrink-0 self-stretch bg-gray-200 md:block" />
 
-                  <div className="flex min-w-[6.5rem] shrink-0 flex-col gap-2 px-2 sm:min-w-[7.5rem] sm:px-3">
+                  <div className="flex w-full min-w-0 flex-col gap-2 px-0 sm:max-w-sm md:min-w-[7.5rem] md:shrink-0 md:px-3">
                     <Label className="block text-left text-xs font-medium leading-none" style={{ color: '#4a5568' }}>
                       房間數目
                     </Label>
@@ -408,9 +488,9 @@ export function Home({
                     </Select>
                   </div>
 
-                  <div aria-hidden className="my-1 w-px shrink-0 self-stretch bg-gray-200" />
+                  <div aria-hidden className="my-1 hidden w-px shrink-0 self-stretch bg-gray-200 md:block" />
 
-                  <div className="flex min-w-[5.5rem] flex-1 items-center justify-end pl-1 pr-0 sm:min-w-0 sm:pl-2 sm:pr-1">
+                  <div className="flex w-full min-w-0 flex-1 items-center justify-start pl-0 pt-1 sm:justify-end md:min-w-0 md:justify-end md:pl-1 md:pr-0">
                     <button
                       type="button"
                       onClick={() => setSearchDialogOpen(true)}
@@ -430,11 +510,11 @@ export function Home({
         id="listings"
         className="mx-auto w-full max-w-[1360px] px-4 pb-10 pt-6 md:px-12 md:pb-12 md:pt-10 lg:px-16 lg:pb-14"
       >
-        <div className="mb-5 flex items-center justify-between">
-          <h2 className="text-xl" style={{ color: NAVY }}>
+        <div className="mb-4 flex flex-col gap-1.5 sm:mb-5 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+          <h2 className="text-lg sm:text-xl" style={{ color: NAVY }}>
             {activeTab === 'favorites' ? '我的最愛' : '推薦租盤'}
           </h2>
-          <span className="text-sm text-gray-500">{listings.length} 個結果</span>
+          <span className="shrink-0 text-sm text-gray-500">{listings.length} 個結果</span>
         </div>
 
         {listings.length === 0 ? (
@@ -446,16 +526,19 @@ export function Home({
                 : '找不到符合條件的租盤，可試試清空關鍵字或放寬租金／篩選。'}
           </div>
         ) : (
-          <div className="grid grid-cols-3 gap-x-12 gap-y-12">
+          <div
+            className="grid grid-cols-1 gap-6 sm:grid-cols-2 sm:gap-8 lg:grid-cols-3 lg:gap-x-10 lg:gap-y-12"
+            role="list"
+            aria-label="租盤列表"
+          >
+            {/* 手機 1 欄、平板 2 欄（sm+）、桌面 3 欄（lg+） */}
             {listings.map((property) => (
-              <div key={property.id} className="flex justify-center px-2">
-                <div className="w-[70%]">
-                  <PropertyCard
-                    property={property}
-                    onToggleFavorite={toggleFavorite}
-                    onClick={() => onPropertyClick(property)}
-                  />
-                </div>
+              <div key={property.id} className="min-w-0 max-w-full" role="listitem">
+                <PropertyCard
+                  property={property}
+                  onToggleFavorite={toggleFavorite}
+                  onClick={() => onPropertyClick(property)}
+                />
               </div>
             ))}
           </div>

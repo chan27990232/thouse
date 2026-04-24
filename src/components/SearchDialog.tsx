@@ -135,7 +135,7 @@ export function SearchDialog({ open, onOpenChange, onSearch }: SearchDialogProps
 
             {/* Area Selection Dropdown */}
             {areaType === 'district' && (
-              <div className="grid grid-cols-2 gap-2 mt-2">
+              <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {districts.map(district => (
                   <button
                     key={district}
@@ -153,7 +153,7 @@ export function SearchDialog({ open, onOpenChange, onSearch }: SearchDialogProps
             )}
 
             {areaType === 'tube' && (
-              <div className="grid grid-cols-2 gap-2 mt-2">
+              <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {tubeLines.map(line => (
                   <button
                     key={line}
@@ -308,7 +308,7 @@ export function SearchDialog({ open, onOpenChange, onSearch }: SearchDialogProps
               <CheckCircle className="w-4 h-4" />
               設施
             </Label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {amenitiesList.map(amenity => (
                 <div key={amenity} className="flex items-center space-x-2">
                   <Checkbox 
@@ -325,11 +325,11 @@ export function SearchDialog({ open, onOpenChange, onSearch }: SearchDialogProps
           </div>
 
           {/* Action Buttons */}
-          <div className="flex gap-2 pt-4">
-            <Button variant="outline" onClick={handleReset} className="flex-1">
+          <div className="flex flex-col gap-2 pt-4 sm:flex-row sm:gap-2">
+            <Button variant="outline" onClick={handleReset} className="w-full flex-1 sm:min-w-0">
               重設
             </Button>
-            <Button onClick={handleSearch} className="flex-1 bg-black text-white hover:bg-gray-800">
+            <Button onClick={handleSearch} className="w-full flex-1 bg-black text-white hover:bg-gray-800 sm:min-w-0">
               搜尋
             </Button>
           </div>

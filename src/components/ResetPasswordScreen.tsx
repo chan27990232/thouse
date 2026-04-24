@@ -49,15 +49,15 @@ export function ResetPasswordScreen({ onBack, onSuccess }: ResetPasswordScreenPr
   };
 
   return (
-    <div className="max-w-xl mx-auto bg-white min-h-screen">
-      <div className="p-4 border-b">
+    <div className="mx-auto min-h-screen w-full min-w-0 max-w-xl overflow-x-hidden bg-white">
+      <div className="border-b p-4">
         <button onClick={onBack} className="flex items-center gap-2 text-gray-600 hover:text-black">
           <ArrowLeft className="w-5 h-5" />
           <span>返回</span>
         </button>
       </div>
 
-      <div className="px-6 py-12">
+      <div className="min-w-0 px-4 py-10 sm:px-6 sm:py-12">
         <div className="text-center mb-8">
           <h1 className="text-2xl mb-2">設定新密碼</h1>
           <p className="text-gray-600">請輸入並確認你的新密碼。</p>

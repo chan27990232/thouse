@@ -72,7 +72,7 @@ export function MyRentals() {
       <h1 className="text-2xl mb-6">我的租賃</h1>
 
       <Tabs defaultValue="active" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-1 gap-1 sm:grid-cols-3">
           <TabsTrigger value="active">租賃中</TabsTrigger>
           <TabsTrigger value="pending">待審核</TabsTrigger>
           <TabsTrigger value="past">歷史記錄</TabsTrigger>

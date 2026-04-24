@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Home, Plus, DollarSign, Users, Bell, Settings, FileText, TrendingUp, MessageCircle, User } from 'lucide-react';
+import { Home, Plus, DollarSign, Users, Bell, Settings, FileText, FileUp, TrendingUp, MessageCircle, User } from 'lucide-react';
 import { Property } from '../App';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
@@ -9,6 +9,7 @@ import { Textarea } from './ui/textarea';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { NoticeDialog } from './NoticeDialog';
 import { PropertyManagementDialog } from './PropertyManagementDialog';
+import { UtilityBillUploadDialog } from './UtilityBillUploadDialog';
 import { dedupePropertyRows, defaultPropertyImage } from '../lib/properties';
 import { fetchUnreadInquiryCount } from '../lib/conversations';
 import { fetchPendingApplicationCounts } from '../lib/leaseApplications';
@@ -43,6 +44,8 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
   const [selectedProperty, setSelectedProperty] = useState<ManagedProperty | null>(null);
   const [dialogMode, setDialogMode] = useState<'details' | 'lease'>('details');
   const [managementOpen, setManagementOpen] = useState(false);
+  const [utilityDialogOpen, setUtilityDialogOpen] = useState(false);
+  const [utilityProperty, setUtilityProperty] = useState<ManagedProperty | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [currentLandlordId, setCurrentLandlordId] = useState<string | null>(null);
   const [myProperties, setMyProperties] = useState<ManagedProperty[]>([]);
@@ -277,18 +280,18 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
 
   return (
     <>
-    <div className="max-w-7xl mx-auto bg-white min-h-screen pb-20 md:pb-8 flex flex-col w-full">
+    <div className="mx-auto flex min-h-screen w-full min-w-0 max-w-7xl flex-col overflow-x-hidden bg-white pb-20 md:pb-8">
       {/* Header */}
-      <div className="p-4 md:px-6 lg:px-8 bg-white sticky top-0 z-10 border-b shrink-0">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <img src={thouseLogo} alt="簡屋" className="w-10 h-10" />
-            <div>
+      <div className="shrink-0 border-b bg-white p-4 md:px-6 lg:px-8 sticky top-0 z-10">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <img src={thouseLogo} alt="簡屋" className="h-10 w-10 shrink-0" />
+            <div className="min-w-0">
               <span className="tracking-wider">簡屋</span>
               <p className="text-xs text-gray-600">業主管理</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-1 sm:gap-2">
             <button onClick={() => setNoticeOpen(true)} className="relative p-2 rounded-full bg-gray-100 hover:bg-gray-200">
               <Bell className="w-5 h-5 text-gray-600" />
               {unreadCount > 0 && <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>}
@@ -313,7 +316,7 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
         {activeTab === 'dashboard' && (
           <>
             {/* Stats Cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+            <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <div className="bg-gray-50 p-4 rounded-lg">
                 <div className="flex items-center justify-between mb-2">
                   <Home className="w-5 h-5 text-gray-600" />
@@ -382,7 +385,7 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
                       <Label>樓層</Label>
                       <Input type="number" placeholder="1" value={formFloor} onChange={(e) => setFormFloor(e.target.value)} />
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <div>
                         <Label>房間數</Label>
                         <Input type="number" placeholder="1" value={formBedrooms} onChange={(e) => setFormBedrooms(e.target.value)} />
@@ -481,22 +484,22 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
                 <div className="space-y-5">
                   {myProperties.map((property) => (
                     <div key={property.id} className="rounded-lg border border-gray-200 p-4 bg-white">
-                      <div className="flex gap-4 items-start">
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
                         <ImageWithFallback
                           src={property.image}
                           alt={property.title}
-                          className="w-56 h-40 object-cover rounded-md shrink-0"
+                          className="h-44 w-full shrink-0 rounded-md object-cover sm:h-40 sm:w-56"
                         />
 
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between gap-3 mb-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
                             <div className="min-w-0">
                               <h3 className="font-medium truncate">{property.title}</h3>
                               <p className="text-sm text-gray-500 mt-1">
                                 {property.area} 平方呎 ・ {property.floor} 樓 ・ {property.bedrooms} 房 {property.bathrooms} 廁
                               </p>
                             </div>
-                            <div className="flex flex-col items-end gap-1 shrink-0">
+                            <div className="flex shrink-0 flex-row flex-wrap items-center gap-1 sm:flex-col sm:items-end">
                               <span
                                 className={`text-xs px-2 py-1 rounded-full whitespace-nowrap ${
                                   property.status === '已出租'
@@ -546,20 +549,32 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
                             </div>
                           </div>
 
-                          <div className="flex gap-2">
+                          <div className="flex min-h-11 flex-col gap-2 sm:min-h-0 sm:flex-row sm:flex-wrap sm:gap-2">
                             <Button
                               variant="outline"
-                              className="flex-1"
+                              className="w-full min-h-11 flex-1 sm:min-h-10 sm:min-w-[8rem] sm:flex-1"
                             onClick={() => openPropertyDialog(property, 'details')}
                             >
                               查看詳情
                             </Button>
                           <Button
-                            className="flex-1 bg-black text-white hover:bg-gray-800"
+                            className="w-full min-h-11 flex-1 bg-black text-white hover:bg-gray-800 sm:min-h-10 sm:min-w-[8rem] sm:flex-1"
                             onClick={() => openPropertyDialog(property, 'lease')}
                           >
                             管理租約
                           </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="w-full min-h-11 flex-1 border-dashed sm:min-h-10 sm:min-w-full sm:flex-[1_1_100%]"
+                              onClick={() => {
+                                setUtilityProperty(property);
+                                setUtilityDialogOpen(true);
+                              }}
+                            >
+                              <FileUp className="mr-2 h-4 w-4 shrink-0" />
+                              上傳每月水電煤單
+                            </Button>
                           </div>
                         </div>
                       </div>
@@ -615,6 +630,14 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
         onOpenChange={setManagementOpen}
         property={selectedProperty}
         mode={dialogMode}
+      />
+      <UtilityBillUploadDialog
+        open={utilityDialogOpen}
+        onOpenChange={(o) => {
+          setUtilityDialogOpen(o);
+          if (!o) setUtilityProperty(null);
+        }}
+        property={utilityProperty ? { id: utilityProperty.id, title: utilityProperty.title } : null}
       />
     </>
   );

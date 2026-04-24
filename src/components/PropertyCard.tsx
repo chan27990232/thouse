@@ -10,7 +10,7 @@ interface PropertyCardProps {
 
 export function PropertyCard({ property, onToggleFavorite, onClick }: PropertyCardProps) {
   return (
-    <div className="h-full bg-white rounded-lg overflow-hidden border border-gray-200 hover:shadow-lg transition-shadow flex flex-col">
+    <div className="flex h-full min-w-0 max-w-full flex-col overflow-hidden rounded-lg border border-gray-200 bg-white transition-shadow hover:shadow-lg">
       <div className="relative">
         <ImageWithFallback
           src={property.image}
@@ -40,14 +40,15 @@ export function PropertyCard({ property, onToggleFavorite, onClick }: PropertyCa
           <span>🚿 {property.bathrooms} 公廁</span>
         </div>
         
-        <div className="flex items-center justify-between mt-auto">
-          <div>
-            <span className="text-2xl">${property.price}</span>
-            <span className="text-gray-500 ml-1">/月</span>
+        <div className="mt-auto flex flex-col gap-3 min-[380px]:flex-row min-[380px]:items-center min-[380px]:justify-between">
+          <div className="min-w-0">
+            <span className="text-xl tabular-nums min-[380px]:text-2xl">${property.price}</span>
+            <span className="ml-1 text-gray-500">/月</span>
           </div>
           <button
             onClick={onClick}
-            className="px-6 py-2 bg-black text-white hover:bg-gray-800 transition-colors"
+            className="min-h-11 w-full min-w-0 bg-black px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-gray-800 min-[380px]:w-auto min-[380px]:shrink-0 min-[380px]:px-6"
+            type="button"
           >
             租借
           </button>
