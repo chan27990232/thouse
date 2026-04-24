@@ -57,6 +57,14 @@
     },
     server: {
       port: 3000,
+      /** 佔用時直接報錯，避免實際跑在 3001 卻以為是 3000 導致 HMR 斷線 */
+      strictPort: true,
       open: true,
+      /** 穩定本機 HMR WebSocket，減少畫面底部「disconnected / reconnecting」 */
+      hmr: {
+        host: 'localhost',
+        port: 3000,
+        clientPort: 3000,
+      },
     },
   });

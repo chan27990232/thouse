@@ -1,3 +1,5 @@
+@tailwind utilities;
+
 * {
   box-sizing: border-box;
 }
@@ -46,15 +48,29 @@ textarea:focus {
 .app-shell {
   display: flex;
   min-height: 100vh;
+  flex-direction: column;
 }
 .app-nav {
-  width: 220px;
+  width: 100%;
   background: #161b22;
-  border-right: 1px solid #21262d;
-  padding: 1.25rem 0.75rem;
+  border-bottom: 1px solid #21262d;
+  padding: 0.75rem 0.75rem 1rem;
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+  flex-shrink: 0;
+}
+@media (min-width: 768px) {
+  .app-shell {
+    flex-direction: row;
+  }
+  .app-nav {
+    width: 220px;
+    max-width: 220px;
+    border-bottom: none;
+    border-right: 1px solid #21262d;
+    padding: 1.25rem 0.75rem;
+  }
 }
 .app-nav a {
   display: block;
@@ -71,8 +87,15 @@ textarea:focus {
 }
 .app-main {
   flex: 1;
-  padding: 1.5rem 2rem;
+  min-width: 0;
+  padding: 1rem 1rem 2rem;
   max-width: 1200px;
+  width: 100%;
+}
+@media (min-width: 640px) {
+  .app-main {
+    padding: 1.5rem 2rem 2.5rem;
+  }
 }
 .card {
   background: #161b22;

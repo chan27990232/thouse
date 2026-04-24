@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { Home } from './components/Home';
-import { TenantHome } from './components/TenantHome';
 import { LandlordHome } from './components/LandlordHome';
 import { AuthScreen } from './components/AuthScreen';
 import { PropertyDetail } from './components/PropertyDetail';
@@ -114,22 +113,14 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {currentScreen === 'home' && !isAuthenticated && (
-        <Home 
+      {currentScreen === 'home' && (!isAuthenticated || userRole !== 'landlord') && (
+        <Home
           onAuthClick={(role) => setCurrentScreen(role === 'tenant' ? 'auth-tenant' : 'auth-landlord')}
           isAuthenticated={isAuthenticated}
           userRole={userRole}
           onSignOut={handleSignOut}
           onPropertyClick={handlePropertyClick}
           onLandlordDashboard={() => setCurrentScreen('landlord-dashboard')}
-          onChatClick={() => setCurrentScreen('chat')}
-          onProfileClick={() => setCurrentScreen('profile')}
-        />
-      )}
-      {currentScreen === 'home' && isAuthenticated && userRole === 'tenant' && (
-        <TenantHome 
-          onSignOut={handleSignOut}
-          onPropertyClick={handlePropertyClick}
           onChatClick={() => setCurrentScreen('chat')}
           onProfileClick={() => setCurrentScreen('profile')}
         />

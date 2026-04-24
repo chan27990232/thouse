@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
-import { ArrowLeft, Bell, Heart, MoreVertical, Search, Send, ChevronLeft } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ArrowLeft, Bell, Heart, MoreVertical, Search, Send, ChevronLeft, Star } from 'lucide-react';
 import { Input } from './ui/input';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import thouseLogo from 'figma:asset/f0c80b0c66e9c54aea3881bdf7a4eb152cbc4c0b.png';
@@ -14,6 +14,7 @@ import {
   sendChatMessage,
 } from '../lib/conversations';
 import { defaultPropertyImage } from '../lib/properties';
+import { getProfileStarSummary, type StarSummary } from '../lib/transactionReviews';
 import { cn } from './ui/utils';
 
 interface ChatPageProps {
@@ -57,8 +58,15 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
   const [messages, setMessages] = useState<ConversationMessageRow[]>([]);
   const [msgLoading, setMsgLoading] = useState(false);
   const [draft, setDraft] = useState('');
+  const [peerStarSummary, setPeerStarSummary] = useState<StarSummary>({ avgStars: 0, reviewCount: 0 });
+  const [peerRatingLoading, setPeerRatingLoading] = useState(false);
 
   const activeThread = threads.find((t) => t.conversation.id === activeId) ?? null;
+
+  const activeTenantIdForLandlord = useMemo(() => {
+    if (userRole !== 'landlord' || !activeId) return null;
+    return threads.find((t) => t.conversation.id === activeId)?.conversation.tenant_id ?? null;
+  }, [userRole, activeId, threads]);
 
   const loadThreads = useCallback(async (uid: string) => {
     setListLoading(true);
@@ -127,6 +135,29 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
       cancelled = true;
     };
   }, [activeId, userId, loadThreads]);
+
+  useEffect(() => {
+    if (!activeTenantIdForLandlord) {
+      setPeerStarSummary({ avgStars: 0, reviewCount: 0 });
+      setPeerRatingLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setPeerRatingLoading(true);
+    (async () => {
+      try {
+        const s = await getProfileStarSummary(activeTenantIdForLandlord);
+        if (!cancelled) setPeerStarSummary(s);
+      } catch {
+        if (!cancelled) setPeerStarSummary({ avgStars: 0, reviewCount: 0 });
+      } finally {
+        if (!cancelled) setPeerRatingLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTenantIdForLandlord]);
 
   const totalUnread = threads.reduce((s, t) => s + t.unreadCount, 0);
 
@@ -308,7 +339,46 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
                         {getAvatarText(activeThread.peerLabel)}
                       </div>
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold">{activeThread.peerLabel}</p>
+                        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
+                          <p className="min-w-0 max-w-full truncate text-sm font-semibold">
+                            {activeThread.peerLabel}
+                          </p>
+                          {userRole === 'landlord' ? (
+                            <span
+                              className="inline-flex shrink-0 items-center gap-0.5"
+                              title={
+                                peerStarSummary.reviewCount > 0
+                                  ? `平均 ${peerStarSummary.avgStars.toFixed(1)} 星 · ${peerStarSummary.reviewCount} 則評價`
+                                  : '未有交易評分'
+                              }
+                            >
+                              {peerRatingLoading ? (
+                                <span className="text-[11px] text-gray-400">評分載入中…</span>
+                              ) : (
+                                <>
+                                  {[1, 2, 3, 4, 5].map((n) => {
+                                    const has = peerStarSummary.reviewCount > 0;
+                                    const filled = has && n <= Math.round(peerStarSummary.avgStars);
+                                    return (
+                                      <Star
+                                        key={n}
+                                        className={`h-3.5 w-3.5 ${filled ? 'fill-amber-400 text-amber-500' : 'text-gray-300'}`}
+                                        aria-hidden
+                                      />
+                                    );
+                                  })}
+                                  {peerStarSummary.reviewCount === 0 ? (
+                                    <span className="pl-0.5 text-[11px] text-gray-500">(未有評分)</span>
+                                  ) : (
+                                    <span className="pl-0.5 text-[11px] text-gray-600 tabular-nums">
+                                      {peerStarSummary.avgStars.toFixed(1)}
+                                    </span>
+                                  )}
+                                </>
+                              )}
+                            </span>
+                          ) : null}
+                        </div>
                         <p className="truncate text-xs text-gray-500">
                           {getRoleLabel(userRole === 'landlord' ? 'tenant' : 'landlord')}
                         </p>

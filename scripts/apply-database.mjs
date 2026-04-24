@@ -99,6 +99,8 @@ const SQL_FILES = [
   'lease_applications.sql',
   'lease_applications_payment_columns.sql',
   'admin_support.sql',
+  'landlord_verification.sql',
+  'tenant_verification.sql',
   'ensure_property_storage_buckets.sql',
   'property_listing_verification.sql',
   'transaction_reviews.sql',

@@ -108,6 +108,7 @@ execute function public.trg_property_listing_verification();
 
 -- ========== RLS：讀取 ==========
 drop policy if exists "Public can read available properties" on public.properties;
+drop policy if exists "Public can read verified available properties" on public.properties;
 -- 已核准且為放租／已租，所有訪客可讀
 create policy "Public can read verified available properties"
 on public.properties

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { MessageCircle, Phone, Mail, Send, Check, User } from 'lucide-react';
+import { MessageCircle, Phone, Mail, Send, Check, User, Star } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -11,6 +11,7 @@ import { toast } from 'sonner@2.0.3';
 import { getPublicLandlordProfile } from '../lib/profiles';
 import { supabase } from '../lib/supabase';
 import { sendTenantInquiryMessage } from '../lib/conversations';
+import { getProfileStarSummary, type StarSummary } from '../lib/transactionReviews';
 
 interface ContactLandlordDialogProps {
   open: boolean;
@@ -23,6 +24,8 @@ export function ContactLandlordDialog({ open, onOpenChange, property, isAuthenti
   const [contactMethod, setContactMethod] = useState<'message' | 'call' | 'email'>('message');
   const [messageSent, setMessageSent] = useState(false);
   const [landlordLoading, setLandlordLoading] = useState(true);
+  const [ratingLoading, setRatingLoading] = useState(true);
+  const [starSummary, setStarSummary] = useState<StarSummary>({ avgStars: 0, reviewCount: 0 });
   
   // Message form
   const [name, setName] = useState('');
@@ -56,11 +59,25 @@ export function ContactLandlordDialog({ open, onOpenChange, property, isAuthenti
       if (!property.landlordId) {
         if (isMounted) {
           setLandlordLoading(false);
+          setRatingLoading(false);
+          setStarSummary({ avgStars: 0, reviewCount: 0 });
         }
         return;
       }
 
       setLandlordLoading(true);
+      setRatingLoading(true);
+
+      let summary: StarSummary = { avgStars: 0, reviewCount: 0 };
+      try {
+        summary = await getProfileStarSummary(property.landlordId);
+      } catch {
+        summary = { avgStars: 0, reviewCount: 0 };
+      }
+      if (isMounted) {
+        setStarSummary(summary);
+        setRatingLoading(false);
+      }
 
       if (!isMounted) return;
 
@@ -257,6 +274,34 @@ export function ContactLandlordDialog({ open, onOpenChange, property, isAuthenti
                   </div>
                 </div>
               </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-600">
+              <span className="text-gray-500">評分</span>
+              {ratingLoading ? (
+                <span className="text-gray-400">載入中…</span>
+              ) : (
+                <>
+                  <div className="flex items-center gap-0.5" aria-hidden>
+                    {[1, 2, 3, 4, 5].map((n) => {
+                      const hasReviews = starSummary.reviewCount > 0;
+                      const filled = hasReviews && n <= Math.round(starSummary.avgStars);
+                      return (
+                        <Star
+                          key={n}
+                          className={`h-4 w-4 shrink-0 ${filled ? 'fill-amber-400 text-amber-500' : 'text-gray-300'}`}
+                        />
+                      );
+                    })}
+                  </div>
+                  {starSummary.reviewCount === 0 ? (
+                    <span className="text-gray-500">(未有評分)</span>
+                  ) : (
+                    <span className="text-gray-600">
+                      平均 {starSummary.avgStars.toFixed(1)} 星 · {starSummary.reviewCount} 則評價
+                    </span>
+                  )}
+                </>
+              )}
             </div>
             <div className="text-sm text-gray-600">
               平均回覆時間：{landlord.responseTime}

@@ -1,4 +1,6 @@
 import { useState } from 'react';
+
+const SEARCH_PRICE_MAX = 80000;
 import { Search, Home, DollarSign, Maximize2, Building, Layers, CheckCircle } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { Button } from './ui/button';
@@ -34,7 +36,7 @@ export function SearchDialog({ open, onOpenChange, onSearch }: SearchDialogProps
   const [location, setLocation] = useState('');
   const [areaType, setAreaType] = useState<'district' | 'tube' | 'school'>('district');
   const [selectedArea, setSelectedArea] = useState('');
-  const [priceRange, setPriceRange] = useState([0, 10000]);
+  const [priceRange, setPriceRange] = useState([0, SEARCH_PRICE_MAX]);
   const [areaRange, setAreaRange] = useState([0, 200]);
   const [bedrooms, setBedrooms] = useState<number | null>(null);
   const [bathrooms, setBathrooms] = useState<number | null>(null);
@@ -71,7 +73,7 @@ export function SearchDialog({ open, onOpenChange, onSearch }: SearchDialogProps
     setLocation('');
     setAreaType('district');
     setSelectedArea('');
-    setPriceRange([0, 10000]);
+    setPriceRange([0, SEARCH_PRICE_MAX]);
     setAreaRange([0, 200]);
     setBedrooms(null);
     setBathrooms(null);
@@ -191,19 +193,32 @@ export function SearchDialog({ open, onOpenChange, onSearch }: SearchDialogProps
           <div className="space-y-3">
             <Label className="flex items-center gap-2">
               <DollarSign className="w-4 h-4" />
-              租金範圍
+              租金範圍（HK$ 0 – {SEARCH_PRICE_MAX.toLocaleString('en-HK')}）
             </Label>
+            <p
+              className="flex min-h-11 flex-wrap items-center justify-between gap-2 rounded-lg border border-gray-200 bg-slate-50 px-3 py-2.5 text-sm font-medium tabular-nums text-gray-900"
+              aria-live="polite"
+              aria-atomic="true"
+            >
+              <span>最低 HK$ {priceRange[0].toLocaleString('en-HK')}</span>
+              <span className="text-gray-300">|</span>
+              <span>
+                最高 HK$ {priceRange[1].toLocaleString('en-HK')}
+                {priceRange[1] >= SEARCH_PRICE_MAX ? '+' : ''}
+              </span>
+            </p>
             <div className="px-2">
               <Slider
                 value={priceRange}
                 onValueChange={setPriceRange}
                 min={0}
-                max={10000}
-                step={100}
+                max={SEARCH_PRICE_MAX}
+                step={200}
+                className="touch-manipulation"
               />
-              <div className="flex justify-between mt-2 text-sm text-gray-600">
-                <span>${priceRange[0]}</span>
-                <span>${priceRange[1]}</span>
+              <div className="mt-2 flex justify-between text-xs text-gray-500">
+                <span>HK$ 0</span>
+                <span>HK$ {SEARCH_PRICE_MAX.toLocaleString('en-HK')}+</span>
               </div>
             </div>
           </div>

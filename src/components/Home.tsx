@@ -18,6 +18,9 @@ import { ThouseHomeFooter } from './ThouseHomeFooter';
 /** Design mockup: deep navy for primary text, CTA, slider */
 const NAVY = '#1a365d' as const;
 
+/** 首頁英雄區租金雙向滑桿：0 – 80,000（與搜尋彈窗一致） */
+const HERO_PRICE_MAX = 80000;
+
 const HK_DISTRICTS = [
   '油麻地',
   '荃灣',
@@ -61,8 +64,7 @@ export function Home({
   const [selectedDistrict, setSelectedDistrict] = useState<string>('');
   const [selectedTubeLine, setSelectedTubeLine] = useState<string>('');
   const [selectedSchool, setSelectedSchool] = useState<string>('');
-  /** 預設要涵蓋資料庫常見月租（含低於 $5,000）與面積，避免一進頁就 0 筆 */
-  const [priceRange, setPriceRange] = useState([0, 100000]);
+  const [priceRange, setPriceRange] = useState([0, HERO_PRICE_MAX]);
   const [areaRange, setAreaRange] = useState([0, 10000]);
   const [floorLevel, setFloorLevel] = useState<string>('');
   const [hasToilet, setHasToilet] = useState(false);
@@ -270,9 +272,9 @@ export function Home({
         <div className="relative z-20 w-full -mt-[clamp(3.5rem,11vw,7.5rem)] px-3 pb-2 sm:px-5 md:px-6">
             {/* 白卡：寬約 80–88%、半疊在 banner 上；陰影與圓角對齊參考稿 */}
             <div className="mx-auto w-full max-w-6xl rounded-2xl border border-gray-200/90 bg-white p-6 shadow-lg sm:w-[min(100%,_88%)] sm:p-7 md:p-8 md:shadow-[0_12px_40px_rgba(15,23,42,0.12),0_4px_12px_rgba(15,23,42,0.06)]">
-                {/* 上列：關鍵字佔寬；搜尋鈕與租盤卡「租借」同為 px-6 py-2 */}
-                <div className="flex w-full min-w-0 flex-row items-center gap-0 overflow-hidden rounded-lg ring-1 ring-gray-200/80">
-                  <div className="flex min-h-0 min-w-0 flex-1 items-center gap-2.5 rounded-lg border border-gray-200 bg-gray-50/60 px-3 py-2 shadow-sm sm:rounded-r-none sm:border-0 sm:border-r sm:border-r-gray-200/90 sm:pl-4 sm:pr-3 md:pl-5">
+                {/* 上列：關鍵字與搜尋鈕分開，中留間隙；鈕為圓頭膠囊 */}
+                <div className="flex w-full min-w-0 flex-row items-center gap-3 sm:gap-4">
+                  <div className="flex min-h-0 min-w-0 flex-1 items-center gap-2.5 rounded-full border border-gray-200 bg-gray-50/60 px-4 py-2.5 shadow-sm ring-1 ring-gray-200/60">
                     <Search className="h-[18px] w-[18px] shrink-0 text-gray-400" />
                     <Input
                       type="text"
@@ -286,7 +288,7 @@ export function Home({
                   <Button
                     type="button"
                     onClick={runHeroSearch}
-                    className="!h-auto shrink-0 rounded-none border-0 px-6 !py-2 text-sm font-medium text-white transition hover:opacity-95 focus-visible:ring-2 focus-visible:ring-[#1a365d] focus-visible:ring-offset-2 sm:rounded-l-none sm:rounded-r-md"
+                    className="!h-auto shrink-0 rounded-full border-0 px-6 !py-2.5 text-sm font-medium text-white shadow-sm transition hover:opacity-95 focus-visible:ring-2 focus-visible:ring-[#1a365d] focus-visible:ring-offset-2"
                     style={{ backgroundColor: NAVY }}
                   >
                     搜尋
@@ -329,13 +331,33 @@ export function Home({
                       租金範圍 (HK$ / 月)
                     </Label>
                     <div className="pt-0.5">
+                      <p
+                        className="mb-2 flex min-h-[2.5rem] flex-wrap items-center justify-between gap-2 rounded-lg border border-gray-200/80 bg-slate-50/90 px-3 py-2 text-sm tabular-nums text-gray-800"
+                        aria-live="polite"
+                        aria-atomic="true"
+                      >
+                        <span>
+                          最低{' '}
+                          <strong className="font-semibold" style={{ color: NAVY }}>
+                            HK$ {priceRange[0].toLocaleString('en-HK')}
+                          </strong>
+                        </span>
+                        <span className="text-gray-300">|</span>
+                        <span>
+                          最高{' '}
+                          <strong className="font-semibold" style={{ color: NAVY }}>
+                            HK$ {priceRange[1].toLocaleString('en-HK')}
+                            {priceRange[1] >= HERO_PRICE_MAX ? '+' : ''}
+                          </strong>
+                        </span>
+                      </p>
                       <Slider
                         value={priceRange}
                         onValueChange={(v) => setPriceRange(v as [number, number])}
                         min={0}
-                        max={100000}
-                        step={1000}
-                        className="w-full"
+                        max={HERO_PRICE_MAX}
+                        step={200}
+                        className="w-full touch-manipulation"
                         rangeStyle={{ backgroundColor: NAVY }}
                         thumbStyle={{
                           backgroundColor: NAVY,
@@ -345,10 +367,6 @@ export function Home({
                           height: 20,
                         }}
                       />
-                      <div className="mt-2 flex justify-between text-xs text-gray-500">
-                        <span>HK$ 5,000</span>
-                        <span>HK$ 80,000+</span>
-                      </div>
                     </div>
                   </div>
 

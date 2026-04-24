@@ -1,13 +1,8 @@
 import type { ReactNode } from 'react';
 import thouseLogo from 'figma:asset/f0c80b0c66e9c54aea3881bdf7a4eb152cbc4c0b.png';
+import { FOOTER_LINK_TO_ID } from '../content/infoPages';
+import { useInfoPages } from '../context/InfoPagesContext';
 import { cn } from './ui/utils';
-
-const topLinks = [
-  { href: '#', label: '關於我們' },
-  { href: '#', label: '聯絡我們' },
-  { href: '#', label: '用戶守則及服務條款' },
-  { href: '#', label: '私隱政策' },
-] as const;
 
 const FOOTER_BG = '#3b3b3b' as const;
 const LINE = '1px solid rgba(255, 255, 255, 0.14)';
@@ -29,6 +24,7 @@ type ThouseHomeFooterProps = {
 };
 
 export function ThouseHomeFooter({ className }: ThouseHomeFooterProps) {
+  const { openInfoPage } = useInfoPages();
   const year = new Date().getFullYear();
 
   return (
@@ -46,19 +42,20 @@ export function ThouseHomeFooter({ className }: ThouseHomeFooterProps) {
             className="flex flex-wrap items-center justify-center lg:justify-end gap-y-3 text-sm sm:text-base font-normal tracking-wide"
             aria-label="頁尾導覽"
           >
-            {topLinks.map(({ href, label }, index) => (
+            {FOOTER_LINK_TO_ID.map(({ label, id }, index) => (
               <span key={label} className="inline-flex items-center shrink-0">
                 {index > 0 ? (
                   <span className="mx-3 sm:mx-5 md:mx-7 text-gray-400 select-none" aria-hidden>
                     |
                   </span>
                 ) : null}
-                <a
-                  href={href}
-                  className="px-2 py-2 rounded-sm text-white transition-colors hover:underline underline-offset-4"
+                <button
+                  type="button"
+                  onClick={() => openInfoPage(id)}
+                  className="px-2 py-2 rounded-sm text-left text-white transition-colors hover:underline hover:underline-offset-4"
                 >
                   {label}
-                </a>
+                </button>
               </span>
             ))}
           </nav>
@@ -71,19 +68,17 @@ export function ThouseHomeFooter({ className }: ThouseHomeFooterProps) {
             className="flex flex-col gap-4 sm:flex-row sm:items-center pb-6"
             style={{ borderBottom: LINE }}
           >
-            <div className="flex items-center">
+            <div className="flex min-w-0 items-center gap-8 sm:gap-10 md:gap-12">
               <img
                 src={thouseLogo}
                 alt="Thouse 簡屋"
                 className="h-12 w-12 shrink-0 object-contain"
               />
-              <div
-                className="flex min-h-12 flex-col justify-center pl-4 sm:pl-5 ml-4 sm:ml-6 text-left border-l border-gray-300"
-                style={{ borderLeftColor: 'rgba(255, 255, 255, 0.2)' }}
-              >
-                <div className="text-xs font-normal tracking-wider text-gray-300">Thouse</div>
-                <div className="text-base sm:text-lg font-medium leading-none text-white">簡屋</div>
-              </div>
+              <p className="min-w-0 text-left text-sm sm:text-base leading-snug">
+                <span className="font-normal tracking-[0.12em] text-gray-300">THOUSE</span>
+                <span className="text-white/90"> </span>
+                <span className="font-semibold text-white">簡屋有限公司</span>
+              </p>
             </div>
           </div>
 
