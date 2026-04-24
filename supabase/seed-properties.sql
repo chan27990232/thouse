@@ -1,0 +1,66 @@
+-- 在套用 property_listing_verification.sql 之後，以下欄位須同時寫入（或由 migration 歷史核准）
+insert into public.properties (
+  landlord_id,
+  title,
+  image,
+  price,
+  area,
+  floor,
+  bedrooms,
+  bathrooms,
+  district,
+  description,
+  status,
+  proof_photo_urls,
+  property_deed_url,
+  verification_status
+)
+values
+(
+  (select id from public.profiles where username = 'landlord' limit 1),
+  '油麻地 雅賓大廈 劏房',
+  'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=800&auto=format&fit=crop',
+  3450,
+  74,
+  1,
+  1,
+  1,
+  '油麻地',
+  '位置方便，適合單人租住，鄰近交通及生活配套。',
+  'available',
+  '[]'::jsonb,
+  '',
+  'approved'
+),
+(
+  (select id from public.profiles where username = 'landlord' limit 1),
+  '荃灣 村屋 劏房',
+  'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=800&auto=format&fit=crop',
+  3200,
+  102,
+  4,
+  1,
+  1,
+  '荃灣',
+  '空間實用，環境安靜，適合喜歡住宅區的租客。',
+  'available',
+  '[]'::jsonb,
+  '',
+  'approved'
+),
+(
+  (select id from public.profiles where username = 'landlord' limit 1),
+  '旺角 豪華公寓 劏房',
+  'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=800&auto=format&fit=crop',
+  4800,
+  84,
+  12,
+  1,
+  1,
+  '旺角',
+  '核心市區位置，交通極為便利，附近餐飲及商場齊全。',
+  'available',
+  '[]'::jsonb,
+  '',
+  'approved'
+);

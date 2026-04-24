@@ -21,13 +21,8 @@ export const LandlordDashboard: React.FC<Props> = ({ onBack }) => {
       <main className="flex-1 px-4 py-4 space-y-4">
         <section className="rounded-xl bg-gradient-to-r from-black to-gray-800 text-white p-4 space-y-1">
           <div className="text-xs text-gray-300">可用餘額</div>
-          <div className="text-3xl font-semibold">$12,450.50</div>
-          <button
-            type="button"
-            className="mt-3 px-3 py-1 text-xs bg-white text-black rounded-full"
-          >
-            提款
-          </button>
+          <div className="text-3xl font-semibold">—</div>
+          <p className="text-xs text-gray-400">提款功能將於正式上線時開放</p>
         </section>
 
         <section className="space-y-3">
@@ -63,14 +58,9 @@ export const LandlordDashboard: React.FC<Props> = ({ onBack }) => {
 
         <section className="space-y-2">
           <h2 className="text-sm font-semibold">最近活動</h2>
-          <ul className="space-y-2 text-xs text-gray-700">
-            <li>• 新租客 陳大文 簽署了租約（2 天前）</li>
-            <li>• 收到租金 $3,450 from 陳大文（5 天前）</li>
-            <li>• 尖沙咀 海景單位 進入維修狀態（1 週前）</li>
-          </ul>
+          <p className="text-xs text-gray-500">暫無記錄；活動將與平台帳務／申請串接後顯示。</p>
         </section>
       </main>
     </div>
   );
 };
-

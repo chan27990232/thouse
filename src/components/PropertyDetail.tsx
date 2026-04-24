@@ -1,112 +1,186 @@
-import React, { useState } from 'react';
-import type { Property } from '../types';
+import { useState } from 'react';
+import { ArrowLeft, MapPin, Home, Bed, Bath } from 'lucide-react';
+import { toast } from 'sonner@2.0.3';
+import { Property } from '../App';
+import { submitLeaseApplication } from '../lib/leaseApplications';
+import { Button } from './ui/button';
+import { RentalApplication, ApplicationData } from './RentalApplication';
+import { PaymentDialog } from './PaymentDialog';
 import { ContactLandlordDialog } from './ContactLandlordDialog';
-import { RentalApplication } from './RentalApplication';
+import { ImageWithFallback } from './figma/ImageWithFallback';
 
-interface Props {
+interface PropertyDetailProps {
   property: Property;
   onBack: () => void;
+  isAuthenticated: boolean;
 }
 
-export const PropertyDetail: React.FC<Props> = ({ property, onBack }) => {
-  const [showContact, setShowContact] = useState(false);
-  const [showApplication, setShowApplication] = useState(false);
+export function PropertyDetail({ property, onBack, isAuthenticated }: PropertyDetailProps) {
+  const [showRentalApp, setShowRentalApp] = useState(false);
+  const [showPayment, setShowPayment] = useState(false);
+  const [showContactDialog, setShowContactDialog] = useState(false);
+  const [applicationData, setApplicationData] = useState<ApplicationData | null>(null);
+
+  const handleProceedToPayment = (data: ApplicationData) => {
+    setApplicationData(data);
+    setShowRentalApp(false);
+    setShowPayment(true);
+  };
+
+  const handlePaymentSuccess = () => {
+    setShowPayment(false);
+    // Show success and navigate back
+    setTimeout(() => {
+      onBack();
+    }, 500);
+  };
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="max-w-5xl mx-auto bg-white min-h-screen">
+      {/* Header */}
       <div className="relative">
-        <img
+        <ImageWithFallback
           src={property.image}
           alt={property.title}
-          className="w-full h-72 object-cover"
+          className="w-full h-64 md:h-80 lg:h-[26rem] object-cover"
         />
-        <button
-          type="button"
+        <button 
           onClick={onBack}
-          className="absolute top-3 left-3 bg-white/90 px-3 py-1 rounded-full text-xs"
+          className="absolute top-4 left-4 bg-white p-2 rounded-full shadow-lg hover:bg-gray-100"
         >
-          返回
+          <ArrowLeft className="w-5 h-5" />
         </button>
       </div>
 
-      <main className="flex-1 px-4 py-4 space-y-4 pb-20">
-        <header className="flex items-start justify-between gap-3">
+      {/* Content */}
+      <div className="p-6 md:px-8 lg:px-10">
+        <div className="flex items-start justify-between mb-4">
           <div>
-            <h1 className="text-2xl font-semibold">{property.title}</h1>
-            <div className="text-sm text-gray-600 mt-1">
-              {property.district ?? '香港'} · 近地鐵站
+            <h1 className="text-2xl mb-1">{property.title}</h1>
+            <div className="flex items-center gap-2 text-gray-600">
+              <MapPin className="w-4 h-4" />
+              <span>香港</span>
             </div>
           </div>
           <div className="text-right">
-            <div className="text-2xl font-bold">
-              ${property.price.toLocaleString()}
+            <div className="text-3xl">${property.price}</div>
+            <div className="text-gray-500">/月</div>
+          </div>
+        </div>
+
+        {/* Property Details */}
+        <div className="grid grid-cols-4 gap-4 py-6 border-y">
+          <div className="text-center">
+            <Home className="w-6 h-6 mx-auto mb-2 text-gray-600" />
+            <div>{property.area}</div>
+            <div className="text-sm text-gray-500">平方呎</div>
+          </div>
+          <div className="text-center">
+            <Bed className="w-6 h-6 mx-auto mb-2 text-gray-600" />
+            <div>{property.bedrooms}</div>
+            <div className="text-sm text-gray-500">臥室</div>
+          </div>
+          <div className="text-center">
+            <Bath className="w-6 h-6 mx-auto mb-2 text-gray-600" />
+            <div>{property.bathrooms}</div>
+            <div className="text-sm text-gray-500">浴室</div>
+          </div>
+          <div className="text-center">
+            <div className="w-6 h-6 mx-auto mb-2 text-gray-600 flex items-center justify-center">
+              <span className="text-lg">🏢</span>
             </div>
-            <div className="text-xs text-gray-600">每月租金</div>
+            <div>{property.floor}</div>
+            <div className="text-sm text-gray-500">樓層</div>
           </div>
-        </header>
+        </div>
 
-        <section className="grid grid-cols-4 gap-2 text-center text-xs">
-          <div className="border rounded-lg py-2">
-            <div className="text-gray-500 text-[11px]">面積</div>
-            <div className="font-semibold">{property.area} 呎</div>
-          </div>
-          <div className="border rounded-lg py-2">
-            <div className="text-gray-500 text-[11px]">臥室</div>
-            <div className="font-semibold">{property.bedrooms}</div>
-          </div>
-          <div className="border rounded-lg py-2">
-            <div className="text-gray-500 text-[11px]">浴室</div>
-            <div className="font-semibold">{property.bathrooms}</div>
-          </div>
-          <div className="border rounded-lg py-2">
-            <div className="text-gray-500 text-[11px]">樓層</div>
-            <div className="font-semibold">{property.floor} 樓</div>
-          </div>
-        </section>
-
-        <section className="space-y-1">
-          <h2 className="font-semibold text-sm">物業簡介</h2>
-          <p className="text-sm text-gray-700 leading-relaxed">
-            精選劏房單位，交通方便，步行數分鐘即達地鐵站。鄰近商場及餐廳，生活配套齊全，適合年輕上班族及學生。
+        {/* Description */}
+        <div className="py-6">
+          <h2 className="mb-3">物業描述</h2>
+          <p className="text-gray-600 leading-relaxed">
+            此劏房位置優越，設備齊全，適合個人或小家庭居住。鄰近公共交通設施、購物中心及餐廳，生活便利。
           </p>
-        </section>
+        </div>
 
-        <section className="space-y-1">
-          <h2 className="font-semibold text-sm">配套設施</h2>
-          <ul className="grid grid-cols-2 gap-1 text-sm text-gray-700">
-            <li>• 冷氣</li>
-            <li>• WiFi</li>
-            <li>• 升降機</li>
-            <li>• 24 小時保安</li>
-          </ul>
-        </section>
-      </main>
+        {/* Amenities */}
+        <div className="py-6 border-t">
+          <h2 className="mb-3">設施</h2>
+          <div className="grid grid-cols-2 gap-3">
+            {['冷氣', '暖氣', 'WiFi', '停車場', '升降機', '保安'].map((amenity) => (
+              <div key={amenity} className="flex items-center gap-2 text-gray-600">
+                <div className="w-2 h-2 bg-black rounded-full" />
+                <span>{amenity}</span>
+              </div>
+            ))}
+          </div>
+        </div>
 
-      <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-mobile bg-white border-t px-4 py-3 flex gap-3">
-        <button
-          type="button"
-          onClick={() => setShowContact(true)}
-          className="flex-1 border rounded-full py-2 text-sm"
-        >
-          聯絡業主
-        </button>
-        <button
-          type="button"
-          onClick={() => setShowApplication(true)}
-          className="flex-1 bg-black text-white rounded-full py-2 text-sm"
-        >
-          立即申請
-        </button>
+        {/* CTA */}
+        <div className="flex gap-3 mt-6">
+          <Button 
+            variant="outline" 
+            className="flex-1"
+            onClick={() => setShowContactDialog(true)}
+          >
+            聯絡業主
+          </Button>
+          <Button
+            className="flex-1 bg-black text-white hover:bg-gray-800"
+            onClick={() => {
+              if (!isAuthenticated) {
+                toast.error('請先登入，以便完成線上簽約與支付首期。');
+                return;
+              }
+              setShowRentalApp(true);
+            }}
+          >
+            立即簽約
+          </Button>
+        </div>
       </div>
 
-      {showContact && <ContactLandlordDialog onClose={() => setShowContact(false)} />}
-      {showApplication && (
+      {/* Contact Landlord Dialog */}
+      {showContactDialog && (
+        <ContactLandlordDialog
+          open={showContactDialog}
+          onOpenChange={setShowContactDialog}
+          property={property}
+          isAuthenticated={isAuthenticated}
+        />
+      )}
+
+      {/* Rental Application */}
+      {showRentalApp && (
         <RentalApplication
-          monthlyRent={property.price}
-          onClose={() => setShowApplication(false)}
+          open={showRentalApp}
+          onOpenChange={setShowRentalApp}
+          property={property}
+          onProceedToPayment={handleProceedToPayment}
+        />
+      )}
+
+      {/* Payment Dialog */}
+      {showPayment && applicationData && (
+        <PaymentDialog
+          open={showPayment}
+          onOpenChange={setShowPayment}
+          property={property}
+          applicationData={applicationData}
+          onRecordLease={async (payment) => {
+            if (!property.landlordId) {
+              throw new Error('此物業缺少業主資料，無法通知業主。請重新從列表進入。');
+            }
+            return await submitLeaseApplication({
+              propertyId: property.id,
+              landlordId: property.landlordId,
+              monthlyPrice: property.price,
+              applicationData,
+              payment,
+            });
+          }}
+          onPaymentSuccess={handlePaymentSuccess}
         />
       )}
     </div>
   );
-};
-
+}
