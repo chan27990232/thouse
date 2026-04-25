@@ -71,11 +71,17 @@ export function MyRentals() {
     <div className="max-w-7xl mx-auto bg-white min-h-screen p-4 md:px-6 lg:px-8">
       <h1 className="text-2xl mb-6">我的租賃</h1>
 
-      <Tabs defaultValue="active" className="w-full">
-        <TabsList className="grid w-full grid-cols-1 gap-1 sm:grid-cols-3">
-          <TabsTrigger value="active">租賃中</TabsTrigger>
-          <TabsTrigger value="pending">待審核</TabsTrigger>
-          <TabsTrigger value="past">歷史記錄</TabsTrigger>
+      <Tabs defaultValue="active" className="w-full min-w-0">
+        <TabsList className="grid w-full min-w-0 grid-cols-1 gap-2 p-1.5 sm:grid sm:grid-cols-3 sm:gap-1 sm:p-1">
+          <TabsTrigger value="active" className="min-h-11 w-full justify-center sm:min-h-8 sm:flex-1">
+            租賃中
+          </TabsTrigger>
+          <TabsTrigger value="pending" className="min-h-11 w-full justify-center sm:min-h-8 sm:flex-1">
+            待審核
+          </TabsTrigger>
+          <TabsTrigger value="past" className="min-h-11 w-full justify-center sm:min-h-8 sm:flex-1">
+            歷史記錄
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="active" className="space-y-4 mt-4">

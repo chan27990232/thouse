@@ -225,7 +225,7 @@ export function ContactLandlordDialog({ open, onOpenChange, property, isAuthenti
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto overflow-x-hidden sm:max-h-[85vh]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <MessageCircle className="w-5 h-5" />
@@ -319,24 +319,33 @@ export function ContactLandlordDialog({ open, onOpenChange, property, isAuthenti
           </div>
 
           {/* Contact Methods Tabs */}
-          <Tabs value={contactMethod} onValueChange={(v) => setContactMethod(v as any)}>
-            <TabsList className="grid w-full grid-cols-1 gap-1 sm:grid-cols-3">
-              <TabsTrigger value="message">
-                <MessageCircle className="w-4 h-4 mr-1" />
+          <Tabs value={contactMethod} onValueChange={(v) => setContactMethod(v as any)} className="w-full min-w-0">
+            <TabsList className="grid w-full min-w-0 grid-cols-1 gap-2 p-1.5 sm:grid sm:grid-cols-3 sm:gap-1 sm:p-1">
+              <TabsTrigger
+                value="message"
+                className="min-h-11 w-full justify-center gap-2 sm:min-h-8 sm:flex-1"
+              >
+                <MessageCircle className="h-4 w-4 shrink-0" />
                 訊息
               </TabsTrigger>
-              <TabsTrigger value="call">
-                <Phone className="w-4 h-4 mr-1" />
+              <TabsTrigger
+                value="call"
+                className="min-h-11 w-full justify-center gap-2 sm:min-h-8 sm:flex-1"
+              >
+                <Phone className="h-4 w-4 shrink-0" />
                 電話
               </TabsTrigger>
-              <TabsTrigger value="email">
-                <Mail className="w-4 h-4 mr-1" />
+              <TabsTrigger
+                value="email"
+                className="min-h-11 w-full justify-center gap-2 sm:min-h-8 sm:flex-1"
+              >
+                <Mail className="h-4 w-4 shrink-0" />
                 電郵
               </TabsTrigger>
             </TabsList>
 
             {/* Message Tab */}
-            <TabsContent value="message" className="space-y-4 mt-4">
+            <TabsContent value="message" className="mt-4 space-y-4 data-[state=inactive]:hidden">
               <div className="space-y-2">
                 <Label htmlFor="name">您的姓名 *</Label>
                 <Input
@@ -413,7 +422,7 @@ export function ContactLandlordDialog({ open, onOpenChange, property, isAuthenti
             </TabsContent>
 
             {/* Call Tab */}
-            <TabsContent value="call" className="space-y-4 mt-4">
+            <TabsContent value="call" className="mt-4 space-y-4 data-[state=inactive]:hidden">
               <div className="text-center py-8 space-y-4">
                 <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto">
                   <Phone className="w-10 h-10 text-blue-600" />
@@ -441,7 +450,7 @@ export function ContactLandlordDialog({ open, onOpenChange, property, isAuthenti
             </TabsContent>
 
             {/* Email Tab */}
-            <TabsContent value="email" className="space-y-4 mt-4">
+            <TabsContent value="email" className="mt-4 space-y-4 data-[state=inactive]:hidden">
               <div className="text-center py-8 space-y-4">
                 <div className="w-20 h-20 bg-purple-100 rounded-full flex items-center justify-center mx-auto">
                   <Mail className="w-10 h-10 text-purple-600" />

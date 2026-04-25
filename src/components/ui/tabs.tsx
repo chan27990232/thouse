@@ -26,7 +26,8 @@ function TabsList({
     <TabsPrimitive.List
       data-slot="tabs-list"
       className={cn(
-        "bg-muted text-muted-foreground inline-flex h-9 w-fit items-center justify-center rounded-xl p-[3px] flex",
+        // min-h-9 + h-auto：避免與外層 grid 直向併排時，固定 h-9 把多粒 Trigger 壓到同一 36px 內導致重疊
+        "inline-flex h-auto min-h-9 w-fit max-w-full items-stretch justify-center gap-0 rounded-xl bg-muted p-[3px] text-muted-foreground",
         className,
       )}
       {...props}

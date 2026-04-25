@@ -1,8 +1,13 @@
 node_modules/
 dist/
 build/
+
+# Electron / admin 桌面版產物（體積大，勿提交；改用 release 附件或雲端發佈）
+admin-portal/release/
+admin-portal/dist/
 .env
 .env.*
 !.env.example
 *.local
 .DS_Store
+*backup*.code-workspace
