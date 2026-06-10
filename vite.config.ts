@@ -3,9 +3,13 @@
   import react from '@vitejs/plugin-react-swc';
   import tailwindcss from '@tailwindcss/vite';
   import path from 'path';
+  import { registerTenantDevApi } from './server/registerTenantDevPlugin';
 
   export default defineConfig({
-    plugins: [tailwindcss(), react()],
+    plugins: [tailwindcss(), react(), registerTenantDevApi()],
+    optimizeDeps: {
+      include: ['sonner'],
+    },
     resolve: {
       extensions: ['.js', '.jsx', '.ts', '.tsx', '.json'],
       alias: {

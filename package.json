@@ -67,6 +67,7 @@
             "db:admin-properties-policy": "node scripts/apply-database.mjs admin_properties_write.sql",
             "add-admin": "node scripts/add-app-admin-by-email.mjs",
             "db:fix-landlord": "node scripts/apply-database.mjs fix_properties_landlord_by_email.sql",
-            "db:fix-landlord-uuid": "node scripts/apply-database.mjs fix_properties_landlord_to_uuid.sql"
+            "db:fix-landlord-uuid": "node scripts/apply-database.mjs fix_properties_landlord_to_uuid.sql",
+            "db:hk-holidays": "node scripts/seed-hk-public-holidays.mjs"
       }
 }

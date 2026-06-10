@@ -29,7 +29,7 @@ export function DashboardPage() {
     <div>
       <h1 style={{ marginTop: 0, fontSize: '1.5rem' }}>總覽</h1>
       <p className="muted" style={{ marginBottom: '1.5rem' }}>
-        監管註冊用戶、處理客服工單、檢視租客與業主站內對話（唯讀）。
+        監管註冊用戶、處理客服對話、檢視租客與業主站內對話（唯讀）。
       </p>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '1rem' }}>
         <div className="card">
@@ -40,7 +40,7 @@ export function DashboardPage() {
         </div>
         <div className="card">
           <div className="muted" style={{ fontSize: '0.8rem' }}>
-            待辦工單
+            待辦對話
           </div>
           <div style={{ fontSize: '1.75rem', fontWeight: 600, marginTop: '0.25rem' }}>{openTickets ?? '—'}</div>
         </div>

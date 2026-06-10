@@ -15,7 +15,7 @@ export const INFO_PAGES: Record<
     title: '聯絡我們',
     paragraphs: [
       '如有查詢、合作或技術支援，請電郵至：',
-      'hello@thouse.example',
+      'thouseltdinfo@gmail.com',
       '服務時間：星期一至五 10:00–18:00（公眾假期除外）。',
     ],
   },

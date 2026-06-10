@@ -6,11 +6,15 @@ import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { UsersPage } from './pages/UsersPage';
 import { TicketsPage } from './pages/TicketsPage';
-import { TicketDetailPage } from './pages/TicketDetailPage';
+import { PropertiesPage } from './pages/PropertiesPage';
 import { ConversationsPage } from './pages/ConversationsPage';
 import { ConversationDetailPage } from './pages/ConversationDetailPage';
-import { PropertiesPage } from './pages/PropertiesPage';
+import { LeaseApplicationsPage } from './pages/LeaseApplicationsPage';
+import { LeaseManagementRequestsPage } from './pages/LeaseManagementRequestsPage';
 import { PropertyEditPage } from './pages/PropertyEditPage';
+import { PropertyManagePage } from './pages/PropertyManagePage';
+import { PaymentReceiptsPage } from './pages/PaymentReceiptsPage';
+import { LandlordWithdrawalsPage } from './pages/LandlordWithdrawalsPage';
 
 function AdminShell() {
   return (
@@ -23,11 +27,23 @@ function AdminShell() {
         <NavLink to="/users" className={({ isActive }) => (isActive ? 'active' : '')}>
           用戶
         </NavLink>
+        <NavLink to="/leases" className={({ isActive }) => (isActive ? 'active' : '')}>
+          租約申請
+        </NavLink>
+        <NavLink to="/lease-changes" className={({ isActive }) => (isActive ? 'active' : '')}>
+          租約變更
+        </NavLink>
         <NavLink to="/properties" className={({ isActive }) => (isActive ? 'active' : '')}>
           租盤
         </NavLink>
+        <NavLink to="/payments" className={({ isActive }) => (isActive ? 'active' : '')}>
+          付款收據
+        </NavLink>
+        <NavLink to="/withdrawals" className={({ isActive }) => (isActive ? 'active' : '')}>
+          業主提現
+        </NavLink>
         <NavLink to="/tickets" className={({ isActive }) => (isActive ? 'active' : '')}>
-          客服工單
+          客服對話
         </NavLink>
         <NavLink to="/chats" className={({ isActive }) => (isActive ? 'active' : '')}>
           對話監管
@@ -119,10 +135,15 @@ export default function App() {
       <Route element={<AdminShell />}>
         <Route path="/" element={<DashboardPage />} />
         <Route path="/users" element={<UsersPage />} />
+        <Route path="/leases" element={<LeaseApplicationsPage />} />
+        <Route path="/lease-changes" element={<LeaseManagementRequestsPage />} />
         <Route path="/properties" element={<PropertiesPage />} />
-        <Route path="/properties/:id" element={<PropertyEditPage />} />
+        <Route path="/properties/:id" element={<PropertyManagePage />} />
+        <Route path="/properties/:id/edit" element={<PropertyEditPage />} />
+        <Route path="/payments" element={<PaymentReceiptsPage />} />
+        <Route path="/withdrawals" element={<LandlordWithdrawalsPage />} />
         <Route path="/tickets" element={<TicketsPage />} />
-        <Route path="/tickets/:id" element={<TicketDetailPage />} />
+        <Route path="/tickets/:id" element={<TicketsPage />} />
         <Route path="/chats" element={<ConversationsPage />} />
         <Route path="/chats/:id" element={<ConversationDetailPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />

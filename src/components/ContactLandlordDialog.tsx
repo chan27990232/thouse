@@ -7,7 +7,7 @@ import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { Property } from '../App';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { getPublicLandlordProfile } from '../lib/profiles';
 import { supabase } from '../lib/supabase';
 import { sendTenantInquiryMessage } from '../lib/conversations';

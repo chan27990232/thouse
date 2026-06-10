@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Toaster } from 'sonner';
 import { Home } from './components/Home';
 import { LandlordHome } from './components/LandlordHome';
 import { AuthScreen } from './components/AuthScreen';
@@ -7,6 +8,9 @@ import { LandlordDashboard } from './components/LandlordDashboard';
 import { ChatPage } from './components/ChatPage';
 import { ResetPasswordScreen } from './components/ResetPasswordScreen';
 import { ProfilePage } from './components/ProfilePage';
+import { TenantMyPropertiesPage } from './components/TenantMyPropertiesPage';
+import { TenantLeaseApplicationsPage } from './components/TenantLeaseApplicationsPage';
+import { MockDateDevBanner } from './components/MockDateDevBanner';
 import { supabase } from './lib/supabase';
 import { AUTH_ROLE_STORAGE_KEY, getRoleFromMetadata, getStoredAuthRole } from './lib/auth';
 import { syncProfileForUser } from './lib/profiles';
@@ -28,7 +32,7 @@ export interface Property {
 
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<
-    'home' | 'auth-tenant' | 'auth-landlord' | 'property' | 'landlord-dashboard' | 'chat' | 'reset-password' | 'profile'
+    'home' | 'auth-tenant' | 'auth-landlord' | 'property' | 'landlord-dashboard' | 'chat' | 'reset-password' | 'profile' | 'my-properties' | 'lease-applications'
   >('home');
   const [userRole, setUserRole] = useState<UserRole>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -113,6 +117,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen min-w-0 overflow-x-hidden bg-gray-50">
+      <MockDateDevBanner />
       {currentScreen === 'home' && (!isAuthenticated || userRole !== 'landlord') && (
         <Home
           onAuthClick={(role) => setCurrentScreen(role === 'tenant' ? 'auth-tenant' : 'auth-landlord')}
@@ -123,6 +128,7 @@ export default function App() {
           onLandlordDashboard={() => setCurrentScreen('landlord-dashboard')}
           onChatClick={() => setCurrentScreen('chat')}
           onProfileClick={() => setCurrentScreen('profile')}
+          onMyPropertiesClick={() => setCurrentScreen('my-properties')}
         />
       )}
       {currentScreen === 'home' && isAuthenticated && userRole === 'landlord' && (
@@ -179,6 +185,16 @@ export default function App() {
           onSignOut={handleSignOut}
         />
       )}
+      {currentScreen === 'my-properties' && (
+        <TenantMyPropertiesPage
+          onBack={() => setCurrentScreen('home')}
+          onApplicationsClick={() => setCurrentScreen('lease-applications')}
+        />
+      )}
+      {currentScreen === 'lease-applications' && (
+        <TenantLeaseApplicationsPage onBack={() => setCurrentScreen('my-properties')} />
+      )}
+      <Toaster richColors position="top-center" />
     </div>
   );
 }

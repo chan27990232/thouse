@@ -22,19 +22,42 @@ function toNumber(value: number | string | null | undefined, fallback = 0) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-export type DedupePropertyStrategy = 'smallestId' | 'newestByCreatedAt';
+export type DedupePropertyStrategy = 'smallestId' | 'newestByCreatedAt' | 'landlordDashboard';
 
 type DedupeableRow = {
   id: string;
   landlord_id: string | null;
   title: string | null;
   created_at?: string | null;
+  status?: string | null;
 };
+
+function createdAtMs(row: DedupeableRow): number {
+  return row.created_at ? new Date(row.created_at).getTime() : 0;
+}
+
+function isRentedStatus(status: string | null | undefined): boolean {
+  return status === 'rented';
+}
+
+/** 業主後台：已出租優先於招租中，避免重複物業列顯示錯誤那一筆 */
+function shouldReplaceForLandlordDashboard<T extends DedupeableRow>(next: T, prev: T): boolean {
+  const nextRented = isRentedStatus(next.status);
+  const prevRented = isRentedStatus(prev.status);
+  if (nextRented !== prevRented) return nextRented;
+
+  const tc = createdAtMs(next);
+  const pc = createdAtMs(prev);
+  if (tc !== pc) return tc > pc;
+
+  return String(next.id) < String(prev.id);
+}
 
 /**
  * 合併同房東、同物業名稱（title）的多筆資料（多為重複 insert，不同 id）。
  * - `smallestId`：只保留 id 字典序最小的一筆（首頁列表用，與既有行為一致）
- * - `newestByCreatedAt`：保留 `created_at` 最新的一筆；業主後台用，讓剛儲存的那一筆勝出
+ * - `newestByCreatedAt`：保留 `created_at` 最新的一筆
+ * - `landlordDashboard`：已出租優先，其次較新建立（業主後台用）
  */
 export function dedupePropertyRows<T extends DedupeableRow>(
   rows: T[],
@@ -54,9 +77,13 @@ export function dedupePropertyRows<T extends DedupeableRow>(
       if (String(r.id) < String(prev.id)) {
         byKey.set(key, r);
       }
+    } else if (strategy === 'landlordDashboard') {
+      if (shouldReplaceForLandlordDashboard(r, prev)) {
+        byKey.set(key, r);
+      }
     } else {
-      const tc = r.created_at ? new Date(r.created_at).getTime() : 0;
-      const pc = prev.created_at ? new Date(prev.created_at).getTime() : 0;
+      const tc = createdAtMs(r);
+      const pc = createdAtMs(prev);
       if (tc > pc) {
         byKey.set(key, r);
       } else if (tc === pc && String(r.id) < String(prev.id)) {

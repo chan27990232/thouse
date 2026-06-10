@@ -15,13 +15,21 @@ create table if not exists public.lease_applications (
   emergency_phone text not null default '',
   additional_notes text not null default '',
   first_payment_total integer not null,
-  status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
+  status text not null default 'awaiting_platform_1'
+    check (status in (
+      'awaiting_platform_1',
+      'awaiting_landlord',
+      'awaiting_platform_2',
+      'approved',
+      'rejected'
+    )),
   created_at timestamp with time zone not null default now(),
   payment_method text check (payment_method is null or payment_method in ('card', 'fps', 'bank_transfer')),
   payment_status text check (payment_status is null or payment_status in ('succeeded', 'pending_bank', 'failed')),
   payment_reference text,
   card_last4 text,
-  paid_at timestamp with time zone
+  paid_at timestamp with time zone,
+  bank_transfer_receipt_url text
 );
 
 create unique index if not exists lease_applications_payment_reference_uidx
@@ -68,6 +76,7 @@ using (
     where p.id = (select auth.uid())
       and p.role = 'landlord'
   )
+  and status is distinct from 'awaiting_platform_1'
 );
 
 drop policy if exists "Tenants can read own applications" on public.lease_applications;

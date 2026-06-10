@@ -39,7 +39,7 @@ export function ThouseHomeFooter({ className }: ThouseHomeFooterProps) {
       >
         <div className="max-w-[1360px] mx-auto px-6 py-4">
           <nav
-            className="flex flex-wrap items-center justify-center lg:justify-end gap-y-3 text-sm sm:text-base font-normal tracking-wide"
+            className="flex flex-wrap items-center justify-center gap-y-3 text-sm sm:text-base font-normal tracking-wide"
             aria-label="頁尾導覽"
           >
             {FOOTER_LINK_TO_ID.map(({ label, id }, index) => (

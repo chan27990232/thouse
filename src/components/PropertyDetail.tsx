@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ArrowLeft, MapPin, Home, Bed, Bath } from 'lucide-react';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { Property } from '../App';
 import { submitLeaseApplication } from '../lib/leaseApplications';
 import { Button } from './ui/button';

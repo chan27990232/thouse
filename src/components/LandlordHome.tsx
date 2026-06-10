@@ -1,20 +1,29 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Home, Plus, DollarSign, Users, Bell, Settings, FileText, FileUp, TrendingUp, MessageCircle, User } from 'lucide-react';
+import { Home, Plus, DollarSign, Users, Bell, FileText, FileUp, Wallet, MessageCircle, User, Loader2 } from 'lucide-react';
+import { LandlordWalletPanel } from './LandlordWalletPanel';
 import { Property } from '../App';
 import { Button } from './ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
-import { Input } from './ui/input';
-import { Label } from './ui/label';
-import { Textarea } from './ui/textarea';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from './ui/dialog';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { NoticeDialog } from './NoticeDialog';
 import { PropertyManagementDialog } from './PropertyManagementDialog';
+import {
+  fetchLandlordLeaseInfoByPropertyIds,
+  formatLandlordNextDueLabel,
+} from '../lib/landlordPropertyLease';
+import { ListPropertyWizard } from './ListPropertyWizard';
 import { UtilityBillUploadDialog } from './UtilityBillUploadDialog';
 import { dedupePropertyRows, defaultPropertyImage } from '../lib/properties';
 import { fetchUnreadInquiryCount } from '../lib/conversations';
-import { fetchPendingApplicationCounts } from '../lib/leaseApplications';
+import {
+  fetchPendingApplicationCounts,
+  fetchLeaseApplicationsForLandlord,
+  respondToLeaseApplication,
+  getLeaseWorkflowStatusLabel,
+  type LandlordLeaseApplicationSummary,
+} from '../lib/leaseApplications';
+import { getPaymentMethodLabel, type PaymentMethodCode } from '../lib/leaseFirstPayment';
 import { supabase } from '../lib/supabase';
-import { uploadDeedFile, uploadListingCoverImage, uploadProofPhotoFiles } from '../lib/propertyMediaUpload';
 import thouseLogo from 'figma:asset/f0c80b0c66e9c54aea3881bdf7a4eb152cbc4c0b.png';
 import { ThouseHomeFooter } from './ThouseHomeFooter';
 
@@ -27,11 +36,33 @@ interface LandlordHomeProps {
 
 type VerificationState = 'pending' | 'approved' | 'rejected';
 
+function paymentStatusZh(status: string | null) {
+  switch (status) {
+    case 'succeeded':
+      return '已記帳';
+    case 'pending_bank':
+      return '待銀行入數';
+    case 'failed':
+      return '失敗';
+    case null:
+    case '':
+      return '—';
+    default:
+      return status;
+  }
+}
+
 interface ManagedProperty extends Property {
   status: '已出租' | '招租中';
   tenantName: string | null;
   nextDueDate: string;
   applications: number;
+  leaseApplicationId: string | null;
+  tenantEmail: string | null;
+  tenantPhone: string | null;
+  moveInDate: string | null;
+  leaseMonths: number | null;
+  leaseNotes: string;
   /** 後台審核：未通過則不會在首頁出現 */
   verificationStatus: VerificationState;
   verificationRejectedReason: string;
@@ -46,25 +77,18 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
   const [managementOpen, setManagementOpen] = useState(false);
   const [utilityDialogOpen, setUtilityDialogOpen] = useState(false);
   const [utilityProperty, setUtilityProperty] = useState<ManagedProperty | null>(null);
+  const [applicationsListOpen, setApplicationsListOpen] = useState(false);
+  const [applicationsList, setApplicationsList] = useState<LandlordLeaseApplicationSummary[]>([]);
+  const [applicationsListLoading, setApplicationsListLoading] = useState(false);
+  const [applicationsListError, setApplicationsListError] = useState('');
+  const [respondApplicationLoadingId, setRespondApplicationLoadingId] = useState<string | null>(null);
+  const [respondFeedback, setRespondFeedback] = useState<{ kind: 'ok' | 'err'; message: string } | null>(
+    null
+  );
   const [unreadCount, setUnreadCount] = useState(0);
   const [currentLandlordId, setCurrentLandlordId] = useState<string | null>(null);
   const [myProperties, setMyProperties] = useState<ManagedProperty[]>([]);
   const [propertiesLoading, setPropertiesLoading] = useState(true);
-  const [saveLoading, setSaveLoading] = useState(false);
-  const [saveError, setSaveError] = useState('');
-  const [formTitle, setFormTitle] = useState('');
-  const [formPrice, setFormPrice] = useState('');
-  const [formArea, setFormArea] = useState('');
-  const [formFloor, setFormFloor] = useState('');
-  const [formBedrooms, setFormBedrooms] = useState('1');
-  const [formBathrooms, setFormBathrooms] = useState('1');
-  const [formDistrict, setFormDistrict] = useState('');
-  const [formImage, setFormImage] = useState('');
-  const [formDescription, setFormDescription] = useState('');
-  const [formCoverFile, setFormCoverFile] = useState<File | null>(null);
-  const [formProofFiles, setFormProofFiles] = useState<File[]>([]);
-  const [formDeedFile, setFormDeedFile] = useState<File | null>(null);
-
   useEffect(() => {
     let cancelled = false;
     const refreshUnread = async () => {
@@ -131,20 +155,26 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
         verification_status: string | null;
         verification_rejected_reason: string | null;
       }>,
-      'newestByCreatedAt'
+      'landlordDashboard'
     );
     uniqueRows.sort(
       (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     );
 
     const propertyIds = uniqueRows.map((p) => p.id);
-    const pendingCounts = await fetchPendingApplicationCounts(user.id, propertyIds);
+    const [pendingCounts, leaseByProperty] = await Promise.all([
+      fetchPendingApplicationCounts(user.id, propertyIds),
+      fetchLandlordLeaseInfoByPropertyIds(user.id, propertyIds),
+    ]);
 
     setMyProperties(
       uniqueRows.map((property) => {
         const vs = property.verification_status;
         const ver: VerificationState =
           vs === 'pending' || vs === 'approved' || vs === 'rejected' ? vs : 'pending';
+        const lease = leaseByProperty[property.id];
+        const hasActiveLease = Boolean(lease?.leaseApplicationId);
+        const isRented = property.status === 'rented' || hasActiveLease;
         return {
           id: property.id,
           landlordId: property.landlord_id ?? undefined,
@@ -156,10 +186,19 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
           bedrooms: Number(property.bedrooms ?? 1),
           bathrooms: Number(property.bathrooms ?? 1),
           isFavorite: false,
-          status: property.status === 'rented' ? '已出租' : '招租中',
-          tenantName: null,
-          nextDueDate: property.status === 'rented' ? '待設定' : '待出租',
+          status: isRented ? '已出租' : '招租中',
+          tenantName: lease?.tenantName ?? null,
+          nextDueDate: formatLandlordNextDueLabel(hasActiveLease, {
+            nextDueDate: lease?.nextDueDate ?? null,
+            nextRentStatus: lease?.nextRentStatus ?? null,
+          }),
           applications: pendingCounts[property.id] ?? 0,
+          leaseApplicationId: lease?.leaseApplicationId ?? null,
+          tenantEmail: lease?.tenantEmail ?? null,
+          tenantPhone: lease?.tenantPhone ?? null,
+          moveInDate: lease?.moveInDate ?? null,
+          leaseMonths: lease?.leaseMonths ?? null,
+          leaseNotes: lease?.leaseNotes ?? '',
           verificationStatus: ver,
           verificationRejectedReason: (property.verification_rejected_reason ?? '').trim(),
         };
@@ -174,95 +213,64 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
     void loadLandlordProperties();
   }, [loadLandlordProperties]);
 
-  const resetForm = () => {
-    setFormTitle('');
-    setFormPrice('');
-    setFormArea('');
-    setFormFloor('');
-    setFormBedrooms('1');
-    setFormBathrooms('1');
-    setFormDistrict('');
-    setFormImage('');
-    setFormDescription('');
-    setFormCoverFile(null);
-    setFormProofFiles([]);
-    setFormDeedFile(null);
-    setSaveError('');
-  };
-
-  const handleCreateProperty = async () => {
-    try {
-      setSaveError('');
-
-      if (!currentLandlordId) {
-        throw new Error('未能識別目前業主帳號。');
-      }
-
-      if (!formTitle.trim()) {
-        throw new Error('請輸入物業標題。');
-      }
-      if (formProofFiles.length < 1) {
-        throw new Error('請上傳至少一張實景佐證照片。');
-      }
-      if (!formDeedFile) {
-        throw new Error('請上傳房產證明（圖片或 PDF）。');
-      }
-
-      setSaveLoading(true);
-
-      let coverUrl = formImage.trim();
-      if (formCoverFile) {
-        coverUrl = await uploadListingCoverImage(currentLandlordId, formCoverFile);
-      } else if (!coverUrl) {
-        throw new Error('請上傳租盤主圖，或填寫主圖網址。');
-      }
-
-      const proofPaths = await uploadProofPhotoFiles(currentLandlordId, formProofFiles);
-      const deedPath = await uploadDeedFile(currentLandlordId, formDeedFile);
-
-      const payload = {
-        landlord_id: currentLandlordId,
-        title: formTitle.trim(),
-        image: coverUrl,
-        price: Number(formPrice || 0),
-        area: Number(formArea || 0),
-        floor: Number(formFloor || 0),
-        bedrooms: Number(formBedrooms || 1),
-        bathrooms: Number(formBathrooms || 1),
-        district: formDistrict.trim(),
-        description: formDescription.trim(),
-        status: 'available',
-        proof_photo_urls: proofPaths,
-        property_deed_url: deedPath,
-        verification_status: 'pending',
-      };
-
-      const { error } = await supabase.from('properties').insert(payload);
-
-      if (error) {
-        const m = (error.message || '').toLowerCase();
-        if (m.includes('column') || m.includes('proof_photo') || m.includes('verification')) {
-          throw new Error(
-            '資料庫尚未套用審核欄位。請在 Supabase 執行 supabase/property_listing_verification.sql 後再試。'
-          );
+  useEffect(() => {
+    if (!applicationsListOpen) return;
+    let cancelled = false;
+    setRespondFeedback(null);
+    setApplicationsListLoading(true);
+    setApplicationsListError('');
+    void fetchLeaseApplicationsForLandlord()
+      .then((rows) => {
+        if (!cancelled) setApplicationsList(rows);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setApplicationsListError(err instanceof Error ? err.message : '無法載入申請列表');
         }
-        throw error;
-      }
-
-      await loadLandlordProperties({ silent: true });
-      resetForm();
-      setShowAddProperty(false);
-    } catch (error) {
-      setSaveError(error instanceof Error ? error.message : '新增物業失敗，請稍後再試。');
-    } finally {
-      setSaveLoading(false);
-    }
-  };
+      })
+      .finally(() => {
+        if (!cancelled) setApplicationsListLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [applicationsListOpen]);
 
   const openPropertyDialog = (property: ManagedProperty, mode: 'details' | 'lease') => {
     setSelectedProperty(property);
     setDialogMode(mode);
     setManagementOpen(true);
+  };
+
+  const handleRespondToLease = async (
+    row: LandlordLeaseApplicationSummary,
+    decision: 'approved' | 'rejected'
+  ) => {
+    setRespondApplicationLoadingId(row.id);
+    setRespondFeedback(null);
+    try {
+      await respondToLeaseApplication(row.id, decision);
+      setRespondFeedback({
+        kind: 'ok',
+        message:
+          decision === 'approved'
+            ? '已同意申請並送交平台複審；複審通過後簽約始為完成。'
+            : '已拒絕該租約申請。',
+      });
+      const rows = await fetchLeaseApplicationsForLandlord();
+      setApplicationsList(rows);
+      void loadLandlordProperties({ silent: true });
+    } catch (e) {
+      setRespondFeedback({
+        kind: 'err',
+        message:
+          e instanceof Error
+            ? e.message
+            : '無法更新申請（請確認已在資料庫執行 respond_to_lease_application_rpc.sql）。',
+      });
+    } finally {
+      setRespondApplicationLoadingId(null);
+    }
   };
 
   const occupiedCount = myProperties.filter((p) => p.status === '已出租').length;
@@ -280,35 +288,66 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
 
   return (
     <>
-    <div className="mx-auto flex min-h-screen w-full min-w-0 max-w-7xl flex-col overflow-x-hidden bg-white pb-20 md:pb-8">
-      {/* Header */}
-      <div className="shrink-0 border-b bg-white p-4 md:px-6 lg:px-8 sticky top-0 z-10">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex min-w-0 items-center gap-2">
-            <img src={thouseLogo} alt="簡屋" className="h-10 w-10 shrink-0" />
-            <div className="min-w-0">
-              <span className="tracking-wider">簡屋</span>
-              <p className="text-xs text-gray-600">業主管理</p>
+    <div className="mx-auto flex min-h-screen w-full min-w-0 max-w-7xl flex-col overflow-x-hidden bg-white pb-8">
+      {/* Header + 置頂導覽 */}
+      <div className="sticky top-0 z-20 shrink-0 border-b bg-white">
+        <div className="p-4 md:px-6 lg:px-8">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-2">
+              <img src={thouseLogo} alt="簡屋" className="h-10 w-10 shrink-0" />
+              <div className="min-w-0">
+                <span className="tracking-wider">簡屋</span>
+                <p className="text-xs text-gray-600">業主管理</p>
+              </div>
+            </div>
+            <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+              <button onClick={() => setNoticeOpen(true)} className="relative rounded-full bg-gray-100 p-2 hover:bg-gray-200">
+                <Bell className="h-5 w-5 text-gray-600" />
+                {unreadCount > 0 && <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-red-500" />}
+              </button>
+              <button onClick={onChatClick} className="relative rounded-full bg-gray-100 p-2 hover:bg-gray-200">
+                <MessageCircle className="h-5 w-5 text-gray-600" />
+                {unreadCount > 0 && <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-red-500" />}
+              </button>
+              <button
+                onClick={onProfileClick}
+                className="rounded-full bg-gray-100 p-2 hover:bg-gray-200"
+                aria-label="個人資料"
+              >
+                <User className="h-5 w-5 text-gray-600" />
+              </button>
             </div>
           </div>
-          <div className="flex shrink-0 items-center gap-1 sm:gap-2">
-            <button onClick={() => setNoticeOpen(true)} className="relative p-2 rounded-full bg-gray-100 hover:bg-gray-200">
-              <Bell className="w-5 h-5 text-gray-600" />
-              {unreadCount > 0 && <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>}
-            </button>
-            <button onClick={onChatClick} className="relative p-2 rounded-full bg-gray-100 hover:bg-gray-200">
-              <MessageCircle className="w-5 h-5 text-gray-600" />
-              {unreadCount > 0 && <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>}
-            </button>
-            <button
-              onClick={onProfileClick}
-              className="p-2 rounded-full bg-gray-100 hover:bg-gray-200"
-              aria-label="個人資料"
-            >
-              <User className="w-5 h-5 text-gray-600" />
-            </button>
-          </div>
         </div>
+        <nav
+          className="flex border-t border-gray-100 md:px-6 lg:px-8"
+          aria-label="業主主頁導覽"
+        >
+          <button
+            type="button"
+            onClick={() => setActiveTab('dashboard')}
+            className={`flex flex-1 items-center justify-center gap-2 border-b-2 px-4 py-3 text-sm font-medium transition sm:flex-none sm:px-6 ${
+              activeTab === 'dashboard'
+                ? 'border-black text-black'
+                : 'border-transparent text-gray-500 hover:text-gray-800'
+            }`}
+          >
+            <Home className="h-4 w-4 shrink-0" aria-hidden />
+            總覽
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('wallet')}
+            className={`flex flex-1 items-center justify-center gap-2 border-b-2 px-4 py-3 text-sm font-medium transition sm:flex-none sm:px-6 ${
+              activeTab === 'wallet'
+                ? 'border-black text-black'
+                : 'border-transparent text-gray-500 hover:text-gray-800'
+            }`}
+          >
+            <Wallet className="h-4 w-4 shrink-0" aria-hidden />
+            錢包
+          </button>
+        </nav>
       </div>
 
       {/* Content */}
@@ -354,111 +393,37 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
                 <DialogTrigger asChild>
                   <Button className="w-full bg-black text-white hover:bg-gray-800 mb-2">
                     <Plus className="w-4 h-4 mr-2" />
-                    新增物業
+                    刊登租盤
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-md mx-auto max-h-[80vh] overflow-y-auto">
+                <DialogContent className="mx-auto max-h-[90vh] max-w-lg overflow-y-auto sm:max-w-xl">
                   <DialogHeader>
-                    <DialogTitle>新增租盤</DialogTitle>
-                    <p className="text-sm text-gray-500 pt-1">
-                      請上傳實景佐證與房產證明，管理員審核通過後租盤才會出現在租客首頁。
-                    </p>
+                    <DialogTitle>刊登租盤</DialogTitle>
+                    <DialogDescription>
+                      分步填寫放盤資料；提交後由平台審核，通過方會顯示於租客首頁。
+                    </DialogDescription>
                   </DialogHeader>
-                  <div className="space-y-4 py-4">
-                    <div>
-                      <Label>物業標題</Label>
-                      <Input
-                        placeholder="例如：油麻地 雅賓大廈 劏房"
-                        value={formTitle}
-                        onChange={(e) => setFormTitle(e.target.value)}
-                      />
-                    </div>
-                    <div>
-                      <Label>月租金額</Label>
-                      <Input type="number" placeholder="3450" value={formPrice} onChange={(e) => setFormPrice(e.target.value)} />
-                    </div>
-                    <div>
-                      <Label>面積 (平方呎)</Label>
-                      <Input type="number" placeholder="74" value={formArea} onChange={(e) => setFormArea(e.target.value)} />
-                    </div>
-                    <div>
-                      <Label>樓層</Label>
-                      <Input type="number" placeholder="1" value={formFloor} onChange={(e) => setFormFloor(e.target.value)} />
-                    </div>
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                      <div>
-                        <Label>房間數</Label>
-                        <Input type="number" placeholder="1" value={formBedrooms} onChange={(e) => setFormBedrooms(e.target.value)} />
-                      </div>
-                      <div>
-                        <Label>浴室數</Label>
-                        <Input type="number" placeholder="1" value={formBathrooms} onChange={(e) => setFormBathrooms(e.target.value)} />
-                      </div>
-                    </div>
-                    <div>
-                      <Label>地區</Label>
-                      <Input placeholder="例如：油麻地" value={formDistrict} onChange={(e) => setFormDistrict(e.target.value)} />
-                    </div>
-                    <div>
-                      <Label>租盤主圖（展示用）</Label>
-                      <Input
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp"
-                        className="mt-2"
-                        onChange={(e) => {
-                          const f = e.target.files?.[0];
-                          setFormCoverFile(f ?? null);
-                        }}
-                      />
-                      <p className="text-xs text-gray-500 mt-1">或改填下方主圖網址（二擇一）</p>
-                    </div>
-                    <div>
-                      <Label>主圖網址（若已上傳檔案則可留空）</Label>
-                      <Input
-                        placeholder="https://..."
-                        value={formImage}
-                        onChange={(e) => setFormImage(e.target.value)}
-                      />
-                    </div>
-                    <div>
-                      <Label>實景佐證照片（至少一張）</Label>
-                      <Input
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp"
-                        multiple
-                        className="mt-2"
-                        onChange={(e) => {
-                          setFormProofFiles(e.target.files ? Array.from(e.target.files) : []);
-                        }}
-                      />
-                    </div>
-                    <div>
-                      <Label>房產證明（圖片或 PDF）</Label>
-                      <Input
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp,application/pdf"
-                        className="mt-2"
-                        onChange={(e) => {
-                          setFormDeedFile(e.target.files?.[0] ?? null);
-                        }}
-                      />
-                    </div>
-                    <div>
-                      <Label>物業描述</Label>
-                      <Textarea
-                        placeholder="描述您的物業特色..."
-                        value={formDescription}
-                        onChange={(e) => setFormDescription(e.target.value)}
-                      />
-                    </div>
-                    {saveError ? <p className="text-sm text-red-500">{saveError}</p> : null}
-                    <Button className="w-full bg-black text-white hover:bg-gray-800" onClick={handleCreateProperty} disabled={saveLoading}>
-                      {saveLoading ? '送出中...' : '送出審核'}
-                    </Button>
-                  </div>
+                  {currentLandlordId ? (
+                    <ListPropertyWizard
+                      key={showAddProperty ? 'open' : 'closed'}
+                      landlordId={currentLandlordId}
+                      onCancel={() => setShowAddProperty(false)}
+                      onSuccess={async () => {
+                        await loadLandlordProperties({ silent: true });
+                        setShowAddProperty(false);
+                      }}
+                    />
+                  ) : (
+                    <p className="py-8 text-center text-sm text-gray-500">請先登入業主帳號。</p>
+                  )}
                 </DialogContent>
               </Dialog>
-              <Button variant="outline" className="w-full">
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={() => setApplicationsListOpen(true)}
+              >
                 <FileText className="w-4 h-4 mr-2" />
                 查看所有申請
               </Button>
@@ -477,7 +442,7 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
                   <p className="text-sm text-gray-500 mb-5">新增第一個租盤後，物業資料會顯示在這裡。</p>
                   <Button className="bg-black text-white hover:bg-gray-800" onClick={() => setShowAddProperty(true)}>
                     <Plus className="w-4 h-4 mr-2" />
-                    新增第一個物業
+                    刊登第一個租盤
                   </Button>
                 </div>
               ) : (
@@ -558,7 +523,13 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
                               查看詳情
                             </Button>
                           <Button
-                            className="w-full min-h-11 flex-1 bg-black text-white hover:bg-gray-800 sm:min-h-10 sm:min-w-[8rem] sm:flex-1"
+                            className="w-full min-h-11 flex-1 bg-black text-white hover:bg-gray-800 disabled:opacity-50 sm:min-h-10 sm:min-w-[8rem] sm:flex-1"
+                            disabled={!property.leaseApplicationId}
+                            title={
+                              property.leaseApplicationId
+                                ? '管理進行中的租約'
+                                : '須有待平台核准的進行中租約才可管理'
+                            }
                             onClick={() => openPropertyDialog(property, 'lease')}
                           >
                             管理租約
@@ -586,11 +557,10 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
           </>
         )}
 
-        {activeTab === 'analytics' && (
-          <div className="text-center py-12">
-            <TrendingUp className="w-12 h-12 mx-auto mb-3 text-gray-400" />
-            <h2 className="mb-2">數據分析</h2>
-            <p className="text-gray-600">詳細分析功能即將推出</p>
+        {activeTab === 'wallet' && (
+          <div>
+            <h2 className="mb-4 text-lg font-semibold">收入與錢包</h2>
+            <LandlordWalletPanel />
           </div>
         )}
       </div>
@@ -598,31 +568,164 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
 
     <ThouseHomeFooter className="w-full" />
 
-      {/* Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t md:hidden z-30">
-        <div className="flex items-center justify-around py-3">
-          <button 
-            onClick={() => setActiveTab('dashboard')}
-            className={`flex flex-col items-center gap-1 ${activeTab === 'dashboard' ? 'text-black' : 'text-gray-400'}`}
-          >
-            <Home className="w-6 h-6" />
-            <span className="text-xs">總覽</span>
-            {activeTab === 'dashboard' && <div className="w-8 h-1 bg-black" />}
-          </button>
-          <button 
-            onClick={() => setActiveTab('analytics')}
-            className={`flex flex-col items-center gap-1 ${activeTab === 'analytics' ? 'text-black' : 'text-gray-400'}`}
-          >
-            <TrendingUp className="w-6 h-6" />
-            <span className="text-xs">分析</span>
-            {activeTab === 'analytics' && <div className="w-8 h-1 bg-black" />}
-          </button>
-          <button className="flex flex-col items-center gap-1 text-gray-400">
-            <Settings className="w-6 h-6" />
-            <span className="text-xs">設定</span>
-          </button>
-        </div>
-      </div>
+      <Dialog open={applicationsListOpen} onOpenChange={setApplicationsListOpen}>
+        <DialogContent className="flex max-h-[85vh] max-w-lg flex-col gap-0 overflow-hidden sm:max-w-xl">
+          <DialogHeader className="shrink-0 pr-6 text-left">
+            <DialogTitle>所有租約申請</DialogTitle>
+            <DialogDescription>
+              完整流程為：租客申請 → 平台一審 → 您同意 → 平台複審。僅在「待業主確認」狀態可選擇接受或婉拒；其餘階段由平台處理。
+            </DialogDescription>
+            {respondFeedback ? (
+              <p
+                className={
+                  respondFeedback.kind === 'ok'
+                    ? 'text-sm text-green-800 pt-2'
+                    : 'text-sm text-red-600 pt-2'
+                }
+                role="status"
+              >
+                {respondFeedback.message}
+              </p>
+            ) : null}
+          </DialogHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto py-4">
+            {applicationsListLoading ? (
+              <p className="py-12 text-center text-sm text-gray-500">載入中…</p>
+            ) : applicationsListError ? (
+              <p className="py-8 text-center text-sm text-red-600">{applicationsListError}</p>
+            ) : applicationsList.length === 0 ? (
+              <p className="py-12 text-center text-sm text-gray-500">暫未有租約申請</p>
+            ) : (
+              <ul className="space-y-3">
+                {applicationsList.map((row) => {
+                  const st = row.applicationStatus;
+                  const badgeClass =
+                    st === 'awaiting_landlord'
+                      ? 'bg-amber-50 text-amber-900 ring-amber-200'
+                      : st === 'awaiting_platform_2'
+                        ? 'bg-sky-50 text-sky-900 ring-sky-200'
+                        : st === 'approved'
+                          ? 'bg-emerald-50 text-emerald-900 ring-emerald-200'
+                          : st === 'rejected'
+                            ? 'bg-red-50 text-red-800 ring-red-200'
+                            : 'bg-gray-50 text-gray-800 ring-gray-200';
+
+                  const payMethodUi = row.paymentMethod
+                    ? getPaymentMethodLabel(row.paymentMethod as PaymentMethodCode)
+                    : '—';
+
+                  return (
+                    <li
+                      key={row.id}
+                      className="rounded-lg border border-gray-200 bg-white p-4 text-sm shadow-[0_1px_2px_rgba(0,0,0,0.04)]"
+                    >
+                      <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate font-medium text-gray-900">{row.propertyTitle}</p>
+                          <p className="mt-1 text-xs text-gray-500">
+                            申請時間：{new Date(row.createdAt).toLocaleString('zh-HK')}
+                          </p>
+                        </div>
+                        <span
+                          className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${badgeClass}`}
+                        >
+                          {getLeaseWorkflowStatusLabel(row.applicationStatus)}
+                        </span>
+                      </div>
+                      <dl className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
+                        <div className="sm:col-span-2">
+                          <dt className="text-xs text-gray-500">申請人</dt>
+                          <dd className="font-medium">{row.applicantName}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs text-gray-500">電話</dt>
+                          <dd className="break-all">{row.phone}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs text-gray-500">電郵</dt>
+                          <dd className="break-all">{row.email}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs text-gray-500">首期／記帳金額</dt>
+                          <dd>HK${row.firstPaymentTotal.toLocaleString()}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs text-gray-500">租期（月）</dt>
+                          <dd>{row.leaseMonths}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs text-gray-500">擬入住日期</dt>
+                          <dd>
+                            {row.moveInDate
+                              ? new Date(row.moveInDate + 'T12:00:00').toLocaleDateString('zh-HK')
+                              : '—'}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs text-gray-500">付款方式</dt>
+                          <dd>{payMethodUi}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs text-gray-500">付款狀態</dt>
+                          <dd>{paymentStatusZh(row.paymentStatus)}</dd>
+                        </div>
+                        {row.paymentReference ? (
+                          <div className="sm:col-span-2">
+                            <dt className="text-xs text-gray-500">參考編號</dt>
+                            <dd className="break-all font-mono text-xs">{row.paymentReference}</dd>
+                          </div>
+                        ) : null}
+                        {row.bankTransferReceiptUrl ? (
+                          <div className="sm:col-span-2">
+                            <dt className="text-xs text-gray-500">轉賬證明</dt>
+                            <dd>
+                              <a
+                                href={row.bankTransferReceiptUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-sm font-medium text-blue-700 underline underline-offset-2 hover:text-blue-900"
+                              >
+                                查看截圖／收據（新分頁）
+                              </a>
+                            </dd>
+                          </div>
+                        ) : null}
+                      </dl>
+                      {st === 'awaiting_landlord' ? (
+                        <div className="mt-4 flex flex-col gap-2 border-t border-gray-100 pt-4 sm:flex-row">
+                          <Button
+                            type="button"
+                            className="flex-1 gap-2 bg-black text-white hover:bg-gray-800"
+                            disabled={respondApplicationLoadingId !== null || applicationsListLoading}
+                            onClick={() => void handleRespondToLease(row, 'approved')}
+                          >
+                            {respondApplicationLoadingId === row.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin shrink-0" aria-hidden />
+                            ) : null}
+                            接受租約申請
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="flex-1 gap-2 border-red-300 text-red-700 hover:bg-red-50"
+                            disabled={respondApplicationLoadingId !== null || applicationsListLoading}
+                            onClick={() => void handleRespondToLease(row, 'rejected')}
+                          >
+                            {respondApplicationLoadingId === row.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin shrink-0" aria-hidden />
+                            ) : null}
+                            婉拒申請
+                          </Button>
+                        </div>
+                      ) : null}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <NoticeDialog open={noticeOpen} onOpenChange={setNoticeOpen} userRole="landlord" />
       <PropertyManagementDialog
@@ -630,6 +733,7 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
         onOpenChange={setManagementOpen}
         property={selectedProperty}
         mode={dialogMode}
+        onSaved={() => void loadLandlordProperties({ silent: true })}
       />
       <UtilityBillUploadDialog
         open={utilityDialogOpen}

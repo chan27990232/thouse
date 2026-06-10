@@ -1,5 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
+import {
+  signedUrlForVerificationPath,
+  uploadDeedFile,
+  uploadListingCoverImage,
+  uploadProofPhotoFiles,
+} from '../lib/propertyMediaUpload';
 import { supabase } from '../lib/supabase';
 
 type Landlord = { full_name: string; email: string; phone: string; role: string } | null;
@@ -39,8 +45,11 @@ export function PropertyEditPage() {
   const [verificationStatus, setVerificationStatus] = useState<string | null>(null);
   const [rejectionReadonly, setRejectionReadonly] = useState('');
   const [rejectDraft, setRejectDraft] = useState('');
-  const [proofSignedUrls, setProofSignedUrls] = useState<string[]>([]);
+  const [proofPaths, setProofPaths] = useState<string[]>([]);
+  const [proofPreviews, setProofPreviews] = useState<{ path: string; url: string }[]>([]);
+  const [deedPath, setDeedPath] = useState('');
   const [deedSignedUrl, setDeedSignedUrl] = useState<string | null>(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
   /** 核准／駁回操作成功後的提示（僅在切換租盤 id 時清除，避免載入中覆寫） */
   const [verifySuccessMsg, setVerifySuccessMsg] = useState('');
 
@@ -54,7 +63,9 @@ export function PropertyEditPage() {
     (async () => {
       setLoading(true);
       setErr('');
-      setProofSignedUrls([]);
+      setProofPaths([]);
+      setProofPreviews([]);
+      setDeedPath('');
       setDeedSignedUrl(null);
       setRejectDraft('');
       const { data, error } = await supabase
@@ -110,33 +121,23 @@ export function PropertyEditPage() {
       setVerificationStatus(d.verification_status ?? null);
       setRejectionReadonly((d.verification_rejected_reason ?? '').trim());
 
-      let proofPaths: string[] = [];
-      const rp = d.proof_photo_urls;
-      if (Array.isArray(rp)) {
-        proofPaths = rp as string[];
-      } else if (typeof rp === 'string' && rp.trim().startsWith('[')) {
-        try {
-          proofPaths = JSON.parse(rp) as string[];
-        } catch {
-          proofPaths = [];
-        }
-      }
-      const deedPath = (d.property_deed_url ?? '').toString().trim();
-
-      const proofUrls: string[] = [];
-      for (const p of proofPaths) {
-        if (typeof p !== 'string' || !p) continue;
-        const { data: s } = await supabase.storage.from('property-verification').createSignedUrl(p, 3600);
-        if (s?.signedUrl) proofUrls.push(s.signedUrl);
-      }
-      if (deedPath) {
-        const { data: s2 } = await supabase.storage.from('property-verification').createSignedUrl(deedPath, 3600);
-        setDeedSignedUrl(s2?.signedUrl ?? null);
-      } else {
-        setDeedSignedUrl(null);
-      }
+      const loadedProofPaths = parseProofPaths(d.proof_photo_urls);
+      const loadedDeedPath = (d.property_deed_url ?? '').toString().trim();
       if (!c) {
-        setProofSignedUrls(proofUrls);
+        setProofPaths(loadedProofPaths);
+        setDeedPath(loadedDeedPath);
+        const previews: { path: string; url: string }[] = [];
+        for (const p of loadedProofPaths) {
+          const url = await signedUrlForVerificationPath(p);
+          if (url) previews.push({ path: p, url });
+        }
+        setProofPreviews(previews);
+        if (loadedDeedPath) {
+          const deedUrl = await signedUrlForVerificationPath(loadedDeedPath);
+          setDeedSignedUrl(deedUrl);
+        } else {
+          setDeedSignedUrl(null);
+        }
       }
 
       setForm({
@@ -168,6 +169,141 @@ export function PropertyEditPage() {
 
   function normalizeLid(s: string) {
     return s.replace(/[\s\u200b-\u200d\ufeff\u2060-\u206f\ufe00-\ufe0f]/g, '').trim();
+  }
+
+  function parseProofPaths(rp: unknown): string[] {
+    if (Array.isArray(rp)) return rp.filter((p): p is string => typeof p === 'string' && !!p);
+    if (typeof rp === 'string' && rp.trim().startsWith('[')) {
+      try {
+        const parsed = JSON.parse(rp) as unknown;
+        if (Array.isArray(parsed)) return parsed.filter((p): p is string => typeof p === 'string' && !!p);
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  }
+
+  function effectiveLandlordId(): string | null {
+    const fromInput = normalizeLid(landlordIdEdit);
+    if (fromInput && isUuid(fromInput)) return fromInput;
+    const fallback = loadedLandlordId ? normalizeLid(loadedLandlordId) : '';
+    if (fallback && isUuid(fallback)) return fallback;
+    return null;
+  }
+
+  async function refreshProofPreviews(paths: string[]) {
+    const previews: { path: string; url: string }[] = [];
+    for (const p of paths) {
+      const url = await signedUrlForVerificationPath(p);
+      if (url) previews.push({ path: p, url });
+    }
+    setProofPreviews(previews);
+  }
+
+  async function persistPhotoFields(patch: {
+    proofPaths?: string[];
+    deedPath?: string;
+    image?: string;
+  }): Promise<boolean> {
+    if (!id) return false;
+    const body: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    if (patch.proofPaths !== undefined) body.proof_photo_urls = patch.proofPaths;
+    if (patch.deedPath !== undefined) body.property_deed_url = patch.deedPath;
+    if (patch.image !== undefined) body.image = patch.image;
+    const { data: updatedRows, error } = await supabase.from('properties').update(body).eq('id', id).select('id');
+    if (error) {
+      setErr(
+        error.message +
+          (String(error.message).toLowerCase().includes('policy') || String(error.message).includes('權限')
+            ? '（若曾未執行，請在專根跑：npm run db:admin-properties-policy）'
+            : '')
+      );
+      return false;
+    }
+    if (!updatedRows?.length) {
+      setErr(dbNoRowMsg);
+      return false;
+    }
+    return true;
+  }
+
+  async function handleCoverUpload(file: File) {
+    const lid = effectiveLandlordId();
+    if (!lid) {
+      setErr('請先設定有效的業主 user id，再上傳主圖。');
+      return;
+    }
+    setPhotoBusy(true);
+    setErr('');
+    try {
+      const publicUrl = await uploadListingCoverImage(lid, file);
+      const ok = await persistPhotoFields({ image: publicUrl });
+      if (ok) setForm((f) => ({ ...f, image: publicUrl }));
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : '上傳主圖失敗');
+    } finally {
+      setPhotoBusy(false);
+    }
+  }
+
+  async function handleAddProofFiles(files: FileList | null) {
+    if (!files?.length) return;
+    const lid = effectiveLandlordId();
+    if (!lid) {
+      setErr('請先設定有效的業主 user id，再上傳佐證照片。');
+      return;
+    }
+    setPhotoBusy(true);
+    setErr('');
+    try {
+      const newPaths = await uploadProofPhotoFiles(lid, Array.from(files));
+      const merged = [...proofPaths, ...newPaths];
+      const ok = await persistPhotoFields({ proofPaths: merged });
+      if (ok) {
+        setProofPaths(merged);
+        await refreshProofPreviews(merged);
+      }
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : '上傳佐證照片失敗');
+    } finally {
+      setPhotoBusy(false);
+    }
+  }
+
+  async function handleRemoveProof(pathToRemove: string) {
+    const merged = proofPaths.filter((p) => p !== pathToRemove);
+    setPhotoBusy(true);
+    setErr('');
+    const ok = await persistPhotoFields({ proofPaths: merged });
+    setPhotoBusy(false);
+    if (ok) {
+      setProofPaths(merged);
+      await refreshProofPreviews(merged);
+    }
+  }
+
+  async function handleDeedUpload(file: File) {
+    const lid = effectiveLandlordId();
+    if (!lid) {
+      setErr('請先設定有效的業主 user id，再上傳房產證明。');
+      return;
+    }
+    setPhotoBusy(true);
+    setErr('');
+    try {
+      const path = await uploadDeedFile(lid, file);
+      const ok = await persistPhotoFields({ deedPath: path });
+      if (ok) {
+        setDeedPath(path);
+        const url = await signedUrlForVerificationPath(path);
+        setDeedSignedUrl(url);
+      }
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : '上傳房產證明失敗');
+    } finally {
+      setPhotoBusy(false);
+    }
   }
 
   /** 表單 number 可能為 NaN；寫入 integer 欄位前必須收斂，否則 PostgREST 更新會失敗且難以察覺 */
@@ -323,10 +459,10 @@ export function PropertyEditPage() {
     return (
       <div className="mx-auto w-full max-w-lg px-1 py-1 sm:px-0">
         <Link
-          to="/properties"
+          to={id ? `/properties/${id}` : '/properties'}
           className="text-sm text-sky-400 transition hover:text-sky-300 hover:underline"
         >
-          ← 租盤列表
+          ← 管理租盤
         </Link>
         <p className="mt-3 text-sm text-slate-400">{err}</p>
       </div>
@@ -337,10 +473,10 @@ export function PropertyEditPage() {
     <div className="mx-auto w-full min-w-0 max-w-3xl space-y-4 sm:space-y-6">
       <header className="space-y-1">
         <Link
-          to="/properties"
+          to={`/properties/${id}`}
           className="inline-flex text-sm text-sky-400 transition hover:text-sky-300 hover:underline"
         >
-          ← 租盤列表
+          ← 管理租盤
         </Link>
         <h1 className="text-xl font-semibold tracking-tight text-slate-50 sm:text-2xl">編輯租盤</h1>
       </header>
@@ -398,6 +534,131 @@ export function PropertyEditPage() {
 
           <section
             className="rounded-2xl border border-slate-700/80 bg-[#161b22] p-4 shadow-sm sm:p-5"
+            aria-labelledby="photos-heading"
+          >
+            <h2 id="photos-heading" className="text-sm font-medium text-slate-200 sm:text-base">
+              租盤相片
+            </h2>
+            <p className="mt-2 text-xs leading-relaxed text-slate-500">
+              可上傳或替換主圖、實景佐證與房產證明。檔案會存於業主帳戶的 Storage 資料夾；管理員代傳須先執行{' '}
+              <code className="rounded bg-slate-800 px-1 py-0.5 text-[0.7rem]">admin_property_photos_storage.sql</code>。
+            </p>
+
+            <div className="mt-4 space-y-5 sm:mt-5">
+              <div>
+                <p className="text-xs font-medium text-slate-500">主圖（首頁展示）</p>
+                {form.image ? (
+                  <div className="mt-2 aspect-[16/10] max-w-md overflow-hidden rounded-lg ring-1 ring-slate-700/80">
+                    <img src={form.image} alt="主圖預覽" className="h-full w-full object-cover" />
+                  </div>
+                ) : (
+                  <p className="mt-1 text-sm text-slate-500">尚無主圖</p>
+                )}
+                <label className="mt-3 inline-flex min-h-10 cursor-pointer items-center justify-center rounded-lg border border-slate-600 bg-slate-800 px-3 text-sm text-slate-200 transition hover:bg-slate-700 has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="sr-only"
+                    disabled={photoBusy}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      e.target.value = '';
+                      if (f) void handleCoverUpload(f);
+                    }}
+                  />
+                  {photoBusy ? '上傳中…' : '上傳主圖'}
+                </label>
+                <label htmlFor="image" className="mt-3 block text-xs text-slate-500">
+                  或貼上圖片 URL
+                </label>
+                <input
+                  id="image"
+                  className={fieldInputClass}
+                  value={form.image}
+                  onChange={(e) => setForm((f) => ({ ...f, image: e.target.value }))}
+                  autoComplete="off"
+                />
+              </div>
+
+              <div>
+                <p className="text-xs font-medium text-slate-500">實景佐證</p>
+                {proofPreviews.length === 0 ? (
+                  <p className="mt-1 text-sm text-slate-500">尚無佐證照片</p>
+                ) : (
+                  <ul className="mt-2 grid list-none grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3" role="list">
+                    {proofPreviews.map((item, i) => (
+                      <li key={item.path} className="relative min-w-0">
+                        <a
+                          href={item.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="block aspect-[4/3] overflow-hidden rounded-lg ring-1 ring-slate-700/80 transition hover:ring-sky-500/50"
+                        >
+                          <img src={item.url} alt={`佐證 ${i + 1}`} className="h-full w-full object-cover" loading="lazy" />
+                        </a>
+                        <button
+                          type="button"
+                          className="absolute right-1 top-1 rounded-md bg-black/65 px-2 py-0.5 text-xs text-white transition hover:bg-red-600 disabled:opacity-50"
+                          disabled={photoBusy}
+                          onClick={() => void handleRemoveProof(item.path)}
+                          aria-label={`移除佐證照片 ${i + 1}`}
+                        >
+                          移除
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <label className="mt-3 inline-flex min-h-10 cursor-pointer items-center justify-center rounded-lg border border-slate-600 bg-slate-800 px-3 text-sm text-slate-200 transition hover:bg-slate-700 has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="sr-only"
+                    disabled={photoBusy}
+                    onChange={(e) => {
+                      void handleAddProofFiles(e.target.files);
+                      e.target.value = '';
+                    }}
+                  />
+                  {photoBusy ? '上傳中…' : '新增佐證照片'}
+                </label>
+              </div>
+
+              <div>
+                <p className="text-xs font-medium text-slate-500">房產證明</p>
+                {deedSignedUrl ? (
+                  <a
+                    href={deedSignedUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-1.5 inline-block text-sm text-sky-400 hover:text-sky-300 hover:underline"
+                  >
+                    開啟目前檔案（簽名網址，約 1 小時內有效）
+                  </a>
+                ) : (
+                  <p className="mt-1 text-sm text-slate-500">{deedPath ? '（檔案存在，預覽載入失敗）' : '尚無檔案'}</p>
+                )}
+                <label className="mt-3 inline-flex min-h-10 cursor-pointer items-center justify-center rounded-lg border border-slate-600 bg-slate-800 px-3 text-sm text-slate-200 transition hover:bg-slate-700 has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50">
+                  <input
+                    type="file"
+                    accept="image/*,.pdf"
+                    className="sr-only"
+                    disabled={photoBusy}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      e.target.value = '';
+                      if (f) void handleDeedUpload(f);
+                    }}
+                  />
+                  {photoBusy ? '上傳中…' : deedPath ? '替換房產證明' : '上傳房產證明'}
+                </label>
+              </div>
+            </div>
+          </section>
+
+          <section
+            className="rounded-2xl border border-slate-700/80 bg-[#161b22] p-4 shadow-sm sm:p-5"
             aria-labelledby="verify-heading"
           >
             <h2 id="verify-heading" className="text-sm font-medium text-slate-200 sm:text-base">
@@ -428,42 +689,9 @@ export function PropertyEditPage() {
                 {rejectionReadonly && (
                   <p className="text-sm leading-relaxed text-red-300 sm:text-[0.9rem]">上次駁回原因：{rejectionReadonly}</p>
                 )}
-                <div>
-                  <p className="text-xs font-medium text-slate-500">實景佐證</p>
-                  {proofSignedUrls.length === 0 ? (
-                    <p className="mt-1 text-sm text-slate-500">（無圖，或舊庫僅有網址主圖）</p>
-                  ) : (
-                    <ul className="mt-2 grid list-none grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3" role="list">
-                      {proofSignedUrls.map((u) => (
-                        <li key={u} className="min-w-0">
-                          <a
-                            href={u}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="block aspect-[4/3] overflow-hidden rounded-lg ring-1 ring-slate-700/80 transition hover:ring-sky-500/50"
-                          >
-                            <img src={u} alt="佐證" className="h-full w-full object-cover" loading="lazy" />
-                          </a>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-                <div>
-                  <p className="text-xs font-medium text-slate-500">房產證明</p>
-                  {deedSignedUrl ? (
-                    <a
-                      href={deedSignedUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-1.5 inline-block text-sm text-sky-400 hover:text-sky-300 hover:underline"
-                    >
-                      開啟檔案（簽名網址，約 1 小時內有效）
-                    </a>
-                  ) : (
-                    <p className="mt-1 text-sm text-slate-500">無</p>
-                  )}
-                </div>
+                <p className="text-xs text-slate-500">
+                  佐證與房產證明請於上方「租盤相片」區編輯；此處僅顯示審核狀態與操作。
+                </p>
                 {verificationStatus === 'pending' && (
                   <div className="space-y-3 border-t border-slate-700/60 pt-4 sm:space-y-4 sm:pt-5">
                     <div>
@@ -622,18 +850,6 @@ export function PropertyEditPage() {
                   onChange={(e) => setForm((f) => ({ ...f, bathrooms: Number(e.target.value) }))}
                 />
               </div>
-            </div>
-            <div>
-              <label htmlFor="image" className="block text-xs text-slate-500 sm:text-[0.8125rem]">
-                圖片 URL
-              </label>
-              <input
-                id="image"
-                className={fieldInputClass}
-                value={form.image}
-                onChange={(e) => setForm((f) => ({ ...f, image: e.target.value }))}
-                autoComplete="off"
-              />
             </div>
             <div>
               <label htmlFor="description" className="block text-xs text-slate-500 sm:text-[0.8125rem]">

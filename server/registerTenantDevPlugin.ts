@@ -1,0 +1,83 @@
+import type { Plugin } from 'vite';
+import { loadEnv } from 'vite';
+import { handleRegisterTenant } from './registerTenantHandler';
+
+function readJsonBody(req: import('http').IncomingMessage): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    req.on('data', (c) => chunks.push(Buffer.from(c)));
+    req.on('end', () => {
+      try {
+        const raw = Buffer.concat(chunks).toString('utf8');
+        resolve(raw ? JSON.parse(raw) : {});
+      } catch (e) {
+        reject(e);
+      }
+    });
+    req.on('error', reject);
+  });
+}
+
+export function registerTenantDevApi(): Plugin {
+  return {
+    name: 'register-tenant-dev-api',
+    configureServer(server) {
+      server.middlewares.use(async (req, res, next) => {
+        if (!req.url?.startsWith('/api/register-tenant')) {
+          next();
+          return;
+        }
+
+        if (req.method === 'OPTIONS') {
+          res.statusCode = 204;
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+          res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+          res.end();
+          return;
+        }
+
+        if (req.method !== 'POST') {
+          res.statusCode = 405;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ ok: false, message: 'Method not allowed' }));
+          return;
+        }
+
+        try {
+          const env = loadEnv(server.config.mode, server.config.root, '');
+          const body = (await readJsonBody(req)) as {
+            username?: string;
+            password?: string;
+            fullName?: string;
+          };
+
+          const result = await handleRegisterTenant(
+            {
+              username: String(body.username ?? ''),
+              password: String(body.password ?? ''),
+              fullName: String(body.fullName ?? ''),
+            },
+            {
+              supabaseUrl: env.VITE_SUPABASE_URL || env.SUPABASE_URL || '',
+              serviceRoleKey: env.SUPABASE_SERVICE_ROLE_KEY || '',
+            },
+          );
+
+          res.statusCode = result.ok ? 200 : (result.status ?? 400);
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify(result));
+        } catch (error) {
+          res.statusCode = 500;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(
+            JSON.stringify({
+              ok: false,
+              message: error instanceof Error ? error.message : '伺服器錯誤',
+            }),
+          );
+        }
+      });
+    },
+  };
+}

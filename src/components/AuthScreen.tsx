@@ -1,11 +1,14 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { UserRole } from '../App';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
+import { GraphicalCaptcha } from './GraphicalCaptcha';
 import { supabase } from '../lib/supabase';
 import { AUTH_ROLE_STORAGE_KEY, getRoleFromMetadata } from '../lib/auth';
 import { findEmailByUsername } from '../lib/profiles';
+import { registerTenantAccount } from '../lib/registerTenant';
+import { validateSignupEmailWithDatabase } from '../lib/signupEmailValidation';
 import thouseLogo from 'figma:asset/f0c80b0c66e9c54aea3881bdf7a4eb152cbc4c0b.png';
 
 interface AuthScreenProps {
@@ -20,11 +23,20 @@ export function AuthScreen({ role, onBack, onAuthSuccess }: AuthScreenProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [captchaInput, setCaptchaInput] = useState('');
+  const captchaAnswerRef = useRef('');
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [emailLoading, setEmailLoading] = useState(false);
   const [authError, setAuthError] = useState('');
   const [authInfo, setAuthInfo] = useState('');
+
+  const isTenantSignup = role === 'tenant' && mode === 'signup';
+
+  function resetSignupExtras() {
+    setCaptchaInput('');
+    captchaAnswerRef.current = '';
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,10 +48,7 @@ export function AuthScreen({ role, onBack, onAuthSuccess }: AuthScreenProps) {
 
       if (mode === 'signup') {
         if (!fullName.trim()) {
-          throw new Error('請輸入用戶名稱。');
-        }
-        if (!username.trim()) {
-          throw new Error('請輸入登入帳號。');
+          throw new Error('請輸入名稱。');
         }
         if (password.length < 6) {
           throw new Error('密碼至少需要 6 個字元。');
@@ -48,20 +57,45 @@ export function AuthScreen({ role, onBack, onAuthSuccess }: AuthScreenProps) {
           throw new Error('兩次輸入的密碼不一致。');
         }
 
+        if (!username.trim()) {
+          throw new Error('請輸入登入帳號。');
+        }
+
         const normalizedUsername = username.trim().toLowerCase();
         const existingEmail = await findEmailByUsername(normalizedUsername).catch(() => null);
         if (existingEmail) {
-          throw new Error('此帳號名稱已被使用，請改用另一個 username。');
+          throw new Error('此帳號名稱已被使用，請改用另一個登入帳號。');
+        }
+
+        if (isTenantSignup) {
+          if (captchaInput.trim().toUpperCase() !== captchaAnswerRef.current) {
+            throw new Error('圖形驗證碼不正確。');
+          }
+
+          await registerTenantAccount({
+            username: normalizedUsername,
+            password,
+            fullName: fullName.trim(),
+          });
+
+          onAuthSuccess('tenant');
+          return;
+        }
+
+        const signupEmail = email.trim().toLowerCase();
+        const emailCheck = await validateSignupEmailWithDatabase(signupEmail);
+        if (!emailCheck.ok) {
+          throw new Error(emailCheck.message);
         }
 
         const { data, error } = await supabase.auth.signUp({
-          email,
+          email: signupEmail,
           password,
           options: {
             emailRedirectTo: window.location.origin,
             data: {
               full_name: fullName.trim(),
-              role: role ?? 'tenant',
+              role: role ?? 'landlord',
               username: normalizedUsername,
             },
           },
@@ -178,10 +212,10 @@ export function AuthScreen({ role, onBack, onAuthSuccess }: AuthScreenProps) {
 
           {mode === 'signup' ? (
             <div>
-              <label className="block mb-2 text-sm text-gray-700">登入帳號 username</label>
+              <label className="block mb-2 text-sm text-gray-700">登入帳號</label>
               <Input
                 type="text"
-                placeholder="例如：tenant123"
+                placeholder={isTenantSignup ? '例如：tenant123' : '例如：landlord123'}
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 required
@@ -190,31 +224,50 @@ export function AuthScreen({ role, onBack, onAuthSuccess }: AuthScreenProps) {
             </div>
           ) : null}
 
-          <div>
-            <label className="block mb-2 text-sm text-gray-700">
-              {mode === 'signin' ? '電子郵件或 username' : '電子郵件'}
-            </label>
-            <Input
-              type={mode === 'signin' ? 'text' : 'email'}
-              placeholder={mode === 'signin' ? '輸入 email 或 username' : 'your@email.com'}
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              className="h-12"
-            />
-          </div>
-          
-          <div>
-            <label className="block mb-2 text-sm text-gray-700">密碼</label>
-            <Input
-              type="password"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              className="h-12"
-            />
-          </div>
+          {mode === 'signin' || (mode === 'signup' && !isTenantSignup) ? (
+            <div>
+              <label className="block mb-2 text-sm text-gray-700">
+                {mode === 'signin' ? '電子郵件或 username' : '電子郵件'}
+              </label>
+              <Input
+                type="text"
+                inputMode={mode === 'signup' ? 'email' : 'text'}
+                autoComplete={mode === 'signup' ? 'email' : 'username'}
+                placeholder={mode === 'signin' ? '輸入 email 或 username' : 'your@email.com'}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                className="h-12"
+              />
+            </div>
+          ) : null}
+
+          {isTenantSignup ? (
+            <div>
+              <label className="block mb-2 text-sm text-gray-700">圖形驗證碼</label>
+              <GraphicalCaptcha
+                value={captchaInput}
+                onChange={setCaptchaInput}
+                onAnswerChange={(answer) => {
+                  captchaAnswerRef.current = answer;
+                }}
+              />
+            </div>
+          ) : null}
+
+          {mode === 'signup' || mode === 'signin' ? (
+            <div>
+              <label className="block mb-2 text-sm text-gray-700">密碼</label>
+              <Input
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                className="h-12"
+              />
+            </div>
+          ) : null}
 
           {mode === 'signup' ? (
             <div>
@@ -290,6 +343,7 @@ export function AuthScreen({ role, onBack, onAuthSuccess }: AuthScreenProps) {
               setMode(mode === 'signin' ? 'signup' : 'signin');
               setFullName('');
               setUsername('');
+              resetSignupExtras();
             }}
           >
             {mode === 'signin' ? '註冊新帳戶' : '返回登入'}

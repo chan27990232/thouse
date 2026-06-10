@@ -31,44 +31,10 @@ export function computeFirstPaymentTotal(monthlyRent: number): number {
   return getLeaseFirstPaymentBreakdown(monthlyRent).total;
 }
 
-/** 信用卡號 Luhn 校驗（13–19 位） */
-export function luhnValid(digits: string): boolean {
-  const s = digits.replace(/\D/g, '');
-  if (s.length < 13 || s.length > 19) return false;
-  let sum = 0;
-  let double = false;
-  for (let i = s.length - 1; i >= 0; i--) {
-    let n = parseInt(s[i], 10);
-    if (double) {
-      n *= 2;
-      if (n > 9) n -= 9;
-    }
-    sum += n;
-    double = !double;
-  }
-  return sum % 10 === 0;
-}
-
-/**
- * 到期日 MM/YY 是否已過期（以該月最後一日 23:59:59 為準）
- */
-export function isCardExpiryInPast(mmYy: string): boolean {
-  const t = mmYy.replace(/\D/g, '');
-  if (t.length < 4) return true;
-  const mm = parseInt(t.slice(0, 2), 10);
-  const yy = parseInt(t.slice(2, 4), 10);
-  if (mm < 1 || mm > 12) return true;
-  const year = 2000 + yy;
-  const last = new Date(year, mm, 0, 23, 59, 59, 999);
-  return last < new Date();
-}
-
-export function formatCardPanForDisplay(pan: string): string {
-  const d = pan.replace(/\D/g, '');
-  return d.replace(/(\d{4})(?=\d)/g, '$1 ').trim();
-}
-
+/** 租客流程可選付款方式（與資料庫 payment_method 相容；historical rows 可能有 card） */
 export type PaymentMethodCode = 'card' | 'fps' | 'bank_transfer';
+
+export type LeasePaymentSubmitMethod = 'fps' | 'bank_transfer';
 
 export function getPaymentMethodLabel(m: PaymentMethodCode): string {
   switch (m) {

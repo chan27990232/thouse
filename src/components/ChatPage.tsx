@@ -15,6 +15,15 @@ import {
 } from '../lib/conversations';
 import { defaultPropertyImage } from '../lib/properties';
 import { getProfileStarSummary, type StarSummary } from '../lib/transactionReviews';
+import {
+  THOUSE_SUPPORT_LABEL,
+  THOUSE_SUPPORT_PIN_ID,
+  type SupportMessageRow,
+  type SupportTicketSummary,
+  fetchSupportMessages,
+  getOrCreateSupportTicket,
+  sendSupportMessageAsUser,
+} from '../lib/supportChat';
 import { cn } from './ui/utils';
 
 interface ChatPageProps {
@@ -60,8 +69,11 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
   const [draft, setDraft] = useState('');
   const [peerStarSummary, setPeerStarSummary] = useState<StarSummary>({ avgStars: 0, reviewCount: 0 });
   const [peerRatingLoading, setPeerRatingLoading] = useState(false);
+  const [supportTicket, setSupportTicket] = useState<SupportTicketSummary | null>(null);
+  const [supportMessages, setSupportMessages] = useState<SupportMessageRow[]>([]);
 
-  const activeThread = threads.find((t) => t.conversation.id === activeId) ?? null;
+  const isSupportActive = userRole === 'tenant' && activeId === THOUSE_SUPPORT_PIN_ID;
+  const activeThread = isSupportActive ? null : (threads.find((t) => t.conversation.id === activeId) ?? null);
 
   const activeTenantIdForLandlord = useMemo(() => {
     if (userRole !== 'landlord' || !activeId) return null;
@@ -85,6 +97,15 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
     }
   }, [userRole]);
 
+  const loadSupportTicket = useCallback(async (uid: string) => {
+    try {
+      const ticket = await getOrCreateSupportTicket(uid);
+      setSupportTicket(ticket);
+    } catch {
+      setSupportTicket(null);
+    }
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -99,11 +120,14 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
       }
       setUserId(user.id);
       await loadThreads(user.id);
+      if (userRole === 'tenant') {
+        await loadSupportTicket(user.id);
+      }
     })();
     return () => {
       cancelled = true;
     };
-  }, [loadThreads]);
+  }, [loadThreads, loadSupportTicket, userRole]);
 
   useEffect(() => {
     const {
@@ -120,13 +144,27 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
     (async () => {
       setMsgLoading(true);
       try {
-        const rows = await fetchConversationMessages(activeId);
-        if (cancelled) return;
-        setMessages(rows);
-        await markConversationRead(activeId);
-        await loadThreads(userId);
+        if (isSupportActive) {
+          if (!supportTicket) {
+            if (!cancelled) setMsgLoading(false);
+            return;
+          }
+          const rows = await fetchSupportMessages(supportTicket.id);
+          if (cancelled) return;
+          setSupportMessages(rows);
+          setSupportTicket((prev) => (prev ? { ...prev, hasUnreadFromStaff: false } : prev));
+        } else {
+          const rows = await fetchConversationMessages(activeId);
+          if (cancelled) return;
+          setMessages(rows);
+          await markConversationRead(activeId);
+          await loadThreads(userId);
+        }
       } catch {
-        if (!cancelled) setMessages([]);
+        if (!cancelled) {
+          if (isSupportActive) setSupportMessages([]);
+          else setMessages([]);
+        }
       } finally {
         if (!cancelled) setMsgLoading(false);
       }
@@ -134,7 +172,7 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
     return () => {
       cancelled = true;
     };
-  }, [activeId, userId, loadThreads]);
+  }, [activeId, userId, loadThreads, isSupportActive, supportTicket?.id]);
 
   useEffect(() => {
     if (!activeTenantIdForLandlord) {
@@ -159,7 +197,9 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
     };
   }, [activeTenantIdForLandlord]);
 
-  const totalUnread = threads.reduce((s, t) => s + t.unreadCount, 0);
+  const totalUnread =
+    threads.reduce((s, t) => s + t.unreadCount, 0) +
+    (userRole === 'tenant' && supportTicket?.hasUnreadFromStaff ? 1 : 0);
 
   const getAvatarText = (name: string) => name.replace(/[（）()]/g, '').slice(0, 1) || '⋯';
 
@@ -170,10 +210,17 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
     if (!text || !activeId || !userId) return;
     setDraft('');
     try {
-      await sendChatMessage(activeId, userId, text);
-      const rows = await fetchConversationMessages(activeId);
-      setMessages(rows);
-      await loadThreads(userId);
+      if (isSupportActive && supportTicket) {
+        await sendSupportMessageAsUser(supportTicket.id, userId, text);
+        const rows = await fetchSupportMessages(supportTicket.id);
+        setSupportMessages(rows);
+        await loadSupportTicket(userId);
+      } else {
+        await sendChatMessage(activeId, userId, text);
+        const rows = await fetchConversationMessages(activeId);
+        setMessages(rows);
+        await loadThreads(userId);
+      }
     } catch {
       setDraft(text);
     }
@@ -255,10 +302,47 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
               {listLoading && threads.length === 0 ? (
                 <p className="p-4 text-sm text-gray-500">載入中…</p>
               ) : null}
-              {!listLoading && threads.length === 0 ? (
+              {!listLoading && userRole !== 'tenant' && threads.length === 0 ? (
                 <p className="p-4 text-sm leading-relaxed text-gray-500">
                   暫沒有對話；可從租盤內使用「聯絡業主」發出第一則查詢。
                 </p>
+              ) : null}
+              {userRole === 'tenant' && supportTicket ? (
+                <button
+                  type="button"
+                  onClick={() => setActiveId(THOUSE_SUPPORT_PIN_ID)}
+                  className={cn(
+                    'w-full border-b border-gray-100 px-3 py-3.5 text-left transition-colors',
+                    isSupportActive
+                      ? 'bg-gray-100 ring-1 ring-inset ring-gray-300/80'
+                      : 'hover:bg-gray-50',
+                  )}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white ring-1 ring-gray-200">
+                      <img src={thouseLogo} alt="" className="h-8 w-8" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="truncate text-sm font-semibold text-gray-900">{THOUSE_SUPPORT_LABEL}</p>
+                        <span className="shrink-0 text-[11px] text-gray-400">
+                          {supportTicket.lastMessageAt ? formatListTime(supportTicket.lastMessageAt) : ''}
+                        </span>
+                      </div>
+                      <p className="mt-0.5 truncate text-xs text-gray-600">平台客服</p>
+                      <p className="mt-1 line-clamp-2 text-xs text-gray-500">
+                        {supportTicket.lastMessageBody
+                          ? firstLine(supportTicket.lastMessageBody)
+                          : '如有租務或付款問題，歡迎留言'}
+                      </p>
+                    </div>
+                    {supportTicket.hasUnreadFromStaff ? (
+                      <span className="mt-1 flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-red-500 px-1 text-[11px] text-white">
+                        1
+                      </span>
+                    ) : null}
+                  </div>
+                </button>
               ) : null}
               {threads.map((item) => {
                 const isActive = item.conversation.id === activeId;
@@ -318,11 +402,97 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
               chatPaneVisible ? 'flex' : 'hidden md:flex',
             )}
           >
-            {!activeThread ? (
+            {!activeThread && !isSupportActive ? (
               <div className="hidden flex-1 items-center justify-center text-sm text-gray-400 md:flex">
                 請在左側選擇一個對話
               </div>
-            ) : (
+            ) : isSupportActive ? (
+              <>
+                <div className="shrink-0 border-b border-gray-200 bg-white">
+                  <div className="flex items-center justify-between gap-2 px-3 py-2.5 md:px-5">
+                    <div className="flex min-w-0 flex-1 items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setActiveId(null)}
+                        className="shrink-0 rounded-full p-1.5 text-gray-600 hover:bg-gray-100 md:hidden"
+                        aria-label="返回列表"
+                      >
+                        <ChevronLeft className="h-5 w-5" />
+                      </button>
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white ring-1 ring-gray-200">
+                        <img src={thouseLogo} alt="" className="h-7 w-7" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold">{THOUSE_SUPPORT_LABEL}</p>
+                        <p className="truncate text-xs text-gray-500">平台客服 · 租務與付款查詢</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  dir="ltr"
+                  className="min-h-0 w-full min-w-0 flex-1 space-y-3 overflow-y-auto overflow-x-hidden bg-stone-50/90 px-3 py-4 text-left md:px-6"
+                >
+                  {msgLoading ? <p className="text-xs text-gray-500">載入訊息…</p> : null}
+                  {!msgLoading && supportMessages.length === 0 ? (
+                    <p className="text-center text-xs text-gray-500">歡迎聯絡 Thouse 客服，我們會盡快回覆。</p>
+                  ) : null}
+                  {supportMessages.map((msg, index) => {
+                    const isMe = !msg.is_staff;
+                    const prev = index > 0 ? supportMessages[index - 1] : null;
+                    const startOtherBlock = !isMe && (!prev || prev.is_staff !== msg.is_staff);
+                    if (isMe) {
+                      return (
+                        <div key={msg.id} className="w-full text-right" dir="ltr">
+                          <div className="inline-block max-w-[85%] rounded-[1.1rem] rounded-tr-md bg-slate-200/95 px-3.5 py-2.5 text-left text-sm leading-relaxed text-slate-900 shadow-sm ring-1 ring-slate-300/25 break-words whitespace-pre-wrap sm:max-w-[75%]">
+                            {msg.body}
+                          </div>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div key={msg.id} className="flex w-full min-w-0 items-end justify-start gap-2.5">
+                        <div className="flex w-8 shrink-0 flex-col items-center justify-end pb-0.5">
+                          {startOtherBlock ? (
+                            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white ring-1 ring-stone-200">
+                              <img src={thouseLogo} alt="" className="h-5 w-5" />
+                            </div>
+                          ) : (
+                            <div className="h-8 w-8" aria-hidden />
+                          )}
+                        </div>
+                        <div className="w-fit min-w-0 max-w-[calc(100%-2.5rem)] rounded-[1.1rem] rounded-tl-md border border-stone-200/90 bg-white px-3.5 py-2.5 text-sm leading-relaxed text-stone-800 shadow-sm break-words whitespace-pre-wrap">
+                          {msg.body}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="shrink-0 border-t border-stone-200/80 bg-white p-3 md:px-5 md:pb-4">
+                  <div className="flex items-center gap-3">
+                    <Input
+                      value={draft}
+                      onChange={(e) => setDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') void send();
+                      }}
+                      placeholder="向 Thouse 客服輸入訊息…"
+                      className="min-h-10 flex-1 rounded-full border-stone-200 bg-white py-2.5 shadow-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void send()}
+                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black text-white transition hover:bg-gray-800"
+                      aria-label="送出"
+                    >
+                      <Send className="h-4 w-4 shrink-0" strokeWidth={2} />
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : activeThread ? (
               <>
                 <div className="shrink-0 border-b border-gray-200 bg-white">
                   <div className="flex items-center justify-between gap-2 px-3 py-2.5 md:px-5">
@@ -478,7 +648,7 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
                   </div>
                 </div>
               </>
-            )}
+            ) : null}
           </section>
         </div>
       </div>

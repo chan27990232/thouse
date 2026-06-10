@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { Search, Bell, MessageCircle, User, SlidersHorizontal } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Search, Bell, MessageCircle, User, SlidersHorizontal, House, X } from 'lucide-react';
 import { PropertyCard } from './PropertyCard';
 import { Property, UserRole } from '../App';
 import { Input } from './ui/input';
@@ -8,8 +8,15 @@ import { Label } from './ui/label';
 import { Slider } from './ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
-import { SearchDialog, SearchCriteria } from './SearchDialog';
+import {
+  countActiveHeroMoreFilters,
+  DEFAULT_HERO_MORE_FILTERS,
+  HERO_AREA_SQFT_MAX,
+  HeroMoreFiltersDialog,
+  type HeroMoreFiltersValues,
+} from './HeroMoreFiltersDialog';
 import { NoticeDialog } from './NoticeDialog';
+import { HK_DISTRICTS } from '../lib/hkDistricts';
 import { loadHomepageProperties } from '../lib/properties';
 import { fetchUnreadInquiryCount } from '../lib/conversations';
 import thouseLogo from 'figma:asset/f0c80b0c66e9c54aea3881bdf7a4eb152cbc4c0b.png';
@@ -21,18 +28,15 @@ const NAVY = '#1a365d' as const;
 /** 首頁英雄區租金雙向滑桿：0 – 80,000（與搜尋彈窗一致） */
 const HERO_PRICE_MAX = 80000;
 
-const HK_DISTRICTS = [
-  '油麻地',
-  '荃灣',
-  '旺角',
-  '尖沙咀',
-  '銅鑼灣',
-  '灣仔',
-  '中環',
-  '九龍塘',
-  '沙田',
-  '大埔',
-] as const;
+function clampHeroPrice(value: number): number {
+  return Math.min(HERO_PRICE_MAX, Math.max(0, value));
+}
+
+function parseHeroPriceInput(raw: string): number {
+  const digits = raw.replace(/\D/g, '');
+  if (!digits) return 0;
+  return clampHeroPrice(Number(digits));
+}
 
 interface HomeProps {
   onAuthClick: (role: 'tenant' | 'landlord') => void;
@@ -43,6 +47,7 @@ interface HomeProps {
   onLandlordDashboard: () => void;
   onChatClick: () => void;
   onProfileClick: () => void;
+  onMyPropertiesClick: () => void;
 }
 
 export function Home({
@@ -53,6 +58,7 @@ export function Home({
   onLandlordDashboard,
   onChatClick,
   onProfileClick,
+  onMyPropertiesClick,
 }: HomeProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'home' | 'favorites'>('home');
@@ -65,7 +71,7 @@ export function Home({
   const [selectedTubeLine, setSelectedTubeLine] = useState<string>('');
   const [selectedSchool, setSelectedSchool] = useState<string>('');
   const [priceRange, setPriceRange] = useState([0, HERO_PRICE_MAX]);
-  const [areaRange, setAreaRange] = useState([0, 10000]);
+  const [areaRange, setAreaRange] = useState<[number, number]>([0, HERO_AREA_SQFT_MAX]);
   const [floorLevel, setFloorLevel] = useState<string>('');
   const [hasToilet, setHasToilet] = useState(false);
   const [buildingAge, setBuildingAge] = useState<string>('');
@@ -111,21 +117,55 @@ export function Home({
     setProperties((prev) => prev.map((p) => (p.id === id ? { ...p, isFavorite: !p.isFavorite } : p)));
   };
 
-  const handleSearchCriteria = (criteria: SearchCriteria) => {
-    setSearchQuery(criteria.location);
-    setAreaType(criteria.areaType);
-    setSelectedDistrict(criteria.areaType === 'district' ? criteria.selectedArea : '');
-    setSelectedTubeLine(criteria.areaType === 'tube' ? criteria.selectedArea : '');
-    setSelectedSchool(criteria.areaType === 'school' ? criteria.selectedArea : '');
-    setPriceRange([
-      Math.min(200000, Math.max(0, criteria.priceMin)),
-      Math.min(200000, Math.max(0, criteria.priceMax)),
-    ]);
-    setAreaRange([criteria.areaMin, criteria.areaMax]);
-    setFloorLevel(criteria.floorLevel);
-    setBuildingAge(criteria.buildingAge);
-    setHasToilet(criteria.hasPrivateToilet);
-    setAmenities(criteria.amenities);
+  const moreFilterValues = useMemo<HeroMoreFiltersValues>(
+    () => ({
+      areaType: areaType === 'tube' ? 'tube' : areaType === 'school' ? 'school' : '',
+      selectedArea: areaType === 'tube' ? selectedTubeLine : areaType === 'school' ? selectedSchool : '',
+      areaRange,
+      floorLevel: (floorLevel as HeroMoreFiltersValues['floorLevel']) || '',
+      buildingAge: (buildingAge as HeroMoreFiltersValues['buildingAge']) || '',
+      hasPrivateToilet: hasToilet,
+      amenities,
+    }),
+    [areaType, selectedTubeLine, selectedSchool, areaRange, floorLevel, buildingAge, hasToilet, amenities]
+  );
+
+  const advancedFilterCount = countActiveHeroMoreFilters(moreFilterValues);
+
+  const handleMoreFiltersApply = (filters: HeroMoreFiltersValues) => {
+    setAreaRange(filters.areaRange);
+    setFloorLevel(filters.floorLevel);
+    setBuildingAge(filters.buildingAge);
+    setHasToilet(filters.hasPrivateToilet);
+    setAmenities(filters.amenities);
+    if (filters.areaType && filters.selectedArea) {
+      setAreaType(filters.areaType);
+      setSelectedDistrict('');
+      if (filters.areaType === 'tube') {
+        setSelectedTubeLine(filters.selectedArea);
+        setSelectedSchool('');
+      } else {
+        setSelectedSchool(filters.selectedArea);
+        setSelectedTubeLine('');
+      }
+    } else if (filters.areaType === '') {
+      if (areaType !== 'district') {
+        setAreaType('district');
+        setSelectedTubeLine('');
+        setSelectedSchool('');
+      }
+    }
+    setActiveTab('home');
+    listingsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const clearAdvancedFilters = () => {
+    handleMoreFiltersApply(DEFAULT_HERO_MORE_FILTERS);
+    if (areaType !== 'district') {
+      setAreaType('district');
+      setSelectedTubeLine('');
+      setSelectedSchool('');
+    }
   };
 
   const matchesRoom = (p: Property) => {
@@ -159,6 +199,17 @@ export function Home({
   const runHeroSearch = () => {
     setActiveTab('home');
     listingsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const setPriceMin = (raw: string) => {
+    const nextMin = parseHeroPriceInput(raw);
+    setPriceRange(([_, max]) => [Math.min(nextMin, max), max]);
+  };
+
+  const setPriceMax = (raw: string) => {
+    const digits = raw.replace(/\D/g, '');
+    const nextMax = digits ? clampHeroPrice(Number(digits)) : HERO_PRICE_MAX;
+    setPriceRange(([min, _]) => [min, Math.max(nextMax, min)]);
   };
 
   return (
@@ -224,6 +275,16 @@ export function Home({
                   <MessageCircle className="h-4 w-4" />
                   {unreadCount > 0 && <span className="absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full bg-red-500" />}
                 </button>
+                {isAuthenticated && userRole === 'tenant' ? (
+                  <button
+                    type="button"
+                    onClick={onMyPropertiesClick}
+                    className="rounded-full border border-white/80 bg-white p-2 text-gray-900 shadow-sm transition-colors hover:bg-gray-50"
+                    aria-label="我的租盤"
+                  >
+                    <House className="h-4 w-4" />
+                  </button>
+                ) : null}
                 {!isAuthenticated ? (
                   <button
                     type="button"
@@ -301,6 +362,16 @@ export function Home({
                   <MessageCircle className="h-5 w-5" />
                   {unreadCount > 0 && <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-red-500" />}
                 </button>
+                {isAuthenticated && userRole === 'tenant' ? (
+                  <button
+                    type="button"
+                    onClick={onMyPropertiesClick}
+                    className="rounded-full border border-white/80 bg-white p-2 text-gray-900 shadow-sm transition-colors hover:bg-gray-50"
+                    aria-label="我的租盤"
+                  >
+                    <House className="h-5 w-5" />
+                  </button>
+                ) : null}
                 {!isAuthenticated ? (
                   <button
                     type="button"
@@ -388,6 +459,8 @@ export function Home({
                       onValueChange={(v) => {
                         setSelectedDistrict(v === 'any' ? '' : v);
                         setAreaType('district');
+                        setSelectedTubeLine('');
+                        setSelectedSchool('');
                       }}
                     >
                       <SelectTrigger className="h-10 w-full rounded-md border border-gray-200 bg-white px-3 text-left text-sm text-gray-800 shadow-sm focus:ring-1 focus:ring-gray-300">
@@ -411,26 +484,52 @@ export function Home({
                       租金範圍 (HK$ / 月)
                     </Label>
                     <div className="pt-0.5">
-                      <p
-                        className="mb-2 flex min-h-[2.5rem] flex-wrap items-center justify-between gap-2 rounded-lg border border-gray-200/80 bg-slate-50/90 px-3 py-2 text-sm tabular-nums text-gray-800"
+                      <div
+                        className="mb-2 flex min-h-[2.5rem] flex-wrap items-center gap-2 rounded-lg border border-gray-200/80 bg-slate-50/90 px-2.5 py-2 sm:gap-2.5 sm:px-3"
                         aria-live="polite"
                         aria-atomic="true"
                       >
-                        <span>
-                          最低{' '}
-                          <strong className="font-semibold" style={{ color: NAVY }}>
-                            HK$ {priceRange[0].toLocaleString('en-HK')}
-                          </strong>
+                        <label className="flex min-w-0 flex-1 items-center gap-1.5">
+                          <span className="shrink-0 text-xs text-gray-600">最低</span>
+                          <div className="relative min-w-0 flex-1">
+                            <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">
+                              HK$
+                            </span>
+                            <Input
+                              type="text"
+                              inputMode="numeric"
+                              aria-label="最低租金"
+                              value={priceRange[0] === 0 ? '' : String(priceRange[0])}
+                              placeholder="0"
+                              onChange={(e) => setPriceMin(e.target.value)}
+                              onBlur={() => setPriceRange(([min, max]) => [clampHeroPrice(min), max])}
+                              className="h-9 border-gray-200 bg-white pl-9 pr-2 text-sm tabular-nums shadow-sm focus-visible:ring-1 focus-visible:ring-gray-300"
+                            />
+                          </div>
+                        </label>
+                        <span className="shrink-0 text-gray-300" aria-hidden>
+                          |
                         </span>
-                        <span className="text-gray-300">|</span>
-                        <span>
-                          最高{' '}
-                          <strong className="font-semibold" style={{ color: NAVY }}>
-                            HK$ {priceRange[1].toLocaleString('en-HK')}
-                            {priceRange[1] >= HERO_PRICE_MAX ? '+' : ''}
-                          </strong>
-                        </span>
-                      </p>
+                        <label className="flex min-w-0 flex-1 items-center gap-1.5">
+                          <span className="shrink-0 text-xs text-gray-600">最高</span>
+                          <div className="relative min-w-0 flex-1">
+                            <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">
+                              HK$
+                            </span>
+                            <Input
+                              type="text"
+                              inputMode="numeric"
+                              aria-label="最高租金"
+                              value={String(priceRange[1])}
+                              onChange={(e) => setPriceMax(e.target.value)}
+                              onBlur={() =>
+                                setPriceRange(([min, max]) => [min, Math.max(clampHeroPrice(max), min)])
+                              }
+                              className="h-9 border-gray-200 bg-white pl-9 pr-2 text-sm tabular-nums shadow-sm focus-visible:ring-1 focus-visible:ring-gray-300"
+                            />
+                          </div>
+                        </label>
+                      </div>
                       <Slider
                         value={priceRange}
                         onValueChange={(v) => setPriceRange(v as [number, number])}
@@ -470,7 +569,7 @@ export function Home({
 
                   <div aria-hidden className="my-1 hidden w-px shrink-0 self-stretch bg-gray-200 md:block" />
 
-                  <div className="flex w-full min-w-0 flex-col gap-2 px-0 sm:max-w-sm md:min-w-[7.5rem] md:shrink-0 md:px-3">
+                  <div className="flex w-full min-w-0 flex-col gap-2 px-0 sm:max-w-sm md:min-w-[8.5rem] md:shrink-0 md:px-3">
                     <Label className="block text-left text-xs font-medium leading-none" style={{ color: '#4a5568' }}>
                       房間數目
                     </Label>
@@ -486,21 +585,79 @@ export function Home({
                         <SelectItem value="3+">3 房或以上</SelectItem>
                       </SelectContent>
                     </Select>
-                  </div>
-
-                  <div aria-hidden className="my-1 hidden w-px shrink-0 self-stretch bg-gray-200 md:block" />
-
-                  <div className="flex w-full min-w-0 flex-1 items-center justify-start pl-0 pt-1 sm:justify-end md:min-w-0 md:justify-end md:pl-1 md:pr-0">
-                    <button
-                      type="button"
-                      onClick={() => setSearchDialogOpen(true)}
-                      className="inline-flex items-center gap-1.5 whitespace-nowrap text-sm font-medium text-blue-600 transition-opacity hover:opacity-80"
-                    >
-                      <span>更多篩選</span>
-                      <SlidersHorizontal className="h-4 w-4 shrink-0" />
-                    </button>
+                    <div className="flex justify-end pt-0.5">
+                      <button
+                        type="button"
+                        onClick={() => setSearchDialogOpen(true)}
+                        className="inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-md border border-gray-200 bg-white px-3 text-sm font-medium text-gray-800 shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50"
+                        aria-label={advancedFilterCount > 0 ? `更多篩選，已選 ${advancedFilterCount} 項` : '更多篩選'}
+                      >
+                        <SlidersHorizontal className="h-3.5 w-3.5 shrink-0" style={{ color: NAVY }} />
+                        <span>更多篩選</span>
+                        {advancedFilterCount > 0 ? (
+                          <span
+                            className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full px-1.5 py-0.5 text-[11px] font-semibold leading-none text-white"
+                            style={{ backgroundColor: NAVY }}
+                          >
+                            {advancedFilterCount}
+                          </span>
+                        ) : null}
+                      </button>
+                    </div>
                   </div>
                 </div>
+
+                {advancedFilterCount > 0 ? (
+                  <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-gray-100 pt-4">
+                    <span className="text-xs font-medium text-gray-500">進階條件</span>
+                    {moreFilterValues.areaType && moreFilterValues.selectedArea ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs text-gray-800">
+                        {moreFilterValues.areaType === 'tube' ? '地鐵' : '校網'}：{moreFilterValues.selectedArea}
+                      </span>
+                    ) : null}
+                    {(moreFilterValues.areaRange[0] > 0 || moreFilterValues.areaRange[1] < HERO_AREA_SQFT_MAX) && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs text-gray-800">
+                        {moreFilterValues.areaRange[0]}–{moreFilterValues.areaRange[1]}
+                        {moreFilterValues.areaRange[1] >= HERO_AREA_SQFT_MAX ? '+' : ''} 呎
+                      </span>
+                    )}
+                    {moreFilterValues.floorLevel ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs text-gray-800">
+                        {moreFilterValues.floorLevel === 'low'
+                          ? '低層'
+                          : moreFilterValues.floorLevel === 'mid'
+                            ? '中層'
+                            : '高層'}
+                      </span>
+                    ) : null}
+                    {moreFilterValues.buildingAge ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs text-gray-800">
+                        樓齡已選
+                      </span>
+                    ) : null}
+                    {moreFilterValues.hasPrivateToilet ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs text-gray-800">
+                        獨立洗手間
+                      </span>
+                    ) : null}
+                    {moreFilterValues.amenities.map((a) => (
+                      <span
+                        key={a}
+                        className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs text-gray-800"
+                      >
+                        {a}
+                      </span>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={clearAdvancedFilters}
+                      className="inline-flex items-center gap-0.5 text-xs font-medium text-gray-500 transition-colors hover:text-gray-800"
+                    >
+                      <X className="h-3 w-3" />
+                      清除進階
+                    </button>
+                  </div>
+                ) : null}
               </div>
             </div>
       </div>
@@ -547,7 +704,12 @@ export function Home({
 
       <ThouseHomeFooter className="mt-auto" />
 
-      <SearchDialog open={searchDialogOpen} onOpenChange={setSearchDialogOpen} onSearch={handleSearchCriteria} />
+      <HeroMoreFiltersDialog
+        open={searchDialogOpen}
+        onOpenChange={setSearchDialogOpen}
+        values={moreFilterValues}
+        onApply={handleMoreFiltersApply}
+      />
 
       <NoticeDialog
         open={noticeOpen}
