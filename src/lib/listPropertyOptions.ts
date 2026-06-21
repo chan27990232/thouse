@@ -34,13 +34,19 @@ export const LISTING_FEATURE_TAGS = [
 export const LISTING_ROOM_OPTIONS = [0, 1, 2, 3, 4] as const;
 
 export function buildListingTitle(input: {
-  areaLabel: string;
+  estateName: string;
   buildingName: string;
+  unit: string;
   propertyTypeId: ListingPropertyTypeId | '';
 }): string {
   const typeLabel =
     LISTING_PROPERTY_TYPES.find((t) => t.id === input.propertyTypeId)?.label ?? '';
-  const parts = [input.areaLabel.trim(), input.buildingName.trim(), typeLabel].filter(Boolean);
+  const parts = [
+    input.estateName.trim(),
+    input.buildingName.trim(),
+    input.unit.trim(),
+    typeLabel,
+  ].filter(Boolean);
   return parts.join(' ');
 }
 

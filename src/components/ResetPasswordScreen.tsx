@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
+import { validatePasswordStrength, PASSWORD_REQUIREMENTS_HINT } from '../lib/passwordValidation';
 import { supabase } from '../lib/supabase';
 
 interface ResetPasswordScreenProps {
@@ -23,8 +24,9 @@ export function ResetPasswordScreen({ onBack, onSuccess }: ResetPasswordScreenPr
       setInfo('');
       setLoading(true);
 
-      if (password.length < 6) {
-        throw new Error('密碼至少需要 6 個字元。');
+      const passwordError = validatePasswordStrength(password);
+      if (passwordError) {
+        throw new Error(passwordError);
       }
 
       if (password !== confirmPassword) {
@@ -68,12 +70,13 @@ export function ResetPasswordScreen({ onBack, onSuccess }: ResetPasswordScreenPr
             <label className="block mb-2 text-sm text-gray-700">新密碼</label>
             <Input
               type="password"
-              placeholder="至少 6 個字元"
+              placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
               className="h-12"
             />
+            <p className="mt-1.5 text-xs text-gray-500">{PASSWORD_REQUIREMENTS_HINT}</p>
           </div>
 
           <div>

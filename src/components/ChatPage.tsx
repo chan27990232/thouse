@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Bell, Heart, MoreVertical, Search, Send, ChevronLeft, Star } from 'lucide-react';
+import { ArrowLeft, MoreVertical, Search, ChevronLeft, Star } from 'lucide-react';
 import { Input } from './ui/input';
 import { ImageWithFallback } from './figma/ImageWithFallback';
+import { ChatMessageContent } from './chat/ChatMessageContent';
+import { ChatComposer } from './chat/ChatComposer';
+import { getChatMessagePreview, type ParsedChatAttachment } from '../lib/chatMessageBody';
 import thouseLogo from 'figma:asset/f0c80b0c66e9c54aea3881bdf7a4eb152cbc4c0b.png';
 import { supabase } from '../lib/supabase';
 import {
@@ -45,7 +48,11 @@ function formatListTime(iso: string) {
 }
 
 function firstLine(text: string) {
-  return text.split('\n').find((l) => l.trim())?.trim() ?? text.slice(0, 80);
+  return (
+    getChatMessagePreview(text) ||
+    text.split('\n').find((l) => l.trim())?.trim() ||
+    text.slice(0, 80)
+  );
 }
 
 function normalizeAuthId(id: string) {
@@ -205,24 +212,26 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
 
   const getRoleLabel = (role: 'tenant' | 'landlord') => (role === 'landlord' ? '業主' : '租客');
 
-  const send = async () => {
-    const text = draft.trim();
-    if (!text || !activeId || !userId) return;
+  const send = async (payload: { text: string; attachment: ParsedChatAttachment | null }) => {
+    const { text, attachment } = payload;
+    if (!text.trim() && !attachment) return;
+    if (!activeId || !userId) return;
+    const prevDraft = draft;
     setDraft('');
     try {
       if (isSupportActive && supportTicket) {
-        await sendSupportMessageAsUser(supportTicket.id, userId, text);
+        await sendSupportMessageAsUser(supportTicket.id, userId, text, attachment);
         const rows = await fetchSupportMessages(supportTicket.id);
         setSupportMessages(rows);
         await loadSupportTicket(userId);
       } else {
-        await sendChatMessage(activeId, userId, text);
+        await sendChatMessage(activeId, userId, text, attachment);
         const rows = await fetchConversationMessages(activeId);
         setMessages(rows);
         await loadThreads(userId);
       }
     } catch {
-      setDraft(text);
+      setDraft(prevDraft);
     }
   };
 
@@ -241,31 +250,7 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
 
   return (
     <div className="min-h-screen min-w-0 overflow-x-hidden bg-white">
-      <div className="sticky top-0 z-20 border-b bg-white">
-        <div className="mx-auto flex min-h-14 max-w-[1600px] flex-wrap items-center justify-between gap-x-2 gap-y-2 px-3 py-2 sm:px-4 sm:py-0 md:h-14 md:px-6 md:py-0">
-          <div className="flex min-w-0 items-center gap-2 sm:gap-4">
-            <button type="button" onClick={onBack} className="shrink-0 rounded-full p-2 hover:bg-gray-100">
-              <ArrowLeft className="h-5 w-5" />
-            </button>
-            <div className="flex min-w-0 items-center gap-2">
-              <img src={thouseLogo} alt="簡屋" className="h-8 w-8 shrink-0" />
-              <span className="hidden font-semibold tracking-wide sm:inline">Thouse</span>
-            </div>
-            <div className="hidden items-center gap-5 text-sm text-gray-600 lg:flex">
-              <span>首頁</span>
-              <span>租盤</span>
-              <span>聊天</span>
-            </div>
-          </div>
-          <div className="ml-auto flex shrink-0 items-center gap-2 text-gray-500 sm:gap-3">
-            <Heart className="hidden h-5 w-5 sm:block" />
-            <Bell className="hidden h-5 w-5 sm:block" />
-            <div className="h-8 w-8 rounded-full bg-gray-100" />
-          </div>
-        </div>
-      </div>
-
-      <div className="mx-auto h-[calc(100vh-3.5rem)] max-w-[1600px] min-h-0 min-w-0">
+      <div className="mx-auto h-[100dvh] max-w-[1600px] min-h-0 min-w-0">
         {loadError ? <p className="p-4 text-sm text-red-600">{loadError}</p> : null}
 
         <div className="flex h-full min-h-0">
@@ -277,12 +262,22 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
             )}
           >
             <div className="shrink-0 border-b border-gray-100 px-4 py-3">
-              <div className="mb-2 flex items-center justify-between">
-                <div>
-                  <h2 className="text-lg font-semibold">收件匣</h2>
-                  <p className="text-xs text-gray-500">
-                    {listLoading ? '載入中…' : totalUnread > 0 ? `${totalUnread} 未讀` : '沒有未讀訊息'}
-                  </p>
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <div className="flex min-w-0 items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={onBack}
+                    className="shrink-0 rounded-full p-2 text-gray-600 hover:bg-gray-100"
+                    aria-label="返回"
+                  >
+                    <ArrowLeft className="h-5 w-5" />
+                  </button>
+                  <div className="min-w-0">
+                    <h2 className="text-lg font-semibold">收件匣</h2>
+                    <p className="text-xs text-gray-500">
+                      {listLoading ? '載入中…' : totalUnread > 0 ? `${totalUnread} 未讀` : '沒有未讀訊息'}
+                    </p>
+                  </div>
                 </div>
                 <button
                   type="button"
@@ -445,8 +440,8 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
                     if (isMe) {
                       return (
                         <div key={msg.id} className="w-full text-right" dir="ltr">
-                          <div className="inline-block max-w-[85%] rounded-[1.1rem] rounded-tr-md bg-slate-200/95 px-3.5 py-2.5 text-left text-sm leading-relaxed text-slate-900 shadow-sm ring-1 ring-slate-300/25 break-words whitespace-pre-wrap sm:max-w-[75%]">
-                            {msg.body}
+                          <div className="inline-block max-w-[85%] rounded-[1.1rem] rounded-tr-md bg-slate-200/95 px-3.5 py-2.5 text-left text-sm leading-relaxed text-slate-900 shadow-sm ring-1 ring-slate-300/25 sm:max-w-[75%]">
+                            <ChatMessageContent body={msg.body} isMe />
                           </div>
                         </div>
                       );
@@ -462,8 +457,8 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
                             <div className="h-8 w-8" aria-hidden />
                           )}
                         </div>
-                        <div className="w-fit min-w-0 max-w-[calc(100%-2.5rem)] rounded-[1.1rem] rounded-tl-md border border-stone-200/90 bg-white px-3.5 py-2.5 text-sm leading-relaxed text-stone-800 shadow-sm break-words whitespace-pre-wrap">
-                          {msg.body}
+                        <div className="w-fit min-w-0 max-w-[calc(100%-2.5rem)] rounded-[1.1rem] rounded-tl-md border border-stone-200/90 bg-white px-3.5 py-2.5 text-sm leading-relaxed text-stone-800 shadow-sm">
+                          <ChatMessageContent body={msg.body} />
                         </div>
                       </div>
                     );
@@ -471,25 +466,15 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
                 </div>
 
                 <div className="shrink-0 border-t border-stone-200/80 bg-white p-3 md:px-5 md:pb-4">
-                  <div className="flex items-center gap-3">
-                    <Input
+                  {userId ? (
+                    <ChatComposer
                       value={draft}
-                      onChange={(e) => setDraft(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') void send();
-                      }}
-                      placeholder="向 Thouse 客服輸入訊息…"
-                      className="min-h-10 flex-1 rounded-full border-stone-200 bg-white py-2.5 shadow-sm"
+                      onChange={setDraft}
+                      onSend={send}
+                      placeholder="輸入訊息"
+                      userId={userId}
                     />
-                    <button
-                      type="button"
-                      onClick={() => void send()}
-                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black text-white transition hover:bg-gray-800"
-                      aria-label="送出"
-                    >
-                      <Send className="h-4 w-4 shrink-0" strokeWidth={2} />
-                    </button>
-                  </div>
+                  ) : null}
                 </div>
               </>
             ) : activeThread ? (
@@ -597,10 +582,8 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
                     if (isMe) {
                       return (
                         <div key={msg.id} className="w-full text-right" dir="ltr">
-                          <div
-                            className="inline-block max-w-[85%] rounded-[1.1rem] rounded-tr-md bg-slate-200/95 px-3.5 py-2.5 text-left text-sm leading-relaxed text-slate-900 shadow-sm ring-1 ring-slate-300/25 break-words whitespace-pre-wrap sm:max-w-[75%]"
-                          >
-                            {msg.body}
+                          <div className="inline-block max-w-[85%] rounded-[1.1rem] rounded-tr-md bg-slate-200/95 px-3.5 py-2.5 text-left text-sm leading-relaxed text-slate-900 shadow-sm ring-1 ring-slate-300/25 sm:max-w-[75%]">
+                            <ChatMessageContent body={msg.body} isMe />
                           </div>
                         </div>
                       );
@@ -616,10 +599,8 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
                             <div className="h-8 w-8" aria-hidden />
                           )}
                         </div>
-                        <div
-                          className="w-fit min-w-0 max-w-[calc(100%-2.5rem)] rounded-[1.1rem] rounded-tl-md border border-stone-200/90 bg-white px-3.5 py-2.5 text-sm leading-relaxed text-stone-800 shadow-sm break-words whitespace-pre-wrap"
-                        >
-                          {msg.body}
+                        <div className="w-fit min-w-0 max-w-[calc(100%-2.5rem)] rounded-[1.1rem] rounded-tl-md border border-stone-200/90 bg-white px-3.5 py-2.5 text-sm leading-relaxed text-stone-800 shadow-sm">
+                          <ChatMessageContent body={msg.body} />
                         </div>
                       </div>
                     );
@@ -627,25 +608,15 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
                 </div>
 
                 <div className="shrink-0 border-t border-stone-200/80 bg-white p-3 md:px-5 md:pb-4">
-                  <div className="flex items-center gap-3">
-                    <Input
+                  {userId ? (
+                    <ChatComposer
                       value={draft}
-                      onChange={(e) => setDraft(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') void send();
-                      }}
-                      placeholder="在此輸入訊息…"
-                      className="min-h-10 flex-1 rounded-full border-stone-200 bg-white py-2.5 shadow-sm"
+                      onChange={setDraft}
+                      onSend={send}
+                      placeholder="輸入訊息"
+                      userId={userId}
                     />
-                    <button
-                      type="button"
-                      onClick={() => void send()}
-                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black text-white transition hover:bg-gray-800"
-                      aria-label="送出"
-                    >
-                      <Send className="h-4 w-4 shrink-0" strokeWidth={2} />
-                    </button>
-                  </div>
+                  ) : null}
                 </div>
               </>
             ) : null}

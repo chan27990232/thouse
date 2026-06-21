@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { buildChatMessageBody, getChatMessagePreview, type ParsedChatAttachment } from './chatMessageBody';
 
 export interface ConversationRow {
   id: string;
@@ -101,14 +102,19 @@ export async function sendTenantInquiryMessage(params: {
   if (msgError) throw msgError;
 }
 
-export async function sendChatMessage(conversationId: string, senderId: string, body: string) {
-  const trimmed = body.trim();
-  if (!trimmed) return;
+export async function sendChatMessage(
+  conversationId: string,
+  senderId: string,
+  body: string,
+  attachment?: ParsedChatAttachment | null
+) {
+  const fullBody = buildChatMessageBody(attachment ?? null, body);
+  if (!fullBody.trim()) return;
 
   const { error } = await supabase.from('conversation_messages').insert({
     conversation_id: conversationId,
     sender_id: senderId,
-    body: trimmed,
+    body: fullBody,
   });
 
   if (error) throw error;
@@ -274,10 +280,13 @@ export async function fetchConversationsForTenant(tenantId: string): Promise<Con
 }
 
 export interface UnreadNoticeItem {
-  id: string;
+  conversationId: string;
   messageId: string;
   propertyTitle: string;
-  bodyPreview: string;
+  /** 完整訊息內容（供 UI 解析附件） */
+  body: string;
+  /** 一行摘要（搜尋／無障礙） */
+  preview: string;
   createdAt: string;
   fromLabel: string;
 }
@@ -307,12 +316,12 @@ export async function fetchUnreadNoticesForLandlord(landlordId: string): Promise
     for (const m of messages ?? []) {
       if (m.sender_id !== c.tenant_id) continue;
       if (m.read_at) continue;
-      const preview = m.body.length > 160 ? `${m.body.slice(0, 160)}…` : m.body;
       items.push({
-        id: c.id,
+        conversationId: c.id,
         messageId: m.id,
         propertyTitle: titleMap.get(c.property_id) ?? '物業',
-        bodyPreview: preview,
+        body: m.body,
+        preview: getChatMessagePreview(m.body) || '新訊息',
         createdAt: m.created_at,
         fromLabel: (c.tenant_display_name || '租客').trim() || '租客',
       });
@@ -364,12 +373,12 @@ export async function fetchUnreadNoticesForTenant(tenantId: string): Promise<Unr
     for (const m of messages ?? []) {
       if (m.sender_id !== c.landlord_id) continue;
       if (m.read_at) continue;
-      const preview = m.body.length > 160 ? `${m.body.slice(0, 160)}…` : m.body;
       items.push({
-        id: c.id,
+        conversationId: c.id,
         messageId: m.id,
         propertyTitle: titleMap.get(c.property_id) ?? '物業',
-        bodyPreview: preview,
+        body: m.body,
+        preview: getChatMessagePreview(m.body) || '新訊息',
         createdAt: m.created_at,
         fromLabel: landlordLabels.get(c.landlord_id) ?? '業主',
       });

@@ -48,3 +48,20 @@ export function getPaymentMethodLabel(m: PaymentMethodCode): string {
       return m;
   }
 }
+
+/** 業主可見的付款狀態（不含轉賬截圖，僅記錄是否已付款） */
+export function getLandlordLeasePaymentStatusLabel(status: string | null | undefined): string {
+  switch (status) {
+    case 'succeeded':
+      return '租客已付款';
+    case 'pending_bank':
+      return '租客已提交付款（待平台核對）';
+    case 'failed':
+      return '付款失敗';
+    case null:
+    case '':
+      return '尚未付款';
+    default:
+      return status;
+  }
+}

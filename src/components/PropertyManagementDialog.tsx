@@ -25,6 +25,7 @@ import {
   formatLandlordNextDueLabel,
   getPendingLeaseManagementRequest,
   LEASE_MANAGEMENT_ACTION_LABELS,
+  LEASE_MANAGEMENT_REQUEST_STATUS_LABELS,
   submitLandlordLeaseManagementRequest,
   type LandlordLeaseAction,
   type LandlordPropertyLeaseInfo,
@@ -36,6 +37,7 @@ import {
   uploadLeaseManagementRequestFiles,
 } from '../lib/leaseManagementRequestFiles';
 import { LeaseManagementFileUpload } from './LeaseManagementFileUpload';
+import { parseDdMmYyyy } from '../lib/dateInput';
 import { supabase } from '../lib/supabase';
 
 export interface ManagedProperty extends Property {
@@ -107,6 +109,7 @@ function ActionCard({
 
 function PendingRequestPanel({ request }: { request: LeaseManagementRequestSummary }) {
   const [openingFile, setOpeningFile] = useState<string | null>(null);
+  const awaitingTenant = request.status === 'awaiting_tenant';
 
   const openFile = async (storagePath: string, fileName: string) => {
     try {
@@ -135,11 +138,24 @@ function PendingRequestPanel({ request }: { request: LeaseManagementRequestSumma
         <div className="flex h-14 w-14 items-center justify-center rounded-full bg-sky-100 text-sky-700">
           <Clock className="h-7 w-7" aria-hidden />
         </div>
-        <h3 className="mt-4 text-lg font-semibold text-gray-900">申請已提交，處理中</h3>
+        <h3 className="mt-4 text-lg font-semibold text-gray-900">
+          {awaitingTenant && request.requestType === 'renew'
+            ? '已邀請租客續約'
+            : '申請已提交，處理中'}
+        </h3>
         <p className="mt-2 max-w-md text-sm leading-relaxed text-gray-600">
-          平台管理員正在審核你的
-          <strong> {LEASE_MANAGEMENT_ACTION_LABELS[request.requestType]} </strong>
-          申請。審核完成前無法提交新申請。
+          {awaitingTenant && request.requestType === 'renew' ? (
+            <>
+              已向租客發出續約邀請（延長 <strong>{request.renewalMonths ?? '—'}</strong> 個月）。
+              租客確認後，平台才會審核申請。審核完成前無法提交新申請。
+            </>
+          ) : (
+            <>
+              平台管理員正在審核你的
+              <strong> {LEASE_MANAGEMENT_ACTION_LABELS[request.requestType]} </strong>
+              申請。審核完成前無法提交新申請。
+            </>
+          )}
         </p>
       </div>
 
@@ -148,6 +164,12 @@ function PendingRequestPanel({ request }: { request: LeaseManagementRequestSumma
           <dt className="text-gray-500">申請類型</dt>
           <dd className="font-medium text-gray-900">
             {LEASE_MANAGEMENT_ACTION_LABELS[request.requestType]}
+          </dd>
+        </div>
+        <div className="flex flex-wrap justify-between gap-2">
+          <dt className="text-gray-500">狀態</dt>
+          <dd className="font-medium text-gray-900">
+            {LEASE_MANAGEMENT_REQUEST_STATUS_LABELS[request.status]}
           </dd>
         </div>
         <div className="flex flex-wrap justify-between gap-2">
@@ -333,12 +355,16 @@ export function PropertyManagementDialog({
           renewalMonths: months,
           notes: renewNotes,
         });
-        toast.success('已提交續約申請，待平台審核');
+        toast.success('已發出續約邀請，等候租客確認');
       } else if (action === 'early_end') {
+        const parsedEnd = earlyEndDate.trim() ? parseDdMmYyyy(earlyEndDate) : null;
+        if (earlyEndDate.trim() && !parsedEnd) {
+          throw new Error('結束日期格式須為 dd/mm/yyyy');
+        }
         requestId = await submitLandlordLeaseManagementRequest({
           leaseApplicationId: leaseId,
           action: 'early_end',
-          earlyEndDate: earlyEndDate || undefined,
+          earlyEndDate: parsedEnd ?? undefined,
           notes: earlyEndNotes,
         });
         toast.success('已提交提早結束申請，待平台審核');
@@ -377,13 +403,13 @@ export function PropertyManagementDialog({
   };
 
   const confirmTitles: Record<LandlordLeaseAction, string> = {
-    renew: '提交續約申請',
+    renew: '邀請租客續約',
     early_end: '提交提早結束申請',
     breach: '提交違約申請',
   };
 
   const confirmDescriptions: Record<LandlordLeaseAction, string> = {
-    renew: `將向平台提交續約 ${renewMonths} 個月的申請。審核通過後才會延長租期。`,
+    renew: `將向租客發出續約邀請（延長 ${renewMonths} 個月）。租客確認後，平台才會審核並延長租期。`,
     early_end: '將向平台提交提早結束租約申請。審核通過後租約才會結束，物業改為招租中。',
     breach: '將向平台提交違約申請。審核通過後租約才會以違約結束。',
   };
@@ -492,7 +518,7 @@ export function PropertyManagementDialog({
                   <ActionCard
                     icon={<RefreshCw className="h-4 w-4" />}
                     title="續約"
-                    description="向平台申請延長租期。核准後租客可繼續租用。"
+                    description="向租客發出續約邀請。租客確認後，平台才會審核並延長租期。"
                   >
                     <div className="space-y-3">
                       <div>
@@ -529,7 +555,7 @@ export function PropertyManagementDialog({
                         onClick={() => setConfirmAction('renew')}
                       >
                         {actionLoading === 'renew' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                        提交續約申請
+                        邀請租客續約
                       </Button>
                     </div>
                   </ActionCard>
@@ -544,7 +570,9 @@ export function PropertyManagementDialog({
                         <Label htmlFor="early-end-date">結束日期</Label>
                         <Input
                           id="early-end-date"
-                          type="date"
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="dd/mm/yyyy"
                           value={earlyEndDate}
                           onChange={(e) => setEarlyEndDate(e.target.value)}
                           className="mt-2 max-w-[12rem]"
@@ -557,7 +585,7 @@ export function PropertyManagementDialog({
                           id="early-end-notes"
                           value={earlyEndNotes}
                           onChange={(e) => setEarlyEndNotes(e.target.value)}
-                          placeholder="例如：租客已交還鎖匙、按金已結算…"
+                          placeholder="例如：租客已交還鎖匙…"
                           className="mt-2 min-h-[72px] resize-none"
                         />
                       </div>
@@ -645,7 +673,7 @@ export function PropertyManagementDialog({
               className={confirmAction === 'breach' ? 'bg-red-600 hover:bg-red-700' : undefined}
             >
               {actionLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              提交申請
+              {confirmAction === 'renew' ? '發出邀請' : '提交申請'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

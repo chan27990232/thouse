@@ -22,10 +22,12 @@ import {
   getLeaseWorkflowStatusLabel,
   type LandlordLeaseApplicationSummary,
 } from '../lib/leaseApplications';
-import { getPaymentMethodLabel, type PaymentMethodCode } from '../lib/leaseFirstPayment';
+import { getPaymentMethodLabel, getLandlordLeasePaymentStatusLabel, type PaymentMethodCode } from '../lib/leaseFirstPayment';
 import { supabase } from '../lib/supabase';
 import thouseLogo from 'figma:asset/f0c80b0c66e9c54aea3881bdf7a4eb152cbc4c0b.png';
 import { ThouseHomeFooter } from './ThouseHomeFooter';
+import { LanguageSwitcher } from './LanguageSwitcher';
+import { useLocale } from '../context/LocaleContext';
 
 interface LandlordHomeProps {
   onSignOut: () => void;
@@ -35,22 +37,6 @@ interface LandlordHomeProps {
 }
 
 type VerificationState = 'pending' | 'approved' | 'rejected';
-
-function paymentStatusZh(status: string | null) {
-  switch (status) {
-    case 'succeeded':
-      return '已記帳';
-    case 'pending_bank':
-      return '待銀行入數';
-    case 'failed':
-      return '失敗';
-    case null:
-    case '':
-      return '—';
-    default:
-      return status;
-  }
-}
 
 interface ManagedProperty extends Property {
   status: '已出租' | '招租中';
@@ -69,6 +55,7 @@ interface ManagedProperty extends Property {
 }
 
 export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfileClick }: LandlordHomeProps) {
+  const { landlordT } = useLocale();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [showAddProperty, setShowAddProperty] = useState(false);
   const [noticeOpen, setNoticeOpen] = useState(false);
@@ -294,25 +281,26 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
         <div className="p-4 md:px-6 lg:px-8">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex min-w-0 items-center gap-2">
-              <img src={thouseLogo} alt="簡屋" className="h-10 w-10 shrink-0" />
+              <img src={thouseLogo} alt={landlordT.brandName} className="h-10 w-10 shrink-0" />
               <div className="min-w-0">
-                <span className="tracking-wider">簡屋</span>
-                <p className="text-xs text-gray-600">業主管理</p>
+                <span className="tracking-wider">{landlordT.brandName}</span>
+                <p className="text-xs text-gray-600">{landlordT.subtitle}</p>
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-1 sm:gap-2">
-              <button onClick={() => setNoticeOpen(true)} className="relative rounded-full bg-gray-100 p-2 hover:bg-gray-200">
+              <LanguageSwitcher variant="default" />
+              <button onClick={() => setNoticeOpen(true)} className="relative rounded-full bg-gray-100 p-2 hover:bg-gray-200" aria-label={landlordT.notice}>
                 <Bell className="h-5 w-5 text-gray-600" />
                 {unreadCount > 0 && <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-red-500" />}
               </button>
-              <button onClick={onChatClick} className="relative rounded-full bg-gray-100 p-2 hover:bg-gray-200">
+              <button onClick={onChatClick} className="relative rounded-full bg-gray-100 p-2 hover:bg-gray-200" aria-label={landlordT.chat}>
                 <MessageCircle className="h-5 w-5 text-gray-600" />
                 {unreadCount > 0 && <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-red-500" />}
               </button>
               <button
                 onClick={onProfileClick}
                 className="rounded-full bg-gray-100 p-2 hover:bg-gray-200"
-                aria-label="個人資料"
+                aria-label={landlordT.profile}
               >
                 <User className="h-5 w-5 text-gray-600" />
               </button>
@@ -333,7 +321,7 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
             }`}
           >
             <Home className="h-4 w-4 shrink-0" aria-hidden />
-            總覽
+            {landlordT.overview}
           </button>
           <button
             type="button"
@@ -345,7 +333,7 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
             }`}
           >
             <Wallet className="h-4 w-4 shrink-0" aria-hidden />
-            錢包
+            {landlordT.wallet}
           </button>
         </nav>
       </div>
@@ -667,27 +655,12 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
                         </div>
                         <div>
                           <dt className="text-xs text-gray-500">付款狀態</dt>
-                          <dd>{paymentStatusZh(row.paymentStatus)}</dd>
+                          <dd>{getLandlordLeasePaymentStatusLabel(row.paymentStatus)}</dd>
                         </div>
                         {row.paymentReference ? (
                           <div className="sm:col-span-2">
                             <dt className="text-xs text-gray-500">參考編號</dt>
                             <dd className="break-all font-mono text-xs">{row.paymentReference}</dd>
-                          </div>
-                        ) : null}
-                        {row.bankTransferReceiptUrl ? (
-                          <div className="sm:col-span-2">
-                            <dt className="text-xs text-gray-500">轉賬證明</dt>
-                            <dd>
-                              <a
-                                href={row.bankTransferReceiptUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-sm font-medium text-blue-700 underline underline-offset-2 hover:text-blue-900"
-                              >
-                                查看截圖／收據（新分頁）
-                              </a>
-                            </dd>
                           </div>
                         ) : null}
                       </dl>
@@ -727,7 +700,7 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
         </DialogContent>
       </Dialog>
 
-      <NoticeDialog open={noticeOpen} onOpenChange={setNoticeOpen} userRole="landlord" />
+      <NoticeDialog open={noticeOpen} onOpenChange={setNoticeOpen} userRole="landlord" onOpenChat={onChatClick} />
       <PropertyManagementDialog
         open={managementOpen}
         onOpenChange={setManagementOpen}

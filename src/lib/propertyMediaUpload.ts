@@ -33,22 +33,27 @@ export async function uploadListingCoverImage(userId: string, file: File): Promi
   return data.publicUrl;
 }
 
+function defaultExtForProof(file: File): string {
+  if (file.type.startsWith('video/')) return 'mp4';
+  return 'jpg';
+}
+
 /**
- * 實景佐證：寫入 property-verification bucket，DB 只存相對路徑
+ * 實景佐證（相片或影片）：寫入 property-verification bucket，DB 只存相對路徑
  */
 export async function uploadProofPhotoFiles(userId: string, files: File[]): Promise<string[]> {
   if (files.length < 1) {
-    throw new Error('至少上傳一張實景佐證照片');
+    throw new Error('至少上傳一張實景佐證相片或影片');
   }
   const out: string[] = [];
   for (let i = 0; i < files.length; i++) {
     const f = files[i];
-    const ext = extFromName(f.name, 'jpg');
+    const ext = extFromName(f.name, defaultExtForProof(f));
     const path = `${userId}/proof-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
     const { error } = await supabase.storage.from(BUCKET_VERIFICATION).upload(path, f, { upsert: false });
     if (error) {
       throw new Error(
-        `上傳佐證照片失敗：${error.message}。請確認已建立 bucket「property-verification」且已套用 storage 政策。`
+        `上傳實景佐證失敗：${error.message}。請確認已建立 bucket「property-verification」且已套用 storage 政策。`
       );
     }
     out.push(path);
@@ -57,14 +62,28 @@ export async function uploadProofPhotoFiles(userId: string, files: File[]): Prom
 }
 
 /**
- * 房產證明（圖或 PDF）
+ * 房產證明（可多張圖或 PDF）
  */
-export async function uploadDeedFile(userId: string, file: File): Promise<string> {
-  const ext = extFromName(file.name, 'pdf');
-  const path = `${userId}/deed-${Date.now()}.${ext}`;
-  const { error } = await supabase.storage.from(BUCKET_VERIFICATION).upload(path, file, { upsert: false });
-  if (error) {
-    throw new Error(`上傳房產證明失敗：${error.message}`);
+export async function uploadDeedFiles(userId: string, files: File[]): Promise<string[]> {
+  if (files.length < 1) {
+    throw new Error('至少上傳一份房產證明');
   }
-  return path;
+  const out: string[] = [];
+  for (let i = 0; i < files.length; i++) {
+    const f = files[i];
+    const ext = extFromName(f.name, 'pdf');
+    const path = `${userId}/deed-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    const { error } = await supabase.storage.from(BUCKET_VERIFICATION).upload(path, f, { upsert: false });
+    if (error) {
+      throw new Error(`上傳房產證明失敗：${error.message}`);
+    }
+    out.push(path);
+  }
+  return out;
+}
+
+/** @deprecated 請改用 uploadDeedFiles */
+export async function uploadDeedFile(userId: string, file: File): Promise<string> {
+  const paths = await uploadDeedFiles(userId, [file]);
+  return paths[0];
 }

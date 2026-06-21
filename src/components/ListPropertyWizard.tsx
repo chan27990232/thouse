@@ -31,7 +31,7 @@ import {
   buildListingTitle,
   type ListingPropertyTypeId,
 } from '../lib/listPropertyOptions';
-import { uploadDeedFile, uploadListingCoverImage, uploadProofPhotoFiles } from '../lib/propertyMediaUpload';
+import { uploadDeedFiles, uploadListingCoverImage, uploadProofPhotoFiles } from '../lib/propertyMediaUpload';
 import { supabase } from '../lib/supabase';
 import { cn } from './ui/utils';
 
@@ -154,12 +154,13 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
 
   const [propertyTypeId, setPropertyTypeId] = useState<ListingPropertyTypeId | ''>('');
   const [district, setDistrict] = useState('');
-  const [areaLabel, setAreaLabel] = useState('');
+  const [estateName, setEstateName] = useState('');
   const [buildingName, setBuildingName] = useState('');
-  const [streetHint, setStreetHint] = useState('');
+  const [blockTower, setBlockTower] = useState('');
+  const [unit, setUnit] = useState('');
+  const [floor, setFloor] = useState('');
   const [price, setPrice] = useState('');
   const [area, setArea] = useState('');
-  const [floor, setFloor] = useState('');
   const [bedrooms, setBedrooms] = useState(1);
   const [bathrooms, setBathrooms] = useState(1);
   const [features, setFeatures] = useState<string[]>([]);
@@ -169,11 +170,11 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [coverUrl, setCoverUrl] = useState('');
   const [proofFiles, setProofFiles] = useState<File[]>([]);
-  const [deedFile, setDeedFile] = useState<File | null>(null);
+  const [deedFiles, setDeedFiles] = useState<File[]>([]);
 
   const autoTitle = useMemo(
-    () => buildListingTitle({ areaLabel, buildingName, propertyTypeId }),
-    [areaLabel, buildingName, propertyTypeId]
+    () => buildListingTitle({ estateName, buildingName, unit, propertyTypeId }),
+    [estateName, buildingName, unit, propertyTypeId]
   );
   const displayTitle = useCustomTitle && customTitle.trim() ? customTitle.trim() : autoTitle;
 
@@ -185,19 +186,21 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
     if (s === 0 && !propertyTypeId) return '請選擇物業類型';
     if (s === 1) {
       if (!district) return '請選擇地區';
-      if (!areaLabel.trim()) return '請輸入區域或屋苑名稱（例如：荃灣、油麻地）';
+      if (!estateName.trim()) return '請輸入屋苑名稱';
+      if (!buildingName.trim()) return '請輸入大廈名稱';
+      const f = Number(floor);
+      if (!Number.isFinite(f) || f < 0) return '請輸入樓層';
+      if (!unit.trim()) return '請輸入單位';
     }
     if (s === 2) {
       const p = Number(price);
       const a = Number(area);
-      const f = Number(floor);
       if (!Number.isFinite(p) || p < 1000) return '請輸入有效月租金額（HK$1,000 起）';
       if (!Number.isFinite(a) || a < 50) return '請輸入實用面積（平方呎）';
-      if (!Number.isFinite(f) || f < 0) return '請輸入樓層';
     }
     if (s === 3) {
-      if (proofFiles.length < 1) return '請上傳至少一張實景相片';
-      if (!deedFile) return '請上傳房產證明';
+      if (proofFiles.length < 1) return '請上傳至少一張實景相片或影片';
+      if (deedFiles.length < 1) return '請上傳至少一份房產證明';
       if (!coverFile && !coverUrl.trim()) return '請上傳租盤主圖或填寫主圖網址';
     }
     if (s === 4 && !displayTitle) return '請確認放盤標題';
@@ -234,9 +237,17 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
         imageUrl = await uploadListingCoverImage(landlordId, coverFile);
       }
       const proofPaths = await uploadProofPhotoFiles(landlordId, proofFiles);
-      const deedPath = await uploadDeedFile(landlordId, deedFile!);
+      const deedPaths = await uploadDeedFiles(landlordId, deedFiles);
 
-      const payload = {
+      const addressLines = [
+        `屋苑：${estateName.trim()}`,
+        `大廈：${buildingName.trim()}`,
+        blockTower.trim() ? `座數：${blockTower.trim()}` : '',
+        `樓層：${floor}`,
+        `單位：${unit.trim()}`,
+      ].filter(Boolean);
+
+      const payload: Record<string, unknown> = {
         landlord_id: landlordId,
         title: displayTitle,
         image: imageUrl,
@@ -253,22 +264,23 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
             propertyTypeId,
             district,
           }),
-          streetHint.trim() ? `街道／座數（內部）：${streetHint.trim()}` : '',
-        ]
-          .filter(Boolean)
-          .join('\n'),
+          '',
+          '地址（內部）：',
+          ...addressLines,
+        ].join('\n'),
         status: 'available',
         proof_photo_urls: proofPaths,
-        property_deed_url: deedPath,
+        property_deed_url: deedPaths[0] ?? '',
+        property_deed_urls: deedPaths,
         verification_status: 'pending',
       };
 
       const { error } = await supabase.from('properties').insert(payload);
       if (error) {
         const m = (error.message || '').toLowerCase();
-        if (m.includes('column') || m.includes('proof_photo') || m.includes('verification')) {
+        if (m.includes('column') || m.includes('proof_photo') || m.includes('verification') || m.includes('property_deed_urls')) {
           throw new Error(
-            '資料庫尚未套用審核欄位。請執行 supabase/property_listing_verification.sql 後再試。'
+            '資料庫尚未套用審核欄位。請執行 supabase/property_listing_verification.sql 及 property_listing_deed_urls.sql 後再試。'
           );
         }
         throw error;
@@ -323,19 +335,19 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
               </SelectContent>
             </Select>
           </SectionCard>
-          <SectionCard title="地址資料" hint="屋苑或大廈名稱提交後如需修改，須經平台處理。">
+          <SectionCard title="地址資料" hint="屋苑、大廈、樓層、單位為必填；座數選填。提交後如需修改，須經平台處理。">
             <div>
-              <Label htmlFor="area-label">區域／屋苑名稱</Label>
+              <Label htmlFor="estate-name">屋苑名稱</Label>
               <Input
-                id="area-label"
+                id="estate-name"
                 className="mt-1.5 bg-white"
-                placeholder="例如：荃灣、油麻地、海濱花園"
-                value={areaLabel}
-                onChange={(e) => setAreaLabel(e.target.value)}
+                placeholder="例如：海濱花園、太古城"
+                value={estateName}
+                onChange={(e) => setEstateName(e.target.value)}
               />
             </div>
             <div>
-              <Label htmlFor="building-name">大廈／屋苑名稱（選填）</Label>
+              <Label htmlFor="building-name">大廈名稱</Label>
               <Input
                 id="building-name"
                 className="mt-1.5 bg-white"
@@ -344,14 +356,38 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
                 onChange={(e) => setBuildingName(e.target.value)}
               />
             </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="floor">樓層</Label>
+                <Input
+                  id="floor"
+                  type="text"
+                  inputMode="numeric"
+                  className="mt-1.5 bg-white"
+                  placeholder="12"
+                  value={floor}
+                  onChange={(e) => setFloor(e.target.value.replace(/\D/g, ''))}
+                />
+              </div>
+              <div>
+                <Label htmlFor="unit">單位</Label>
+                <Input
+                  id="unit"
+                  className="mt-1.5 bg-white"
+                  placeholder="例如：A、12A"
+                  value={unit}
+                  onChange={(e) => setUnit(e.target.value)}
+                />
+              </div>
+            </div>
             <div>
-              <Label htmlFor="street-hint">街道或座數（選填）</Label>
+              <Label htmlFor="block-tower">座數（選填）</Label>
               <Input
-                id="street-hint"
+                id="block-tower"
                 className="mt-1.5 bg-white"
-                placeholder="僅供內部參考，不會公開顯示聯絡方式"
-                value={streetHint}
-                onChange={(e) => setStreetHint(e.target.value)}
+                placeholder="例如：1座、A座"
+                value={blockTower}
+                onChange={(e) => setBlockTower(e.target.value)}
               />
             </div>
           </SectionCard>
@@ -375,30 +411,17 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
               />
             </div>
           </SectionCard>
-          <SectionCard title="面積與樓層">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>實用面積（呎）</Label>
-                <Input
-                  type="text"
-                  inputMode="numeric"
-                  className="mt-1.5 bg-white"
-                  placeholder="200"
-                  value={area}
-                  onChange={(e) => setArea(e.target.value.replace(/\D/g, ''))}
-                />
-              </div>
-              <div>
-                <Label>樓層</Label>
-                <Input
-                  type="text"
-                  inputMode="numeric"
-                  className="mt-1.5 bg-white"
-                  placeholder="12"
-                  value={floor}
-                  onChange={(e) => setFloor(e.target.value.replace(/\D/g, ''))}
-                />
-              </div>
+          <SectionCard title="面積">
+            <div>
+              <Label>實用面積（呎）</Label>
+              <Input
+                type="text"
+                inputMode="numeric"
+                className="mt-1.5 bg-white"
+                placeholder="200"
+                value={area}
+                onChange={(e) => setArea(e.target.value.replace(/\D/g, ''))}
+              />
             </div>
           </SectionCard>
           <SectionCard title="間隔">
@@ -445,8 +468,19 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
               type="file"
               accept="image/jpeg,image/png,image/webp"
               className="bg-white"
-              onChange={(e) => setCoverFile(e.target.files?.[0] ?? null)}
+              onChange={(e) => {
+                const f = e.target.files?.[0] ?? null;
+                setCoverFile(f);
+                if (f) setCoverUrl('');
+                e.target.value = '';
+              }}
             />
+            {coverFile ? (
+              <FilePreviewRow
+                files={[coverFile]}
+                onRemove={() => setCoverFile(null)}
+              />
+            ) : null}
             <p className="text-xs text-gray-500">或填寫圖片網址</p>
             <Input
               placeholder="https://..."
@@ -456,27 +490,43 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
               disabled={Boolean(coverFile)}
             />
           </SectionCard>
-          <SectionCard title="實景相片" hint="至少一張，用作平台審核佐證。">
+          <SectionCard
+            title="實景相片"
+            hint="至少一張，用作平台審核佐證。請提供足夠相片證明屋內設備以供核實；亦可上傳影片。"
+          >
             <Input
               type="file"
-              accept="image/jpeg,image/png,image/webp"
+              accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm"
               multiple
               className="bg-white"
-              onChange={(e) => setProofFiles(e.target.files ? Array.from(e.target.files) : [])}
+              onChange={(e) => {
+                const picked = e.target.files ? Array.from(e.target.files) : [];
+                if (picked.length > 0) {
+                  setProofFiles((prev) => [...prev, ...picked]);
+                }
+                e.target.value = '';
+              }}
             />
             <FilePreviewRow files={proofFiles} onRemove={(i) => setProofFiles((f) => f.filter((_, j) => j !== i))} />
           </SectionCard>
-          <SectionCard title="房產證明" hint="圖片或 PDF，僅供審核，不會公開。">
+          <SectionCard title="房產證明" hint="可上傳多張圖片或 PDF，僅供審核，不會公開。">
             <div className="flex items-center gap-2 rounded-lg border border-dashed border-gray-300 bg-white p-3">
               <FileCheck2 className="h-5 w-5 shrink-0 text-gray-500" />
               <Input
                 type="file"
                 accept="image/jpeg,image/png,image/webp,application/pdf"
+                multiple
                 className="border-0 bg-transparent p-0 shadow-none"
-                onChange={(e) => setDeedFile(e.target.files?.[0] ?? null)}
+                onChange={(e) => {
+                  const picked = e.target.files ? Array.from(e.target.files) : [];
+                  if (picked.length > 0) {
+                    setDeedFiles((prev) => [...prev, ...picked]);
+                  }
+                  e.target.value = '';
+                }}
               />
             </div>
-            {deedFile ? <p className="text-xs text-gray-600">已選：{deedFile.name}</p> : null}
+            <FilePreviewRow files={deedFiles} onRemove={(i) => setDeedFiles((f) => f.filter((_, j) => j !== i))} />
           </SectionCard>
         </div>
       ) : null}

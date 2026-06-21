@@ -9,6 +9,7 @@ import { AUTH_ROLE_STORAGE_KEY, getRoleFromMetadata } from '../lib/auth';
 import { findEmailByUsername } from '../lib/profiles';
 import { registerTenantAccount } from '../lib/registerTenant';
 import { validateSignupEmailWithDatabase } from '../lib/signupEmailValidation';
+import { validatePasswordStrength, PASSWORD_REQUIREMENTS_HINT } from '../lib/passwordValidation';
 import thouseLogo from 'figma:asset/f0c80b0c66e9c54aea3881bdf7a4eb152cbc4c0b.png';
 
 interface AuthScreenProps {
@@ -27,6 +28,7 @@ export function AuthScreen({ role, onBack, onAuthSuccess }: AuthScreenProps) {
   const captchaAnswerRef = useRef('');
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
   const [emailLoading, setEmailLoading] = useState(false);
   const [authError, setAuthError] = useState('');
   const [authInfo, setAuthInfo] = useState('');
@@ -50,8 +52,9 @@ export function AuthScreen({ role, onBack, onAuthSuccess }: AuthScreenProps) {
         if (!fullName.trim()) {
           throw new Error('請輸入名稱。');
         }
-        if (password.length < 6) {
-          throw new Error('密碼至少需要 6 個字元。');
+        const passwordError = validatePasswordStrength(password);
+        if (passwordError) {
+          throw new Error(passwordError);
         }
         if (password !== confirmPassword) {
           throw new Error('兩次輸入的密碼不一致。');
@@ -120,7 +123,7 @@ export function AuthScreen({ role, onBack, onAuthSuccess }: AuthScreenProps) {
         : await findEmailByUsername(loginIdentifier);
 
       if (!resolvedEmail) {
-        throw new Error('找不到這個 username，請檢查後再試。');
+        throw new Error('找不到這個用戶名稱，請檢查後再試。');
       }
 
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -144,17 +147,19 @@ export function AuthScreen({ role, onBack, onAuthSuccess }: AuthScreenProps) {
       setAuthError('');
       setAuthInfo('');
 
-      if (!email) {
-        throw new Error('請先輸入你的 email 或 username。');
+      if (!forgotPasswordEmail.trim()) {
+        throw new Error('請輸入你的電子郵件。');
       }
 
-      const loginIdentifier = email.trim();
+      setEmailLoading(true);
+
+      const loginIdentifier = forgotPasswordEmail.trim();
       const resolvedEmail = loginIdentifier.includes('@')
-        ? loginIdentifier
+        ? loginIdentifier.toLowerCase()
         : await findEmailByUsername(loginIdentifier);
 
       if (!resolvedEmail) {
-        throw new Error('找不到這個 username，請檢查後再試。');
+        throw new Error('找不到此電子郵件，請檢查後再試。');
       }
 
       const { error } = await supabase.auth.resetPasswordForEmail(resolvedEmail, {
@@ -165,8 +170,11 @@ export function AuthScreen({ role, onBack, onAuthSuccess }: AuthScreenProps) {
 
       setAuthInfo('重設密碼連結已寄出，請到你的電子郵件收件匣查看。');
       setShowForgotPassword(false);
+      setForgotPasswordEmail('');
     } catch (error) {
       setAuthError(error instanceof Error ? error.message : '無法寄出重設密碼 email。');
+    } finally {
+      setEmailLoading(false);
     }
   };
 
@@ -227,13 +235,13 @@ export function AuthScreen({ role, onBack, onAuthSuccess }: AuthScreenProps) {
           {mode === 'signin' || (mode === 'signup' && !isTenantSignup) ? (
             <div>
               <label className="block mb-2 text-sm text-gray-700">
-                {mode === 'signin' ? '電子郵件或 username' : '電子郵件'}
+                {mode === 'signin' ? '電子郵件或用戶名稱' : '電子郵件'}
               </label>
               <Input
                 type="text"
                 inputMode={mode === 'signup' ? 'email' : 'text'}
                 autoComplete={mode === 'signup' ? 'email' : 'username'}
-                placeholder={mode === 'signin' ? '輸入 email 或 username' : 'your@email.com'}
+                placeholder={mode === 'signin' ? '輸入電子郵件或用戶名稱' : 'your@email.com'}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -266,6 +274,9 @@ export function AuthScreen({ role, onBack, onAuthSuccess }: AuthScreenProps) {
                 required
                 className="h-12"
               />
+              {mode === 'signup' ? (
+                <p className="mt-1.5 text-xs text-gray-500">{PASSWORD_REQUIREMENTS_HINT}</p>
+              ) : null}
             </div>
           ) : null}
 
@@ -307,7 +318,10 @@ export function AuthScreen({ role, onBack, onAuthSuccess }: AuthScreenProps) {
             onClick={() => {
               setAuthError('');
               setAuthInfo('');
-              setShowForgotPassword((prev) => !prev);
+              setShowForgotPassword((prev) => {
+                if (prev) setForgotPasswordEmail('');
+                return !prev;
+              });
             }}
           >
             忘記密碼？
@@ -315,8 +329,20 @@ export function AuthScreen({ role, onBack, onAuthSuccess }: AuthScreenProps) {
         </div>
 
         {showForgotPassword ? (
-          <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-4 space-y-3">
-            <p className="text-sm text-gray-600">系統會將重設密碼連結寄到你輸入的電子郵件。</p>
+          <div className="mt-4 space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
+            <p className="text-sm text-gray-600">輸入註冊時使用的電子郵件，我們會寄送重設密碼連結。</p>
+            <div>
+              <label className="mb-2 block text-sm text-gray-700">電子郵件</label>
+              <Input
+                type="email"
+                inputMode="email"
+                autoComplete="email"
+                placeholder="your@email.com"
+                value={forgotPasswordEmail}
+                onChange={(e) => setForgotPasswordEmail(e.target.value)}
+                className="h-12 bg-white"
+              />
+            </div>
             <Button
               type="button"
               variant="outline"

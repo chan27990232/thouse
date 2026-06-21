@@ -209,7 +209,6 @@ export interface LandlordLeaseApplicationSummary {
   paymentMethod: string | null;
   paymentStatus: string | null;
   paymentReference: string | null;
-  bankTransferReceiptUrl?: string | null;
   createdAt: string;
 }
 
@@ -324,7 +323,6 @@ export async function fetchLeaseApplicationsForLandlord(): Promise<LandlordLease
       payment_method,
       payment_status,
       payment_reference,
-      bank_transfer_receipt_url,
       properties ( title )
     `
     )
@@ -350,7 +348,6 @@ export async function fetchLeaseApplicationsForLandlord(): Promise<LandlordLease
     paymentMethod: raw.payment_method,
     paymentStatus: raw.payment_status,
     paymentReference: raw.payment_reference,
-    bankTransferReceiptUrl: raw.bank_transfer_receipt_url?.trim() || null,
     createdAt: raw.created_at,
   }));
 }

@@ -1,6 +1,7 @@
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import { InfoPagesProvider } from './context/InfoPagesContext';
+import { LocaleProvider } from './context/LocaleContext';
 import { RootErrorBoundary } from './components/RootErrorBoundary';
 import './index.css';
 
@@ -11,9 +12,11 @@ if (!el) {
 
 createRoot(el).render(
   <RootErrorBoundary>
-    <InfoPagesProvider>
-      <App />
-    </InfoPagesProvider>
+    <LocaleProvider>
+      <InfoPagesProvider>
+        <App />
+      </InfoPagesProvider>
+    </LocaleProvider>
   </RootErrorBoundary>
 );
   

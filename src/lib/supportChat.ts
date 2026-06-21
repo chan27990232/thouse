@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { buildChatMessageBody, type ParsedChatAttachment } from './chatMessageBody';
 
 export const THOUSE_SUPPORT_PIN_ID = '__thouse_support__';
 export const THOUSE_SUPPORT_LABEL = 'Thouse 客服';
@@ -78,15 +79,20 @@ export async function fetchSupportMessages(ticketId: string): Promise<SupportMes
   return (data ?? []) as SupportMessageRow[];
 }
 
-export async function sendSupportMessageAsUser(ticketId: string, userId: string, body: string) {
-  const trimmed = body.trim();
-  if (!trimmed) return;
+export async function sendSupportMessageAsUser(
+  ticketId: string,
+  userId: string,
+  body: string,
+  attachment?: ParsedChatAttachment | null
+) {
+  const fullBody = buildChatMessageBody(attachment ?? null, body);
+  if (!fullBody.trim()) return;
 
   const { error } = await supabase.from('support_messages').insert({
     ticket_id: ticketId,
     sender_id: userId,
     is_staff: false,
-    body: trimmed,
+    body: fullBody,
   });
 
   if (error) throw error;

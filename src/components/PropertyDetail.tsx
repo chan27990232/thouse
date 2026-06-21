@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowLeft, MapPin, Home, Bed, Bath } from 'lucide-react';
+import { ArrowLeft, MapPin, Home, Bed, Bath, Building2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Property } from '../App';
 import { submitLeaseApplication } from '../lib/leaseApplications';
@@ -87,9 +87,7 @@ export function PropertyDetail({ property, onBack, isAuthenticated }: PropertyDe
             <div className="text-sm text-gray-500">浴室</div>
           </div>
           <div className="text-center">
-            <div className="w-6 h-6 mx-auto mb-2 text-gray-600 flex items-center justify-center">
-              <span className="text-lg">🏢</span>
-            </div>
+            <Building2 className="mx-auto mb-2 h-6 w-6 text-gray-600" strokeWidth={1.75} />
             <div>{property.floor}</div>
             <div className="text-sm text-gray-500">樓層</div>
           </div>

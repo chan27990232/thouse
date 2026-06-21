@@ -5,7 +5,7 @@ import { getRentPaymentStatusLabel, type RentPaymentStatus } from './rentPayment
 
 export type LandlordLeaseAction = 'early_end' | 'renew' | 'breach';
 
-export type LeaseManagementRequestStatus = 'pending' | 'approved' | 'rejected';
+export type LeaseManagementRequestStatus = 'awaiting_tenant' | 'pending' | 'approved' | 'rejected';
 
 export interface LeaseManagementRequestSummary {
   id: string;
@@ -28,6 +28,7 @@ export const LEASE_MANAGEMENT_ACTION_LABELS: Record<LandlordLeaseAction, string>
 };
 
 export const LEASE_MANAGEMENT_REQUEST_STATUS_LABELS: Record<LeaseManagementRequestStatus, string> = {
+  awaiting_tenant: '等候租客確認',
   pending: '待平台審核',
   approved: '已核准',
   rejected: '已駁回',
@@ -322,5 +323,7 @@ export async function fetchLeaseManagementRequestsForLease(
 export function getPendingLeaseManagementRequest(
   requests: LeaseManagementRequestSummary[]
 ): LeaseManagementRequestSummary | null {
-  return requests.find((r) => r.status === 'pending') ?? null;
+  return (
+    requests.find((r) => r.status === 'pending' || r.status === 'awaiting_tenant') ?? null
+  );
 }

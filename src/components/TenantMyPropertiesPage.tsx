@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ArrowLeft, ClipboardList, Droplets, ExternalLink, FileText, House, Loader2 } from 'lucide-react';
+import { ArrowLeft, ClipboardList, Droplets, ExternalLink, FileText, House, Loader2, RefreshCw } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
@@ -36,6 +36,12 @@ import {
 } from '../lib/tenantUtilityBills';
 import { RentPaymentDialog } from './RentPaymentDialog';
 import { UtilityPaymentDialog } from './UtilityPaymentDialog';
+import {
+  fetchTenantAwaitingRenewInvites,
+  respondTenantRenewInvite,
+  type TenantRenewInviteSummary,
+} from '../lib/tenantLeaseManagement';
+import { toast } from 'sonner';
 
 interface TenantMyPropertiesPageProps {
   onBack: () => void;
@@ -44,10 +50,14 @@ interface TenantMyPropertiesPageProps {
 
 function ActiveLeaseCard({
   lease,
+  renewInvite,
+  onRenewResponded,
   onPayRent,
   onPayUtility,
 }: {
   lease: TenantLeaseApplicationSummary;
+  renewInvite: TenantRenewInviteSummary | null;
+  onRenewResponded: () => void;
   onPayRent: (p: RentPaymentSummary) => void;
   onPayUtility: (payments: UtilityPaymentSummary[]) => void;
 }) {
@@ -55,6 +65,7 @@ function ActiveLeaseCard({
   const [utilities, setUtilities] = useState<UtilityPaymentSummary[]>([]);
   const [utilityBills, setUtilityBills] = useState<TenantUtilityBillFile[]>([]);
   const [loading, setLoading] = useState(true);
+  const [renewLoading, setRenewLoading] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -108,6 +119,70 @@ function ActiveLeaseCard({
       </div>
 
       <div className="space-y-3 p-4 text-sm">
+        {renewInvite ? (
+          <div className="rounded-lg border border-sky-200 bg-sky-50/90 px-3 py-3 text-sky-950">
+            <div className="flex items-start gap-2">
+              <RefreshCw className="mt-0.5 h-4 w-4 shrink-0 text-sky-700" />
+              <div className="min-w-0 flex-1">
+                <p className="font-medium">業主邀請你續約</p>
+                <p className="mt-1 text-xs leading-relaxed text-sky-900/90">
+                  延長 <strong>{renewInvite.renewalMonths ?? '—'}</strong> 個月。
+                  {renewInvite.notes.trim() ? ` 備註：${renewInvite.notes.trim()}` : ''}
+                  請確認是否同意續租；同意後平台才會審核。
+                </p>
+                <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="bg-sky-800 text-white hover:bg-sky-900"
+                    disabled={renewLoading}
+                    onClick={() => {
+                      void (async () => {
+                        try {
+                          setRenewLoading(true);
+                          await respondTenantRenewInvite(renewInvite.id, true);
+                          toast.success('已確認續約，等候平台審核');
+                          onRenewResponded();
+                        } catch (e) {
+                          toast.error(e instanceof Error ? e.message : '操作失敗');
+                        } finally {
+                          setRenewLoading(false);
+                        }
+                      })();
+                    }}
+                  >
+                    {renewLoading ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
+                    確認續約
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="border-sky-300 bg-white text-sky-900 hover:bg-sky-100"
+                    disabled={renewLoading}
+                    onClick={() => {
+                      void (async () => {
+                        try {
+                          setRenewLoading(true);
+                          await respondTenantRenewInvite(renewInvite.id, false);
+                          toast.success('已拒絕續約邀請');
+                          onRenewResponded();
+                        } catch (e) {
+                          toast.error(e instanceof Error ? e.message : '操作失敗');
+                        } finally {
+                          setRenewLoading(false);
+                        }
+                      })();
+                    }}
+                  >
+                    拒絕
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
           <div>
             <dt className="text-xs text-gray-500">面積 / 樓層</dt>
@@ -290,6 +365,7 @@ function ActiveLeaseCard({
 
 export function TenantMyPropertiesPage({ onBack, onApplicationsClick }: TenantMyPropertiesPageProps) {
   const [leases, setLeases] = useState<TenantLeaseApplicationSummary[]>([]);
+  const [renewInvites, setRenewInvites] = useState<TenantRenewInviteSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [rentDialog, setRentDialog] = useState<RentPaymentSummary | null>(null);
@@ -303,8 +379,11 @@ export function TenantMyPropertiesPage({ onBack, onApplicationsClick }: TenantMy
       setError('');
       try {
         const all = await fetchLeaseApplicationsForTenant();
+        const active = all.filter((l) => l.applicationStatus === 'approved');
+        const invites = await fetchTenantAwaitingRenewInvites(active.map((l) => l.id));
         if (!cancelled) {
-          setLeases(all.filter((l) => l.applicationStatus === 'approved'));
+          setLeases(active);
+          setRenewInvites(invites);
         }
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : '無法載入');
@@ -365,6 +444,8 @@ export function TenantMyPropertiesPage({ onBack, onApplicationsClick }: TenantMy
             <ActiveLeaseCard
               key={`${lease.id}-${reloadKey}`}
               lease={lease}
+              renewInvite={renewInvites.find((inv) => inv.leaseApplicationId === lease.id) ?? null}
+              onRenewResponded={() => setReloadKey((k) => k + 1)}
               onPayRent={setRentDialog}
               onPayUtility={setUtilityDialog}
             />
