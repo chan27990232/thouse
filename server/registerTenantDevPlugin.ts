@@ -18,6 +18,43 @@ function readJsonBody(req: import('http').IncomingMessage): Promise<unknown> {
   });
 }
 
+async function proxyToRegisterFunction(
+  env: Record<string, string>,
+  body: { username?: string; password?: string; fullName?: string },
+) {
+  const supabaseUrl = (env.VITE_SUPABASE_URL || env.SUPABASE_URL || '').trim();
+  const anonKey = (env.VITE_SUPABASE_ANON_KEY || env.SUPABASE_ANON_KEY || '').trim();
+  if (!supabaseUrl || !anonKey) return null;
+
+  const upstream = await fetch(`${supabaseUrl}/functions/v1/register-tenant`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${anonKey}`,
+      apikey: anonKey,
+    },
+    body: JSON.stringify({
+      username: String(body.username ?? ''),
+      password: String(body.password ?? ''),
+      fullName: String(body.fullName ?? ''),
+    }),
+  });
+
+  const payload = (await upstream.json().catch(() => ({}))) as {
+    ok?: boolean;
+    message?: string;
+    email?: string;
+    status?: number;
+  };
+
+  return {
+    ok: Boolean(payload.ok),
+    message: payload.message,
+    email: payload.email,
+    status: upstream.status,
+  };
+}
+
 export function registerTenantDevApi(): Plugin {
   return {
     name: 'register-tenant-dev-api',
@@ -51,6 +88,14 @@ export function registerTenantDevApi(): Plugin {
             password?: string;
             fullName?: string;
           };
+
+          const proxied = await proxyToRegisterFunction(env, body);
+          if (proxied) {
+            res.statusCode = proxied.ok ? 200 : (proxied.status ?? 400);
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify(proxied));
+            return;
+          }
 
           const result = await handleRegisterTenant(
             {

@@ -1,5 +1,3 @@
-import { handleRegisterTenant } from '../server/registerTenantHandler';
-
 type Req = { method?: string; body?: unknown };
 type Res = {
   status: (code: number) => Res;
@@ -22,28 +20,46 @@ export default async function handler(req: Req, res: Res) {
     return;
   }
 
+  const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim();
+  const anonKey = (process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '').trim();
+
+  if (!supabaseUrl || !anonKey) {
+    res.status(500).json({ ok: false, message: '伺服器尚未設定 Supabase。' });
+    return;
+  }
+
   const body = (req.body ?? {}) as {
     username?: string;
     password?: string;
     fullName?: string;
   };
 
-  const result = await handleRegisterTenant(
-    {
-      username: String(body.username ?? ''),
-      password: String(body.password ?? ''),
-      fullName: String(body.fullName ?? ''),
-    },
-    {
-      supabaseUrl: process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '',
-      serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY || '',
-    },
-  );
+  try {
+    const upstream = await fetch(`${supabaseUrl}/functions/v1/register-tenant`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${anonKey}`,
+        apikey: anonKey,
+      },
+      body: JSON.stringify({
+        username: String(body.username ?? ''),
+        password: String(body.password ?? ''),
+        fullName: String(body.fullName ?? ''),
+      }),
+    });
 
-  if (!result.ok) {
-    res.status(result.status ?? 400).json(result);
-    return;
+    const payload = (await upstream.json().catch(() => ({}))) as {
+      ok?: boolean;
+      message?: string;
+      email?: string;
+    };
+
+    res.status(upstream.status).json(payload);
+  } catch (error) {
+    res.status(500).json({
+      ok: false,
+      message: error instanceof Error ? error.message : '註冊服務暫時無法使用',
+    });
   }
-
-  res.status(200).json(result);
 }
