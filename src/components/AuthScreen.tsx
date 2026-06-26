@@ -1,15 +1,24 @@
-import { useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { UserRole } from '../App';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
-import { GraphicalCaptcha } from './GraphicalCaptcha';
+import { InputOTP, InputOTPGroup, InputOTPSlot } from './ui/input-otp';
 import { supabase } from '../lib/supabase';
 import { AUTH_ROLE_STORAGE_KEY, getRoleFromMetadata } from '../lib/auth';
 import { findEmailByUsername } from '../lib/profiles';
-import { registerTenantAccount } from '../lib/registerTenant';
 import { validateSignupEmailWithDatabase } from '../lib/signupEmailValidation';
 import { validatePasswordStrength, PASSWORD_REQUIREMENTS_HINT } from '../lib/passwordValidation';
+import {
+  formatAuthFailure,
+  isSignupEmailRateLimited,
+  resendSignupVerification,
+  signUpWithEmail,
+  SIGNUP_RESEND_COOLDOWN_SEC,
+  verifySignupEmailOtp,
+  withAuthTimeout,
+} from '../lib/signupEmailVerify';
+import { useLocale } from '../context/LocaleContext';
 import thouseLogo from 'figma:asset/f0c80b0c66e9c54aea3881bdf7a4eb152cbc4c0b.png';
 
 interface AuthScreenProps {
@@ -19,26 +28,82 @@ interface AuthScreenProps {
 }
 
 export function AuthScreen({ role, onBack, onAuthSuccess }: AuthScreenProps) {
+  const { authT, commonT } = useLocale();
   const [fullName, setFullName] = useState('');
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [captchaInput, setCaptchaInput] = useState('');
-  const captchaAnswerRef = useRef('');
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
+  const [signupPhase, setSignupPhase] = useState<'form' | 'verify-otp'>('form');
+  const [pendingSignupEmail, setPendingSignupEmail] = useState('');
+  const [signupEmailSent, setSignupEmailSent] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
   const [emailLoading, setEmailLoading] = useState(false);
   const [authError, setAuthError] = useState('');
   const [authInfo, setAuthInfo] = useState('');
+  const [resendCooldown, setResendCooldown] = useState(0);
 
-  const isTenantSignup = role === 'tenant' && mode === 'signup';
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = window.setInterval(() => {
+      setResendCooldown((prev) => (prev <= 1 ? 0 : prev - 1));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [resendCooldown]);
 
-  function resetSignupExtras() {
-    setCaptchaInput('');
-    captchaAnswerRef.current = '';
-  }
+  const startResendCooldown = () => setResendCooldown(SIGNUP_RESEND_COOLDOWN_SEC);
+
+  const resetSignupFlow = () => {
+    setSignupPhase('form');
+    setPendingSignupEmail('');
+    setSignupEmailSent(false);
+    setOtpCode('');
+    setResendCooldown(0);
+  };
+
+  const handleVerifyOtp = async () => {
+    const code = otpCode.trim();
+    if (code.length !== 6) {
+      setAuthError('請輸入 6 位數驗證碼。');
+      return;
+    }
+
+    try {
+      setAuthError('');
+      setAuthInfo('');
+      setEmailLoading(true);
+      const { role: verifiedRole } = await verifySignupEmailOtp(pendingSignupEmail, code);
+      onAuthSuccess(verifiedRole ?? role ?? 'tenant');
+    } catch (error) {
+      setAuthError(formatAuthFailure(error, '驗證失敗，請稍後再試。'));
+    } finally {
+      setEmailLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (!pendingSignupEmail || resendCooldown > 0) return;
+    try {
+      setAuthError('');
+      setAuthInfo('');
+      setEmailLoading(true);
+      await resendSignupVerification(pendingSignupEmail);
+      setSignupEmailSent(true);
+      startResendCooldown();
+      setAuthInfo(authT.otpResent);
+    } catch (error) {
+      const message = formatAuthFailure(error, '無法重發驗證碼，請稍後再試。');
+      if (isSignupEmailRateLimited(message)) {
+        startResendCooldown();
+      }
+      setAuthError(message);
+    } finally {
+      setEmailLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,78 +130,70 @@ export function AuthScreen({ role, onBack, onAuthSuccess }: AuthScreenProps) {
         }
 
         const normalizedUsername = username.trim().toLowerCase();
-        const existingEmail = await findEmailByUsername(normalizedUsername).catch(() => null);
+        const existingEmail = await withAuthTimeout(
+          findEmailByUsername(normalizedUsername).catch(() => null),
+          '檢查帳號逾時，請稍後再試。',
+        );
         if (existingEmail) {
           throw new Error('此帳號名稱已被使用，請改用另一個登入帳號。');
         }
 
-        if (isTenantSignup) {
-          if (captchaInput.trim().toUpperCase() !== captchaAnswerRef.current) {
-            throw new Error('圖形驗證碼不正確。');
-          }
-
-          await registerTenantAccount({
-            username: normalizedUsername,
-            password,
-            fullName: fullName.trim(),
-          });
-
-          onAuthSuccess('tenant');
-          return;
+        const signupEmail = email.trim().toLowerCase();
+        if (!signupEmail) {
+          throw new Error('請輸入電子郵件。');
         }
 
-        const signupEmail = email.trim().toLowerCase();
-        const emailCheck = await validateSignupEmailWithDatabase(signupEmail);
+        const emailCheck = await withAuthTimeout(
+          validateSignupEmailWithDatabase(signupEmail),
+          '檢查電郵逾時，請稍後再試。',
+        );
         if (!emailCheck.ok) {
           throw new Error(emailCheck.message);
         }
 
-        const { data, error } = await supabase.auth.signUp({
+        const signupRole = role ?? 'tenant';
+        await signUpWithEmail({
           email: signupEmail,
           password,
-          options: {
-            emailRedirectTo: window.location.origin,
-            data: {
-              full_name: fullName.trim(),
-              role: role ?? 'landlord',
-              username: normalizedUsername,
-            },
-          },
+          fullName: fullName.trim(),
+          username: normalizedUsername,
+          role: signupRole,
         });
 
-        if (error) throw error;
-
-        const metadataRole = getRoleFromMetadata(data.user?.user_metadata);
-
-        if (data.session) {
-          onAuthSuccess(metadataRole ?? role);
-        } else {
-          setAuthInfo('註冊成功，請先到電郵收件匣確認帳戶，再返回登入。');
-          setMode('signin');
-        }
+        setPendingSignupEmail(signupEmail);
+        setSignupPhase('verify-otp');
+        setOtpCode('');
+        setSignupEmailSent(false);
+        setAuthInfo(authT.accountCreatedSendOtp);
         return;
       }
 
       const loginIdentifier = email.trim();
       const resolvedEmail = loginIdentifier.includes('@')
         ? loginIdentifier
-        : await findEmailByUsername(loginIdentifier);
+        : await withAuthTimeout(
+            findEmailByUsername(loginIdentifier),
+            '登入逾時，請稍後再試。',
+          );
 
       if (!resolvedEmail) {
         throw new Error('找不到這個用戶名稱，請檢查後再試。');
       }
 
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: resolvedEmail,
-        password,
-      });
+      const { data, error } = await withAuthTimeout(
+        supabase.auth.signInWithPassword({
+          email: resolvedEmail,
+          password,
+        }),
+        '登入逾時，請稍後再試。',
+      );
 
       if (error) throw error;
 
       const metadataRole = getRoleFromMetadata(data.user.user_metadata);
       onAuthSuccess(metadataRole ?? role);
     } catch (error) {
-      setAuthError(error instanceof Error ? error.message : '登入失敗，請稍後再試。');
+      setAuthError(formatAuthFailure(error, mode === 'signup' ? '註冊失敗，請稍後再試。' : '登入失敗，請稍後再試。'));
     } finally {
       setEmailLoading(false);
     }
@@ -156,15 +213,21 @@ export function AuthScreen({ role, onBack, onAuthSuccess }: AuthScreenProps) {
       const loginIdentifier = forgotPasswordEmail.trim();
       const resolvedEmail = loginIdentifier.includes('@')
         ? loginIdentifier.toLowerCase()
-        : await findEmailByUsername(loginIdentifier);
+        : await withAuthTimeout(
+            findEmailByUsername(loginIdentifier),
+            '查詢電郵逾時，請稍後再試。',
+          );
 
       if (!resolvedEmail) {
         throw new Error('找不到此電子郵件，請檢查後再試。');
       }
 
-      const { error } = await supabase.auth.resetPasswordForEmail(resolvedEmail, {
-        redirectTo: window.location.origin,
-      });
+      const { error } = await withAuthTimeout(
+        supabase.auth.resetPasswordForEmail(resolvedEmail, {
+          redirectTo: window.location.origin,
+        }),
+        '寄送重設密碼信逾時，請稍後再試。',
+      );
 
       if (error) throw error;
 
@@ -172,11 +235,99 @@ export function AuthScreen({ role, onBack, onAuthSuccess }: AuthScreenProps) {
       setShowForgotPassword(false);
       setForgotPasswordEmail('');
     } catch (error) {
-      setAuthError(error instanceof Error ? error.message : '無法寄出重設密碼 email。');
+      setAuthError(formatAuthFailure(error, '無法寄出重設密碼 email。'));
     } finally {
       setEmailLoading(false);
     }
   };
+
+  if (mode === 'signup' && signupPhase === 'verify-otp') {
+    return (
+      <div className="mx-auto min-h-screen w-full min-w-0 max-w-xl overflow-x-hidden bg-white">
+        <div className="border-b p-4">
+          <button
+            type="button"
+            onClick={() => {
+              resetSignupFlow();
+              setAuthError('');
+              setAuthInfo('');
+            }}
+            className="flex items-center gap-2 text-gray-600 hover:text-black"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            <span>{authT.backEditSignup}</span>
+          </button>
+        </div>
+
+        <div className="min-w-0 px-4 py-10 sm:px-6 sm:py-12">
+          <div className="text-center mb-8">
+            <img src={thouseLogo} alt={authT.brandAlt} className="w-20 h-20 mx-auto mb-4" />
+            <h1 className="text-2xl mb-2">{authT.verifyEmail}</h1>
+            <p className="text-gray-600 text-sm">
+              {signupEmailSent ? (
+                <>
+                  {authT.verifyEmailSentTo}
+                  <br />
+                  <strong>{pendingSignupEmail}</strong>
+                  <br />
+                  <span className="text-gray-500">{authT.verifyEmailHintSent}</span>
+                </>
+              ) : (
+                <>
+                  {authT.verifyEmailWillSendTo}
+                  <br />
+                  <strong>{pendingSignupEmail}</strong>
+                  <br />
+                  <span className="text-gray-500">{authT.verifyEmailHintPending}</span>
+                </>
+              )}
+            </p>
+          </div>
+
+          <div className="space-y-6">
+            <div className="flex justify-center">
+              <InputOTP maxLength={6} value={otpCode} onChange={setOtpCode}>
+                <InputOTPGroup>
+                  <InputOTPSlot index={0} />
+                  <InputOTPSlot index={1} />
+                  <InputOTPSlot index={2} />
+                  <InputOTPSlot index={3} />
+                  <InputOTPSlot index={4} />
+                  <InputOTPSlot index={5} />
+                </InputOTPGroup>
+              </InputOTP>
+            </div>
+
+            <Button
+              type="button"
+              className="w-full h-12 bg-black text-white hover:bg-gray-800"
+              disabled={emailLoading || otpCode.length !== 6}
+              onClick={() => void handleVerifyOtp()}
+            >
+              {emailLoading ? authT.verifying : authT.confirmOtp}
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full h-12"
+              disabled={emailLoading || resendCooldown > 0}
+              onClick={() => void handleResendOtp()}
+            >
+              {resendCooldown > 0
+                ? authT.format('resendCooldown', { seconds: resendCooldown })
+                : signupEmailSent
+                  ? authT.resendOtp
+                  : authT.sendOtp}
+            </Button>
+          </div>
+
+          {authError ? <p className="mt-3 text-sm text-red-500 text-center">{authError}</p> : null}
+          {authInfo ? <p className="mt-3 text-sm text-green-600 text-center">{authInfo}</p> : null}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto min-h-screen w-full min-w-0 max-w-xl overflow-x-hidden bg-white">
@@ -187,29 +338,35 @@ export function AuthScreen({ role, onBack, onAuthSuccess }: AuthScreenProps) {
           className="flex items-center gap-2 text-gray-600 hover:text-black"
         >
           <ArrowLeft className="w-5 h-5" />
-          <span>返回</span>
+          <span>{commonT.back}</span>
         </button>
       </div>
 
       {/* Content */}
       <div className="min-w-0 px-4 py-10 sm:px-6 sm:py-12">
         <div className="text-center mb-8">
-          <img src={thouseLogo} alt="簡屋" className="w-20 h-20 mx-auto mb-4" />
+          <img src={thouseLogo} alt={authT.brandAlt} className="w-20 h-20 mx-auto mb-4" />
           <h1 className="text-2xl mb-2">
-            {role === 'tenant' ? (mode === 'signin' ? '租客登入' : '租客註冊') : mode === 'signin' ? '業主登入' : '業主註冊'}
+            {role === 'tenant'
+              ? mode === 'signin'
+                ? authT.tenantSignIn
+                : authT.tenantSignUp
+              : mode === 'signin'
+                ? authT.landlordSignIn
+                : authT.landlordSignUp}
           </h1>
           <p className="text-gray-600">
-            {mode === 'signin' ? '歡迎回來，請登入您的帳戶' : '建立帳戶以開始使用平台功能'}
+            {mode === 'signin' ? authT.signInWelcome : authT.signUpWelcome}
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {mode === 'signup' ? (
             <div>
-              <label className="block mb-2 text-sm text-gray-700">名稱</label>
+              <label className="block mb-2 text-sm text-gray-700">{authT.fullName}</label>
               <Input
                 type="text"
-                placeholder="請輸入顯示名稱"
+                placeholder={authT.fullNamePlaceholder}
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 required
@@ -220,10 +377,10 @@ export function AuthScreen({ role, onBack, onAuthSuccess }: AuthScreenProps) {
 
           {mode === 'signup' ? (
             <div>
-              <label className="block mb-2 text-sm text-gray-700">登入帳號</label>
+              <label className="block mb-2 text-sm text-gray-700">{authT.username}</label>
               <Input
                 type="text"
-                placeholder={isTenantSignup ? '例如：tenant123' : '例如：landlord123'}
+                placeholder={role === 'tenant' ? authT.usernamePlaceholderTenant : authT.usernamePlaceholderLandlord}
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 required
@@ -232,40 +389,28 @@ export function AuthScreen({ role, onBack, onAuthSuccess }: AuthScreenProps) {
             </div>
           ) : null}
 
-          {mode === 'signin' || (mode === 'signup' && !isTenantSignup) ? (
-            <div>
-              <label className="block mb-2 text-sm text-gray-700">
-                {mode === 'signin' ? '電子郵件或用戶名稱' : '電子郵件'}
-              </label>
-              <Input
-                type="text"
-                inputMode={mode === 'signup' ? 'email' : 'text'}
-                autoComplete={mode === 'signup' ? 'email' : 'username'}
-                placeholder={mode === 'signin' ? '輸入電子郵件或用戶名稱' : 'your@email.com'}
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="h-12"
-              />
-            </div>
-          ) : null}
-
-          {isTenantSignup ? (
-            <div>
-              <label className="block mb-2 text-sm text-gray-700">圖形驗證碼</label>
-              <GraphicalCaptcha
-                value={captchaInput}
-                onChange={setCaptchaInput}
-                onAnswerChange={(answer) => {
-                  captchaAnswerRef.current = answer;
-                }}
-              />
-            </div>
-          ) : null}
+          <div>
+            <label className="block mb-2 text-sm text-gray-700">
+              {mode === 'signin' ? authT.emailOrUsername : authT.email}
+            </label>
+            <Input
+              type="text"
+              inputMode={mode === 'signup' ? 'email' : 'text'}
+              autoComplete={mode === 'signup' ? 'email' : 'username'}
+              placeholder={mode === 'signin' ? authT.emailOrUsernamePlaceholder : authT.emailPlaceholder}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              className="h-12"
+            />
+            {mode === 'signup' ? (
+              <p className="mt-1.5 text-xs text-gray-500">{authT.signUpOtpHint}</p>
+            ) : null}
+          </div>
 
           {mode === 'signup' || mode === 'signin' ? (
             <div>
-              <label className="block mb-2 text-sm text-gray-700">密碼</label>
+              <label className="block mb-2 text-sm text-gray-700">{authT.password}</label>
               <Input
                 type="password"
                 placeholder="••••••••"
@@ -282,10 +427,10 @@ export function AuthScreen({ role, onBack, onAuthSuccess }: AuthScreenProps) {
 
           {mode === 'signup' ? (
             <div>
-              <label className="block mb-2 text-sm text-gray-700">確認密碼</label>
+              <label className="block mb-2 text-sm text-gray-700">{authT.confirmPassword}</label>
               <Input
                 type="password"
-                placeholder="再次輸入密碼"
+                placeholder={authT.confirmPasswordPlaceholder}
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
@@ -299,7 +444,13 @@ export function AuthScreen({ role, onBack, onAuthSuccess }: AuthScreenProps) {
             className="w-full h-12 bg-black text-white hover:bg-gray-800 mt-6"
             disabled={emailLoading}
           >
-            {emailLoading ? (mode === 'signin' ? '登入中...' : '註冊中...') : mode === 'signin' ? '登入' : '註冊'}
+            {emailLoading
+              ? mode === 'signin'
+                ? authT.signingIn
+                : authT.signingUp
+              : mode === 'signin'
+                ? authT.signIn
+                : authT.signUp}
           </Button>
         </form>
 
@@ -324,20 +475,20 @@ export function AuthScreen({ role, onBack, onAuthSuccess }: AuthScreenProps) {
               });
             }}
           >
-            忘記密碼？
+            {authT.forgotPassword}
           </button>
         </div>
 
         {showForgotPassword ? (
           <div className="mt-4 space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
-            <p className="text-sm text-gray-600">輸入註冊時使用的電子郵件，我們會寄送重設密碼連結。</p>
+            <p className="text-sm text-gray-600">{authT.forgotPasswordDetail}</p>
             <div>
-              <label className="mb-2 block text-sm text-gray-700">電子郵件</label>
+              <label className="mb-2 block text-sm text-gray-700">{authT.email}</label>
               <Input
                 type="email"
                 inputMode="email"
                 autoComplete="email"
-                placeholder="your@email.com"
+                placeholder={authT.emailPlaceholder}
                 value={forgotPasswordEmail}
                 onChange={(e) => setForgotPasswordEmail(e.target.value)}
                 className="h-12 bg-white"
@@ -350,14 +501,14 @@ export function AuthScreen({ role, onBack, onAuthSuccess }: AuthScreenProps) {
               onClick={handleForgotPassword}
               disabled={emailLoading}
             >
-              寄出重設密碼連結
+              {authT.sendResetPasswordLink}
             </Button>
           </div>
         ) : null}
 
         <div className="mt-8 pt-8 border-t text-center">
           <p className="text-sm text-gray-600 mb-4">
-            {mode === 'signin' ? '還沒有帳戶？' : '已經有帳戶？'}
+            {mode === 'signin' ? authT.noAccount : authT.hasAccount}
           </p>
           <Button
             type="button"
@@ -366,13 +517,14 @@ export function AuthScreen({ role, onBack, onAuthSuccess }: AuthScreenProps) {
             onClick={() => {
               setAuthError('');
               setAuthInfo('');
+              resetSignupFlow();
               setMode(mode === 'signin' ? 'signup' : 'signin');
               setFullName('');
               setUsername('');
-              resetSignupExtras();
+              setEmail('');
             }}
           >
-            {mode === 'signin' ? '註冊新帳戶' : '返回登入'}
+            {mode === 'signin' ? authT.createAccount : authT.backToSignIn}
           </Button>
         </div>
       </div>

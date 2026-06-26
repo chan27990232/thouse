@@ -1,4 +1,5 @@
 import type { AppLocale } from '../../lib/locale';
+import { formatMessage } from '../../lib/i18nFormat';
 
 const landlordZhTW = {
   brandName: '簡屋',
@@ -10,6 +11,45 @@ const landlordZhTW = {
   notice: '通知',
   chat: '聊天',
   profile: '個人資料',
+  navAria: '業主主頁導覽',
+  totalProperties: '總物業數',
+  occupied: '已出租',
+  monthlyIncome: '月收入',
+  pendingApplications: '待處理申請',
+  quickActions: '快速操作',
+  listProperty: '刊登租盤',
+  listPropertyTitle: '刊登租盤',
+  listPropertyDesc: '分步填寫放盤資料；提交後由平台審核，通過方會顯示於租客首頁。',
+  signInToList: '請先登入業主帳號。',
+  viewAllApplications: '查看所有申請',
+  myPropertiesTitle: '我的物業',
+  loadingProperties: '正在載入你的物業...',
+  noPropertiesTitle: '你目前未有任何物業',
+  noPropertiesHint: '新增第一個租盤後，物業資料會顯示在這裡。',
+  listFirstProperty: '刊登第一個租盤',
+  unnamedProperty: '未命名物業',
+  statusRented: '已出租',
+  statusAvailable: '招租中',
+  listedOnHome: '已上架首頁',
+  underReview: '審核中',
+  reviewRejected: '審核未通過',
+  monthlyRent: '月租',
+  tenant: '租客',
+  noTenant: '未有租客',
+  nextRentDue: '下次租金到期',
+  newApplications: '新申請',
+  viewDetails: '查看詳情',
+  manageLease: '管理租約',
+  manageLeaseActive: '管理進行中的租約',
+  manageLeaseDisabled: '須有待平台核准的進行中租約才可管理',
+  uploadUtilityBills: '上傳每月水電煤單',
+  walletSection: '收入與錢包',
+  allApplicationsTitle: '所有租約申請',
+  allApplicationsDesc:
+    '完整流程為：租客申請 → 平台一審 → 您同意 → 平台複審。僅在「待業主確認」狀態可選擇接受或婉拒；其餘階段由平台處理。',
+  loading: '載入中…',
+  noApplications: '暫未有租約申請',
+  propertyMeta: '{area} 平方呎 ・ {floor} 樓 ・ {bedrooms} 房 {bathrooms} 廁',
 } as const;
 
 export type LandlordMessages = typeof landlordZhTW;
@@ -24,6 +64,45 @@ const landlordZhCN: LandlordMessages = {
   notice: '通知',
   chat: '聊天',
   profile: '个人资料',
+  navAria: '业主主页导航',
+  totalProperties: '总物业数',
+  occupied: '已出租',
+  monthlyIncome: '月收入',
+  pendingApplications: '待处理申请',
+  quickActions: '快速操作',
+  listProperty: '刊登租盘',
+  listPropertyTitle: '刊登租盘',
+  listPropertyDesc: '分步填写放盘资料；提交后由平台审核，通过方会显示于租客首页。',
+  signInToList: '请先登录业主账号。',
+  viewAllApplications: '查看所有申请',
+  myPropertiesTitle: '我的物业',
+  loadingProperties: '正在加载你的物业...',
+  noPropertiesTitle: '你目前未有任何物业',
+  noPropertiesHint: '新增第一个租盘后，物业资料会显示在这里。',
+  listFirstProperty: '刊登第一个租盘',
+  unnamedProperty: '未命名物业',
+  statusRented: '已出租',
+  statusAvailable: '招租中',
+  listedOnHome: '已上架首页',
+  underReview: '审核中',
+  reviewRejected: '审核未通过',
+  monthlyRent: '月租',
+  tenant: '租客',
+  noTenant: '未有租客',
+  nextRentDue: '下次租金到期',
+  newApplications: '新申请',
+  viewDetails: '查看详情',
+  manageLease: '管理租约',
+  manageLeaseActive: '管理进行中的租约',
+  manageLeaseDisabled: '须有待平台核准的进行中租约才可管理',
+  uploadUtilityBills: '上传每月水电煤单',
+  walletSection: '收入与钱包',
+  allApplicationsTitle: '所有租约申请',
+  allApplicationsDesc:
+    '完整流程为：租客申请 → 平台一审 → 您同意 → 平台复审。仅在「待业主确认」状态可选择接受或婉拒；其余阶段由平台处理。',
+  loading: '加载中…',
+  noApplications: '暂未有租约申请',
+  propertyMeta: '{area} 平方呎 ・ {floor} 楼 ・ {bedrooms} 房 {bathrooms} 厕',
 };
 
 const landlordEn: LandlordMessages = {
@@ -36,6 +115,46 @@ const landlordEn: LandlordMessages = {
   notice: 'Notifications',
   chat: 'Chat',
   profile: 'Profile',
+  navAria: 'Landlord navigation',
+  totalProperties: 'Total properties',
+  occupied: 'Occupied',
+  monthlyIncome: 'Monthly income',
+  pendingApplications: 'Pending applications',
+  quickActions: 'Quick actions',
+  listProperty: 'List a property',
+  listPropertyTitle: 'List a property',
+  listPropertyDesc:
+    'Complete the listing step by step. After submission, listings appear on the tenant home page once approved.',
+  signInToList: 'Please sign in as a landlord first.',
+  viewAllApplications: 'View all applications',
+  myPropertiesTitle: 'My properties',
+  loadingProperties: 'Loading your properties...',
+  noPropertiesTitle: 'You have no properties yet',
+  noPropertiesHint: 'After you add your first listing, it will appear here.',
+  listFirstProperty: 'List your first property',
+  unnamedProperty: 'Untitled property',
+  statusRented: 'Rented',
+  statusAvailable: 'Available',
+  listedOnHome: 'Live on home',
+  underReview: 'Under review',
+  reviewRejected: 'Not approved',
+  monthlyRent: 'Rent',
+  tenant: 'Tenant',
+  noTenant: 'No tenant',
+  nextRentDue: 'Next rent due',
+  newApplications: 'New applications',
+  viewDetails: 'View details',
+  manageLease: 'Manage lease',
+  manageLeaseActive: 'Manage active lease',
+  manageLeaseDisabled: 'An approved active lease is required to manage',
+  uploadUtilityBills: 'Upload monthly utility bills',
+  walletSection: 'Income & wallet',
+  allApplicationsTitle: 'All lease applications',
+  allApplicationsDesc:
+    'Flow: tenant applies → platform review → you accept → platform final review. You can accept or decline only when status is “Pending landlord”.',
+  loading: 'Loading…',
+  noApplications: 'No applications yet',
+  propertyMeta: '{area} sq ft · Fl. {floor} · {bedrooms} bed {bathrooms} bath',
 };
 
 export const landlordMessages: Record<AppLocale, LandlordMessages> = {
@@ -43,3 +162,13 @@ export const landlordMessages: Record<AppLocale, LandlordMessages> = {
   'zh-CN': landlordZhCN,
   en: landlordEn,
 };
+
+export function buildLandlordT(locale: AppLocale) {
+  const messages = landlordMessages[locale];
+  return {
+    ...messages,
+    format(key: keyof LandlordMessages, vars?: Record<string, string | number>) {
+      return formatMessage(messages[key], vars);
+    },
+  };
+}

@@ -1,6 +1,7 @@
 import type { Plugin } from 'vite';
 import { loadEnv } from 'vite';
 import { handleRegisterTenant } from './registerTenantHandler';
+import { handleSignupAccount, handleResendSignupOtp } from './signupAccountHandler';
 
 function readJsonBody(req: import('http').IncomingMessage): Promise<unknown> {
   return new Promise((resolve, reject) => {
@@ -16,6 +17,57 @@ function readJsonBody(req: import('http').IncomingMessage): Promise<unknown> {
     });
     req.on('error', reject);
   });
+}
+
+async function proxyToSignupFunction(
+  env: Record<string, string>,
+  body: {
+    action?: string;
+    email?: string;
+    password?: string;
+    fullName?: string;
+    username?: string;
+    role?: string;
+  },
+) {
+  const supabaseUrl = (env.VITE_SUPABASE_URL || env.SUPABASE_URL || '').trim();
+  const anonKey = (env.VITE_SUPABASE_ANON_KEY || env.SUPABASE_ANON_KEY || '').trim();
+  if (!supabaseUrl || !anonKey) return null;
+
+  const upstream = await fetch(`${supabaseUrl}/functions/v1/signup-account`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${anonKey}`,
+      apikey: anonKey,
+    },
+    body: JSON.stringify({
+      action: String(body.action ?? 'create'),
+      email: String(body.email ?? ''),
+      password: String(body.password ?? ''),
+      fullName: String(body.fullName ?? ''),
+      username: String(body.username ?? ''),
+      role: String(body.role ?? 'tenant'),
+    }),
+  });
+
+  const payload = (await upstream.json().catch(() => ({}))) as {
+    ok?: boolean;
+    message?: string;
+    email?: string;
+    emailSent?: boolean;
+    emailWarning?: string;
+    status?: number;
+  };
+
+  return {
+    ok: Boolean(payload.ok),
+    message: payload.message,
+    email: payload.email,
+    emailSent: payload.emailSent,
+    emailWarning: payload.emailWarning,
+    status: upstream.status,
+  };
 }
 
 async function proxyToRegisterFunction(
@@ -60,7 +112,9 @@ export function registerTenantDevApi(): Plugin {
     name: 'register-tenant-dev-api',
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
-        if (!req.url?.startsWith('/api/register-tenant')) {
+        const isRegisterTenant = req.url?.startsWith('/api/register-tenant');
+        const isSignupAccount = req.url?.startsWith('/api/signup-account');
+        if (!isRegisterTenant && !isSignupAccount) {
           next();
           return;
         }
@@ -84,10 +138,52 @@ export function registerTenantDevApi(): Plugin {
         try {
           const env = loadEnv(server.config.mode, server.config.root, '');
           const body = (await readJsonBody(req)) as {
+            action?: string;
+            email?: string;
             username?: string;
             password?: string;
             fullName?: string;
+            role?: string;
           };
+
+          if (isSignupAccount) {
+            const proxied = await proxyToSignupFunction(env, body);
+            if (proxied) {
+              res.statusCode = proxied.ok ? 200 : (proxied.status ?? 400);
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify(proxied));
+              return;
+            }
+
+            const supabaseEnv = {
+              supabaseUrl: env.VITE_SUPABASE_URL || env.SUPABASE_URL || '',
+              serviceRoleKey: env.SUPABASE_SERVICE_ROLE_KEY || '',
+            };
+
+            if (String(body.action ?? 'create') === 'resend') {
+              const result = await handleResendSignupOtp(String(body.email ?? ''), supabaseEnv);
+              res.statusCode = result.ok ? 200 : (result.status ?? 400);
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify(result));
+              return;
+            }
+
+            const result = await handleSignupAccount(
+              {
+                email: String(body.email ?? ''),
+                password: String(body.password ?? ''),
+                fullName: String(body.fullName ?? ''),
+                username: String(body.username ?? ''),
+                role: String(body.role ?? 'tenant') === 'landlord' ? 'landlord' : 'tenant',
+              },
+              supabaseEnv,
+            );
+
+            res.statusCode = result.ok ? 200 : (result.status ?? 400);
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify(result));
+            return;
+          }
 
           const proxied = await proxyToRegisterFunction(env, body);
           if (proxied) {

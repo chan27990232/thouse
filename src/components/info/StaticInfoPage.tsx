@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { INFO_PAGES, type InfoPageId } from '../../content/infoPages';
+import { getInfoPages, type InfoPageId } from '../../content/infoPages';
+import { useLocale } from '../../context/LocaleContext';
 import { ThousePublicPageLayout } from '../layout/ThousePublicPageLayout';
 
 type StaticInfoPageProps = {
@@ -10,7 +11,8 @@ type StaticInfoPageProps = {
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function StaticInfoPage({ id, onClose }: StaticInfoPageProps) {
-  const { title, paragraphs } = INFO_PAGES[id];
+  const { locale } = useLocale();
+  const { title, paragraphs } = getInfoPages(locale)[id];
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -26,10 +28,7 @@ export function StaticInfoPage({ id, onClose }: StaticInfoPageProps) {
       aria-labelledby="static-info-title"
     >
       <ThousePublicPageLayout title={title} onBack={onClose}>
-        <div
-          id="static-info-title"
-          className="sr-only"
-        >
+        <div id="static-info-title" className="sr-only">
           {title}
         </div>
         <div className="mx-auto max-w-2xl space-y-4 text-center text-sm leading-relaxed text-gray-800 sm:space-y-5 sm:text-base sm:leading-8">

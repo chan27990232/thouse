@@ -14,7 +14,10 @@ import {
   readStoredLocale,
 } from '../lib/locale';
 import { formatHomeMessage, homeMessages, type HomeMessages } from '../content/translations/home';
-import { landlordMessages, type LandlordMessages } from '../content/translations/landlord';
+import { buildLandlordT, type LandlordMessages } from '../content/translations/landlord';
+import { buildCommonT, type CommonMessages } from '../content/translations/common';
+import { authMessages, type AuthMessages } from '../content/translations/auth';
+import { formatMessage } from '../lib/i18nFormat';
 
 type LocaleContextValue = {
   locale: AppLocale;
@@ -22,10 +25,27 @@ type LocaleContextValue = {
   homeT: HomeMessages & {
     format: (key: keyof HomeMessages, vars?: Record<string, string | number>) => string;
   };
-  landlordT: LandlordMessages;
+  landlordT: LandlordMessages & {
+    format: (key: keyof LandlordMessages, vars?: Record<string, string | number>) => string;
+  };
+  commonT: CommonMessages & {
+    format: (key: keyof CommonMessages, vars?: Record<string, string | number>) => string;
+  };
+  authT: AuthMessages & {
+    format: (key: keyof AuthMessages, vars?: Record<string, string | number>) => string;
+  };
 };
 
 const LocaleContext = createContext<LocaleContextValue | null>(null);
+
+function withFormat<T extends Record<string, string>>(messages: T) {
+  return {
+    ...messages,
+    format(key: keyof T, vars?: Record<string, string | number>) {
+      return formatMessage(messages[key], vars);
+    },
+  };
+}
 
 export function LocaleProvider({ children }: { children: ReactNode }) {
   const [locale, setLocaleState] = useState<AppLocale>(() => readStoredLocale());
@@ -49,11 +69,13 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
     };
   }, [locale]);
 
-  const landlordT = useMemo(() => landlordMessages[locale], [locale]);
+  const landlordT = useMemo(() => buildLandlordT(locale), [locale]);
+  const commonT = useMemo(() => buildCommonT(locale), [locale]);
+  const authT = useMemo(() => withFormat(authMessages[locale]), [locale]);
 
   const value = useMemo(
-    () => ({ locale, setLocale, homeT, landlordT }),
-    [locale, setLocale, homeT, landlordT]
+    () => ({ locale, setLocale, homeT, landlordT, commonT, authT }),
+    [locale, setLocale, homeT, landlordT, commonT, authT],
   );
 
   return <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>;

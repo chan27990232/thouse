@@ -67,7 +67,7 @@ export function Home({
   onProfileClick,
   onMyPropertiesClick,
 }: HomeProps) {
-  const { homeT } = useLocale();
+  const { homeT, commonT } = useLocale();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'home' | 'favorites'>('home');
   const [searchDialogOpen, setSearchDialogOpen] = useState(false);
@@ -640,12 +640,12 @@ export function Home({
                         className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs text-gray-800"
                       >
                         {age === 'new'
-                          ? '5年以下'
+                          ? commonT.buildingAgeNew
                           : age === '5-10'
-                            ? '5–10年'
+                            ? commonT.buildingAge5_10
                             : age === '10-20'
-                              ? '10–20年'
-                              : '20年以上'}
+                              ? commonT.buildingAge10_20
+                              : commonT.buildingAge20Plus}
                       </span>
                     ))}
                     {moreFilterValues.hasPrivateToilet ? (

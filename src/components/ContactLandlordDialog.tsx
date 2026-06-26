@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react';
-import { MessageCircle, Phone, Mail, Send, Check, User, Star } from 'lucide-react';
+import { MessageCircle, Send, Check, User, Star } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { Property } from '../App';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { toast } from 'sonner';
 import { getPublicLandlordProfile } from '../lib/profiles';
 import { supabase } from '../lib/supabase';
@@ -21,7 +20,6 @@ interface ContactLandlordDialogProps {
 }
 
 export function ContactLandlordDialog({ open, onOpenChange, property, isAuthenticated }: ContactLandlordDialogProps) {
-  const [contactMethod, setContactMethod] = useState<'message' | 'call' | 'email'>('message');
   const [messageSent, setMessageSent] = useState(false);
   const [landlordLoading, setLandlordLoading] = useState(true);
   const [ratingLoading, setRatingLoading] = useState(true);
@@ -36,8 +34,6 @@ export function ContactLandlordDialog({ open, onOpenChange, property, isAuthenti
   const [sending, setSending] = useState(false);
   const [landlord, setLandlord] = useState({
     name: '業主',
-    phone: '',
-    email: '',
     responseTime: '未設定',
     verificationStatus: '未驗證',
   });
@@ -90,8 +86,6 @@ export function ContactLandlordDialog({ open, onOpenChange, property, isAuthenti
         const salutation = data.salutation === '先生' || data.salutation === '女士' ? data.salutation : '';
         setLandlord({
           name: formatLandlordDisplayName(fullName, salutation),
-          phone: typeof data.phone === 'string' ? data.phone : '',
-          email: typeof data.email === 'string' ? data.email : '',
           responseTime: typeof data.response_time === 'string' && data.response_time.trim() ? data.response_time : '未設定',
           verificationStatus: data.is_verified ? '已驗證' : '未驗證',
         });
@@ -168,24 +162,6 @@ export function ContactLandlordDialog({ open, onOpenChange, property, isAuthenti
     }
   };
 
-  const handleCall = () => {
-    if (!landlord.phone) {
-      toast.error('此業主尚未提供電話。');
-      return;
-    }
-    toast.success('正在撥號至業主...');
-    window.location.href = `tel:${landlord.phone}`;
-  };
-
-  const handleEmail = () => {
-    if (!landlord.email) {
-      toast.error('此業主尚未提供電郵。');
-      return;
-    }
-    toast.success('正在開啟電郵應用程式...');
-    window.location.href = `mailto:${landlord.email}?subject=查詢物業: ${property.title}`;
-  };
-
   if (messageSent) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
@@ -232,7 +208,7 @@ export function ContactLandlordDialog({ open, onOpenChange, property, isAuthenti
             聯絡業主
           </DialogTitle>
           <DialogDescription className="text-sm text-gray-500">
-            選擇聯絡方式與業主溝通
+            透過站內訊息與業主溝通
           </DialogDescription>
         </DialogHeader>
 
@@ -306,46 +282,9 @@ export function ContactLandlordDialog({ open, onOpenChange, property, isAuthenti
             <div className="text-sm text-gray-600">
               平均回覆時間：{landlord.responseTime}
             </div>
-            <div className="space-y-1 text-sm text-gray-600">
-              <div className="flex justify-between gap-3">
-                <span>電話</span>
-                <span>{landlord.phone || '未提供電話'}</span>
-              </div>
-              <div className="flex justify-between gap-3">
-                <span>電郵</span>
-                <span className="break-all text-right">{landlord.email || '未提供電郵'}</span>
-              </div>
-            </div>
           </div>
 
-          {/* Contact Methods Tabs */}
-          <Tabs value={contactMethod} onValueChange={(v) => setContactMethod(v as any)} className="w-full min-w-0">
-            <TabsList className="grid w-full min-w-0 grid-cols-1 gap-2 p-1.5 sm:grid sm:grid-cols-3 sm:gap-1 sm:p-1">
-              <TabsTrigger
-                value="message"
-                className="min-h-11 w-full justify-center gap-2 sm:min-h-8 sm:flex-1"
-              >
-                <MessageCircle className="h-4 w-4 shrink-0" />
-                訊息
-              </TabsTrigger>
-              <TabsTrigger
-                value="call"
-                className="min-h-11 w-full justify-center gap-2 sm:min-h-8 sm:flex-1"
-              >
-                <Phone className="h-4 w-4 shrink-0" />
-                電話
-              </TabsTrigger>
-              <TabsTrigger
-                value="email"
-                className="min-h-11 w-full justify-center gap-2 sm:min-h-8 sm:flex-1"
-              >
-                <Mail className="h-4 w-4 shrink-0" />
-                電郵
-              </TabsTrigger>
-            </TabsList>
-
-            {/* Message Tab */}
-            <TabsContent value="message" className="mt-4 space-y-4 data-[state=inactive]:hidden">
+          <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="name">您的姓名 *</Label>
                 <Input
@@ -419,64 +358,7 @@ export function ContactLandlordDialog({ open, onOpenChange, property, isAuthenti
                 <Send className="w-4 h-4 mr-2" />
                 {sending ? '發送中…' : '發送訊息'}
               </Button>
-            </TabsContent>
-
-            {/* Call Tab */}
-            <TabsContent value="call" className="mt-4 space-y-4 data-[state=inactive]:hidden">
-              <div className="text-center py-8 space-y-4">
-                <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto">
-                  <Phone className="w-10 h-10 text-blue-600" />
-                </div>
-                <div>
-                  <p className="text-gray-600 mb-2">業主電話</p>
-                  <p className="text-2xl font-medium">{landlord.phone || '未提供電話'}</p>
-                </div>
-                <div className="p-4 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-800">
-                  <p className="font-medium mb-1">致電前提示：</p>
-                  <ul className="list-disc list-inside text-left space-y-1">
-                    <li>請準備好您的問題清單</li>
-                    <li>建議在辦公時間（9:00-18:00）致電</li>
-                    <li>記得詢問參觀時間</li>
-                  </ul>
-                </div>
-                <Button
-                  onClick={handleCall}
-                  className="w-full bg-green-600 text-white hover:bg-green-700"
-                >
-                  <Phone className="w-4 h-4 mr-2" />
-                  立即致電
-                </Button>
-              </div>
-            </TabsContent>
-
-            {/* Email Tab */}
-            <TabsContent value="email" className="mt-4 space-y-4 data-[state=inactive]:hidden">
-              <div className="text-center py-8 space-y-4">
-                <div className="w-20 h-20 bg-purple-100 rounded-full flex items-center justify-center mx-auto">
-                  <Mail className="w-10 h-10 text-purple-600" />
-                </div>
-                <div>
-                  <p className="text-gray-600 mb-2">業主電郵</p>
-                  <p className="text-lg font-medium break-all px-4">{landlord.email || '未提供電郵'}</p>
-                </div>
-                <div className="p-4 bg-blue-50 border border-blue-200 rounded text-sm text-blue-800">
-                  <p className="font-medium mb-1">電郵聯絡優點：</p>
-                  <ul className="list-disc list-inside text-left space-y-1">
-                    <li>可以詳細說明您的需求</li>
-                    <li>保留完整溝通記錄</li>
-                    <li>可附上相關文件</li>
-                  </ul>
-                </div>
-                <Button
-                  onClick={handleEmail}
-                  className="w-full bg-purple-600 text-white hover:bg-purple-700"
-                >
-                  <Mail className="w-4 h-4 mr-2" />
-                  發送電郵
-                </Button>
-              </div>
-            </TabsContent>
-          </Tabs>
+          </div>
 
           <div className="text-xs text-center text-gray-500 pt-4 border-t">
             聯絡業主時，請注意保護個人私隱，切勿透露敏感資料

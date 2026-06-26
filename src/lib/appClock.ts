@@ -1,11 +1,25 @@
 /**
- * 應用程式「今天」— 開發時可用 VITE_MOCK_TODAY 模擬日期以測試租金到期。
+ * 應用程式「今天」— 可用 VITE_MOCK_TODAY 模擬日期以測試租金到期。
+ * - 本機 dev：設 VITE_MOCK_TODAY 即可
+ * - Production：另須設 VITE_ENABLE_MOCK_TODAY=true，測完請移除並重新 deploy
  * 例：VITE_MOCK_TODAY=2026-07-10
  */
+function getMockTodayIso(): string | null {
+  const mock = (import.meta.env.VITE_MOCK_TODAY as string | undefined)?.trim();
+  if (!mock) return null;
+
+  if (import.meta.env.DEV) return mock;
+
+  const enabled = (import.meta.env.VITE_ENABLE_MOCK_TODAY as string | undefined)?.trim();
+  if (enabled === 'true' || enabled === '1') return mock;
+
+  return null;
+}
+
 export function appToday(): Date {
-  const mock = import.meta.env.VITE_MOCK_TODAY as string | undefined;
-  if (import.meta.env.DEV && mock?.trim()) {
-    return new Date(`${mock.trim()}T12:00:00`);
+  const mock = getMockTodayIso();
+  if (mock) {
+    return new Date(`${mock}T12:00:00`);
   }
   return new Date();
 }
@@ -24,5 +38,9 @@ export function parseDateOnly(iso: string): Date {
 }
 
 export function isMockDateActive(): boolean {
-  return import.meta.env.DEV && Boolean((import.meta.env.VITE_MOCK_TODAY as string | undefined)?.trim());
+  return getMockTodayIso() !== null;
+}
+
+export function isProductionMockDate(): boolean {
+  return !import.meta.env.DEV && isMockDateActive();
 }

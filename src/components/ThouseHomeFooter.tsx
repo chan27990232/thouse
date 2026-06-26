@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
 import thouseLogo from 'figma:asset/f0c80b0c66e9c54aea3881bdf7a4eb152cbc4c0b.png';
-import { FOOTER_LINK_TO_ID } from '../content/infoPages';
+import { getFooterLinks } from '../content/infoPages';
 import { useInfoPages } from '../context/InfoPagesContext';
+import { useLocale } from '../context/LocaleContext';
 import { cn } from './ui/utils';
 
 const FOOTER_BG = '#3b3b3b' as const;
@@ -25,6 +26,8 @@ type ThouseHomeFooterProps = {
 
 export function ThouseHomeFooter({ className }: ThouseHomeFooterProps) {
   const { openInfoPage } = useInfoPages();
+  const { locale, commonT } = useLocale();
+  const footerLinks = getFooterLinks(locale);
   const year = new Date().getFullYear();
 
   return (
@@ -33,17 +36,14 @@ export function ThouseHomeFooter({ className }: ThouseHomeFooterProps) {
       className={cn('w-full shrink-0 text-[11px] sm:text-xs relative z-10', className)}
       style={{ backgroundColor: FOOTER_BG, color: '#e8e8e8', borderTop: LINE }}
     >
-      <div
-        className="w-full"
-        style={{ borderBottom: LINE }}
-      >
+      <div className="w-full" style={{ borderBottom: LINE }}>
         <div className="max-w-[1360px] mx-auto px-6 py-4">
           <nav
             className="flex flex-wrap items-center justify-center gap-y-3 text-sm sm:text-base font-normal tracking-wide"
-            aria-label="頁尾導覽"
+            aria-label={commonT.footerNavAria}
           >
-            {FOOTER_LINK_TO_ID.map(({ label, id }, index) => (
-              <span key={label} className="inline-flex items-center shrink-0">
+            {footerLinks.map(({ label, id }, index) => (
+              <span key={id} className="inline-flex items-center shrink-0">
                 {index > 0 ? (
                   <span className="mx-3 sm:mx-5 md:mx-7 text-gray-400 select-none" aria-hidden>
                     |
@@ -71,20 +71,20 @@ export function ThouseHomeFooter({ className }: ThouseHomeFooterProps) {
             <div className="flex min-w-0 items-center gap-8 sm:gap-10 md:gap-12">
               <img
                 src={thouseLogo}
-                alt="Thouse 簡屋"
+                alt={commonT.logoAlt}
                 className="h-12 w-12 shrink-0 object-contain"
               />
               <p className="min-w-0 text-left text-sm sm:text-base leading-snug">
                 <span className="font-normal tracking-[0.12em] text-gray-300">THOUSE</span>
                 <span className="text-white/90"> </span>
-                <span className="font-semibold text-white">簡屋有限公司</span>
+                <span className="font-semibold text-white">{commonT.companyLegalName}</span>
               </p>
             </div>
           </div>
 
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6 pt-6">
             <p className="order-2 sm:order-1 text-center sm:text-left text-sm text-gray-400 leading-relaxed">
-              ©{year} 簡屋有限公司 版權所有 不得轉載
+              {commonT.format('copyright', { year })}
             </p>
             <div className="flex items-center justify-center sm:justify-end gap-3 order-1 sm:order-2">
               <SocialIcon label="Facebook">

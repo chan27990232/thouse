@@ -39,7 +39,7 @@ interface LandlordHomeProps {
 type VerificationState = 'pending' | 'approved' | 'rejected';
 
 interface ManagedProperty extends Property {
-  status: '已出租' | '招租中';
+  status: 'rented' | 'available';
   tenantName: string | null;
   nextDueDate: string;
   applications: number;
@@ -165,7 +165,7 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
         return {
           id: property.id,
           landlordId: property.landlord_id ?? undefined,
-          title: property.title ?? '未命名物業',
+          title: property.title ?? landlordT.unnamedProperty,
           image: property.image || defaultPropertyImage,
           price: Number(property.price ?? 0),
           area: Number(property.area ?? 0),
@@ -173,7 +173,7 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
           bedrooms: Number(property.bedrooms ?? 1),
           bathrooms: Number(property.bathrooms ?? 1),
           isFavorite: false,
-          status: isRented ? '已出租' : '招租中',
+          status: isRented ? 'rented' : 'available',
           tenantName: lease?.tenantName ?? null,
           nextDueDate: formatLandlordNextDueLabel(hasActiveLease, {
             nextDueDate: lease?.nextDueDate ?? null,
@@ -260,10 +260,10 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
     }
   };
 
-  const occupiedCount = myProperties.filter((p) => p.status === '已出租').length;
+  const occupiedCount = myProperties.filter((p) => p.status === 'rented').length;
   const pendingApplications = myProperties.reduce((sum, p) => sum + p.applications, 0);
   const monthlyIncome = myProperties
-    .filter((p) => p.status === '已出租')
+    .filter((p) => p.status === 'rented')
     .reduce((sum, p) => sum + p.price, 0);
 
   const stats = {
@@ -309,7 +309,7 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
         </div>
         <nav
           className="flex border-t border-gray-100 md:px-6 lg:px-8"
-          aria-label="業主主頁導覽"
+          aria-label={landlordT.navAria}
         >
           <button
             type="button"
@@ -349,46 +349,46 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
                   <Home className="w-5 h-5 text-gray-600" />
                   <span className="text-2xl">{stats.totalProperties}</span>
                 </div>
-                <p className="text-sm text-gray-600">總物業數</p>
+                <p className="text-sm text-gray-600">{landlordT.totalProperties}</p>
               </div>
               <div className="bg-gray-50 p-4 rounded-lg">
                 <div className="flex items-center justify-between mb-2">
                   <Users className="w-5 h-5 text-gray-600" />
                   <span className="text-2xl">{stats.occupiedProperties}</span>
                 </div>
-                <p className="text-sm text-gray-600">已出租</p>
+                <p className="text-sm text-gray-600">{landlordT.occupied}</p>
               </div>
               <div className="bg-gray-50 p-4 rounded-lg">
                 <div className="flex items-center justify-between mb-2">
                   <DollarSign className="w-5 h-5 text-gray-600" />
                   <span className="text-xl">${stats.monthlyIncome}</span>
                 </div>
-                <p className="text-sm text-gray-600">月收入</p>
+                <p className="text-sm text-gray-600">{landlordT.monthlyIncome}</p>
               </div>
               <div className="bg-gray-50 p-4 rounded-lg">
                 <div className="flex items-center justify-between mb-2">
                   <FileText className="w-5 h-5 text-gray-600" />
                   <span className="text-2xl">{stats.pendingApplications}</span>
                 </div>
-                <p className="text-sm text-gray-600">待處理申請</p>
+                <p className="text-sm text-gray-600">{landlordT.pendingApplications}</p>
               </div>
             </div>
 
             {/* Quick Actions */}
             <div className="mb-6">
-              <h2 className="mb-3">快速操作</h2>
+              <h2 className="mb-3">{landlordT.quickActions}</h2>
               <Dialog open={showAddProperty} onOpenChange={setShowAddProperty}>
                 <DialogTrigger asChild>
                   <Button className="w-full bg-black text-white hover:bg-gray-800 mb-2">
                     <Plus className="w-4 h-4 mr-2" />
-                    刊登租盤
+                    {landlordT.listProperty}
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="mx-auto max-h-[90vh] max-w-lg overflow-y-auto sm:max-w-xl">
                   <DialogHeader>
-                    <DialogTitle>刊登租盤</DialogTitle>
+                    <DialogTitle>{landlordT.listPropertyTitle}</DialogTitle>
                     <DialogDescription>
-                      分步填寫放盤資料；提交後由平台審核，通過方會顯示於租客首頁。
+                      {landlordT.listPropertyDesc}
                     </DialogDescription>
                   </DialogHeader>
                   {currentLandlordId ? (
@@ -402,7 +402,7 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
                       }}
                     />
                   ) : (
-                    <p className="py-8 text-center text-sm text-gray-500">請先登入業主帳號。</p>
+                    <p className="py-8 text-center text-sm text-gray-500">{landlordT.signInToList}</p>
                   )}
                 </DialogContent>
               </Dialog>
@@ -413,24 +413,24 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
                 onClick={() => setApplicationsListOpen(true)}
               >
                 <FileText className="w-4 h-4 mr-2" />
-                查看所有申請
+                {landlordT.viewAllApplications}
               </Button>
             </div>
 
             {/* My Properties */}
             <div>
-              <h2 className="mb-3">我的物業</h2>
+              <h2 className="mb-3">{landlordT.myPropertiesTitle}</h2>
               {propertiesLoading ? (
                 <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 px-6 py-12 text-center text-gray-500">
-                  正在載入你的物業...
+                  {landlordT.loadingProperties}
                 </div>
               ) : myProperties.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 px-6 py-12 text-center">
-                  <p className="text-base text-gray-700 mb-2">你目前未有任何物業</p>
-                  <p className="text-sm text-gray-500 mb-5">新增第一個租盤後，物業資料會顯示在這裡。</p>
+                  <p className="text-base text-gray-700 mb-2">{landlordT.noPropertiesTitle}</p>
+                  <p className="text-sm text-gray-500 mb-5">{landlordT.noPropertiesHint}</p>
                   <Button className="bg-black text-white hover:bg-gray-800" onClick={() => setShowAddProperty(true)}>
                     <Plus className="w-4 h-4 mr-2" />
-                    刊登第一個租盤
+                    {landlordT.listFirstProperty}
                   </Button>
                 </div>
               ) : (
@@ -449,18 +449,23 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
                             <div className="min-w-0">
                               <h3 className="font-medium truncate">{property.title}</h3>
                               <p className="text-sm text-gray-500 mt-1">
-                                {property.area} 平方呎 ・ {property.floor} 樓 ・ {property.bedrooms} 房 {property.bathrooms} 廁
+                                {landlordT.format('propertyMeta', {
+                                  area: property.area,
+                                  floor: property.floor,
+                                  bedrooms: property.bedrooms,
+                                  bathrooms: property.bathrooms,
+                                })}
                               </p>
                             </div>
                             <div className="flex shrink-0 flex-row flex-wrap items-center gap-1 sm:flex-col sm:items-end">
                               <span
                                 className={`text-xs px-2 py-1 rounded-full whitespace-nowrap ${
-                                  property.status === '已出租'
+                                  property.status === 'rented'
                                     ? 'bg-green-100 text-green-700'
                                     : 'bg-amber-100 text-amber-700'
                                 }`}
                               >
-                                {property.status}
+                                {property.status === 'rented' ? landlordT.statusRented : landlordT.statusAvailable}
                               </span>
                               <span
                                 className={`text-xs px-2 py-1 rounded-full whitespace-nowrap ${
@@ -472,10 +477,10 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
                                 }`}
                               >
                                 {property.verificationStatus === 'approved'
-                                  ? '已上架首頁'
+                                  ? landlordT.listedOnHome
                                   : property.verificationStatus === 'pending'
-                                    ? '審核中'
-                                    : '審核未通過'}
+                                    ? landlordT.underReview
+                                    : landlordT.reviewRejected}
                               </span>
                             </div>
                           </div>
@@ -485,19 +490,19 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
 
                           <div className="space-y-2 text-sm text-gray-600 mb-4">
                             <div className="flex justify-between gap-3">
-                              <span>月租</span>
+                              <span>{landlordT.monthlyRent}</span>
                               <span className="font-medium text-gray-900">${property.price}</span>
                             </div>
                             <div className="flex justify-between gap-3">
-                              <span>租客</span>
-                              <span>{property.tenantName ?? '未有租客'}</span>
+                              <span>{landlordT.tenant}</span>
+                              <span>{property.tenantName ?? landlordT.noTenant}</span>
                             </div>
                             <div className="flex justify-between gap-3">
-                              <span>下次租金到期</span>
+                              <span>{landlordT.nextRentDue}</span>
                               <span>{property.nextDueDate}</span>
                             </div>
                             <div className="flex justify-between gap-3">
-                              <span>新申請</span>
+                              <span>{landlordT.newApplications}</span>
                               <span>{property.applications}</span>
                             </div>
                           </div>
@@ -508,19 +513,19 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
                               className="w-full min-h-11 flex-1 sm:min-h-10 sm:min-w-[8rem] sm:flex-1"
                             onClick={() => openPropertyDialog(property, 'details')}
                             >
-                              查看詳情
+                              {landlordT.viewDetails}
                             </Button>
                           <Button
                             className="w-full min-h-11 flex-1 bg-black text-white hover:bg-gray-800 disabled:opacity-50 sm:min-h-10 sm:min-w-[8rem] sm:flex-1"
                             disabled={!property.leaseApplicationId}
                             title={
                               property.leaseApplicationId
-                                ? '管理進行中的租約'
-                                : '須有待平台核准的進行中租約才可管理'
+                                ? landlordT.manageLeaseActive
+                                : landlordT.manageLeaseDisabled
                             }
                             onClick={() => openPropertyDialog(property, 'lease')}
                           >
-                            管理租約
+                            {landlordT.manageLease}
                           </Button>
                             <Button
                               type="button"
@@ -532,7 +537,7 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
                               }}
                             >
                               <FileUp className="mr-2 h-4 w-4 shrink-0" />
-                              上傳每月水電煤單
+                              {landlordT.uploadUtilityBills}
                             </Button>
                           </div>
                         </div>
@@ -547,7 +552,7 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
 
         {activeTab === 'wallet' && (
           <div>
-            <h2 className="mb-4 text-lg font-semibold">收入與錢包</h2>
+            <h2 className="mb-4 text-lg font-semibold">{landlordT.walletSection}</h2>
             <LandlordWalletPanel />
           </div>
         )}
@@ -559,9 +564,9 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
       <Dialog open={applicationsListOpen} onOpenChange={setApplicationsListOpen}>
         <DialogContent className="flex max-h-[85vh] max-w-lg flex-col gap-0 overflow-hidden sm:max-w-xl">
           <DialogHeader className="shrink-0 pr-6 text-left">
-            <DialogTitle>所有租約申請</DialogTitle>
+            <DialogTitle>{landlordT.allApplicationsTitle}</DialogTitle>
             <DialogDescription>
-              完整流程為：租客申請 → 平台一審 → 您同意 → 平台複審。僅在「待業主確認」狀態可選擇接受或婉拒；其餘階段由平台處理。
+              {landlordT.allApplicationsDesc}
             </DialogDescription>
             {respondFeedback ? (
               <p
@@ -578,11 +583,11 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
           </DialogHeader>
           <div className="min-h-0 flex-1 overflow-y-auto py-4">
             {applicationsListLoading ? (
-              <p className="py-12 text-center text-sm text-gray-500">載入中…</p>
+              <p className="py-12 text-center text-sm text-gray-500">{landlordT.loading}</p>
             ) : applicationsListError ? (
               <p className="py-8 text-center text-sm text-red-600">{applicationsListError}</p>
             ) : applicationsList.length === 0 ? (
-              <p className="py-12 text-center text-sm text-gray-500">暫未有租約申請</p>
+              <p className="py-12 text-center text-sm text-gray-500">{landlordT.noApplications}</p>
             ) : (
               <ul className="space-y-3">
                 {applicationsList.map((row) => {

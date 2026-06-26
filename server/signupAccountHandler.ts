@@ -1,32 +1,59 @@
 import { createClient } from '@supabase/supabase-js';
 import { archiveDeactivatedAccount } from './archiveDeactivatedAccount';
+import { resendSignupOtpEmail } from './resendSignupOtp';
 
-export type RegisterTenantInput = {
-  username: string;
+export type SignupAccountInput = {
+  email: string;
   password: string;
   fullName: string;
+  username: string;
+  role: 'tenant' | 'landlord';
 };
 
-export type RegisterTenantResult =
-  | { ok: true; email: string }
+export type SignupAccountResult =
+  | { ok: true; email: string; emailSent: boolean; emailWarning?: string }
   | { ok: false; message: string; status?: number };
 
-function internalEmail(username: string) {
-  return `${username.trim().toLowerCase()}@thouse.local`;
+export type ResendSignupOtpResult =
+  | { ok: true; emailSent: true }
+  | { ok: false; message: string; status?: number };
+
+export async function handleResendSignupOtp(
+  email: string,
+  env: { supabaseUrl: string; serviceRoleKey: string },
+): Promise<ResendSignupOtpResult> {
+  const normalizedEmail = String(email ?? '').trim().toLowerCase();
+  if (!normalizedEmail) {
+    return { ok: false, message: '請輸入電子郵件。', status: 400 };
+  }
+  if (!env.supabaseUrl || !env.serviceRoleKey) {
+    return { ok: false, message: '伺服器未設定 SUPABASE_SERVICE_ROLE_KEY。', status: 500 };
+  }
+
+  const result = await resendSignupOtpEmail(env.supabaseUrl, env.serviceRoleKey, normalizedEmail);
+  if (!result.ok) {
+    return { ok: false, message: result.message, status: 400 };
+  }
+  return { ok: true, emailSent: true };
 }
 
-export async function handleRegisterTenant(
-  input: RegisterTenantInput,
+export async function handleSignupAccount(
+  input: SignupAccountInput,
   env: { supabaseUrl: string; serviceRoleKey: string },
-): Promise<RegisterTenantResult> {
-  const username = String(input.username ?? '').trim().toLowerCase();
+): Promise<SignupAccountResult> {
+  const email = String(input.email ?? '').trim().toLowerCase();
   const password = String(input.password ?? '');
   const fullName = String(input.fullName ?? '').trim();
+  const username = String(input.username ?? '').trim().toLowerCase();
+  const role = input.role === 'landlord' ? 'landlord' : 'tenant';
 
   if (!env.supabaseUrl || !env.serviceRoleKey) {
     return { ok: false, message: '伺服器未設定 SUPABASE_SERVICE_ROLE_KEY。', status: 500 };
   }
 
+  if (!email) {
+    return { ok: false, message: '請輸入電子郵件。', status: 400 };
+  }
   if (!username) {
     return { ok: false, message: '請輸入登入帳號。', status: 400 };
   }
@@ -48,18 +75,35 @@ export async function handleRegisterTenant(
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  const email = internalEmail(username);
+  const { data: emailCheck, error: emailCheckError } = await supabase.rpc('validate_signup_email', {
+    p_email: email,
+  });
+  if (emailCheckError) {
+    return { ok: false, message: emailCheckError.message, status: 500 };
+  }
+  const emailPayload = emailCheck as { ok?: boolean; message?: string } | null;
+  if (!emailPayload?.ok) {
+    return {
+      ok: false,
+      message: emailPayload?.message || '電郵格式不正確或已被註冊。',
+      status: 400,
+    };
+  }
 
-  const { data: existing } = await supabase
+  const { data: existingUsername } = await supabase
     .from('profiles')
     .select('id, is_deactivated, username')
     .eq('username', username)
     .maybeSingle();
 
-  if (existing?.id) {
-    if (existing.is_deactivated) {
+  if (existingUsername?.id) {
+    if (existingUsername.is_deactivated) {
       try {
-        await archiveDeactivatedAccount(supabase, existing.id, existing.username || username);
+        await archiveDeactivatedAccount(
+          supabase,
+          existingUsername.id,
+          existingUsername.username || username,
+        );
       } catch (archiveError) {
         const message = archiveError instanceof Error ? archiveError.message : '釋放註銷帳號失敗';
         return { ok: false, message, status: 500 };
@@ -72,10 +116,10 @@ export async function handleRegisterTenant(
   const { data: created, error: createError } = await supabase.auth.admin.createUser({
     email,
     password,
-    email_confirm: true,
+    email_confirm: false,
     user_metadata: {
       full_name: fullName,
-      role: 'tenant',
+      role,
       username,
     },
   });
@@ -99,7 +143,7 @@ export async function handleRegisterTenant(
       phone: '',
       response_time: '',
       is_verified: false,
-      role: 'tenant',
+      role,
       is_deactivated: false,
       updated_at: new Date().toISOString(),
     },
@@ -110,5 +154,5 @@ export async function handleRegisterTenant(
     return { ok: false, message: profileError.message, status: 500 };
   }
 
-  return { ok: true, email };
+  return { ok: true, email, emailSent: false };
 }

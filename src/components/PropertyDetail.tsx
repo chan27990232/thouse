@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { ArrowLeft, MapPin, Home, Bed, Bath, Building2 } from 'lucide-react';
-import { toast } from 'sonner';
 import { Property } from '../App';
 import { submitLeaseApplication } from '../lib/leaseApplications';
 import { Button } from './ui/button';
@@ -13,9 +12,10 @@ interface PropertyDetailProps {
   property: Property;
   onBack: () => void;
   isAuthenticated: boolean;
+  onRequireAuth: () => void;
 }
 
-export function PropertyDetail({ property, onBack, isAuthenticated }: PropertyDetailProps) {
+export function PropertyDetail({ property, onBack, isAuthenticated, onRequireAuth }: PropertyDetailProps) {
   const [showRentalApp, setShowRentalApp] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
   const [showContactDialog, setShowContactDialog] = useState(false);
@@ -129,7 +129,7 @@ export function PropertyDetail({ property, onBack, isAuthenticated }: PropertyDe
             type="button"
             onClick={() => {
               if (!isAuthenticated) {
-                toast.error('請先登入，以便完成線上簽約與支付首期。');
+                onRequireAuth();
                 return;
               }
               setShowRentalApp(true);

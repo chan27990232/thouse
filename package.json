@@ -59,6 +59,7 @@
             "dev": "vite",
             "build": "vite build",
             "seed:admin": "node scripts/seed-admin.mjs",
+            "seed:demo-users": "node scripts/seed-demo-users.mjs",
             "db:apply": "node scripts/apply-database.mjs",
             "db:storage-buckets": "node scripts/apply-database.mjs ensure_property_storage_buckets.sql",
             "db:fix-storage-rls": "node scripts/apply-database.mjs fix_property_storage_rls.sql",

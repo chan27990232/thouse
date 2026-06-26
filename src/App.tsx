@@ -158,6 +158,7 @@ export default function App() {
           property={selectedProperty}
           onBack={handleBackToHome}
           isAuthenticated={isAuthenticated}
+          onRequireAuth={() => setCurrentScreen('auth-tenant')}
         />
       )}
       {currentScreen === 'landlord-dashboard' && (

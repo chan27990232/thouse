@@ -49,14 +49,48 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, serviceRoleKey);
     const email = internalEmail(username);
 
-    const { data: taken } = await supabase
+    const { data: existing } = await supabase
       .from('profiles')
-      .select('id')
+      .select('id, is_deactivated, username, deactivated_original_username')
       .eq('username', username)
       .maybeSingle();
 
-    if (taken?.id) {
-      return json({ ok: false, message: '此登入帳號已被使用，請改用另一個。' }, 400);
+    if (existing?.id) {
+      if (existing.is_deactivated) {
+        const archivedUsername = (`x-${String(existing.id).replace(/-/g, '')}`).slice(0, 32);
+        const archivedEmail = `${archivedUsername}@thouse.local`;
+        const originalUsername = String(
+          existing.deactivated_original_username || existing.username || username,
+        )
+          .trim()
+          .toLowerCase();
+
+        const { error: archiveProfileError } = await supabase
+          .from('profiles')
+          .update({
+            deactivated_original_username: originalUsername,
+            username: archivedUsername,
+            email: archivedEmail,
+            is_deactivated: true,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', existing.id);
+
+        if (archiveProfileError) {
+          return json({ ok: false, message: archiveProfileError.message }, 500);
+        }
+
+        const { error: archiveAuthError } = await supabase.auth.admin.updateUserById(existing.id, {
+          email: archivedEmail,
+          user_metadata: { username: archivedUsername },
+        });
+
+        if (archiveAuthError) {
+          return json({ ok: false, message: archiveAuthError.message }, 500);
+        }
+      } else {
+        return json({ ok: false, message: '此登入帳號已被使用，請改用另一個。' }, 400);
+      }
     }
 
     const { data: created, error: createError } = await supabase.auth.admin.createUser({
@@ -90,6 +124,7 @@ Deno.serve(async (req) => {
         response_time: '',
         is_verified: false,
         role: 'tenant',
+        is_deactivated: false,
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'id' },
