@@ -11,12 +11,12 @@ import { requestPasswordResetEmail, resolveLoginEmail } from '../lib/passwordRec
 import { validateSignupEmailWithDatabase } from '../lib/signupEmailValidation';
 import { validatePasswordStrength, PASSWORD_REQUIREMENTS_HINT } from '../lib/passwordValidation';
 import {
+  completeSignupWithEmailVerification,
   formatAuthFailure,
   isSignupEmailRateLimited,
   resendSignupVerification,
-  signUpWithEmail,
   SIGNUP_RESEND_COOLDOWN_SEC,
-  verifySignupEmailOtp,
+  type PendingSignupInput,
   withAuthTimeout,
 } from '../lib/signupEmailVerify';
 import { useLocale } from '../context/LocaleContext';
@@ -37,6 +37,7 @@ export function AuthScreen({ role, onBack, onAuthSuccess }: AuthScreenProps) {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [signupPhase, setSignupPhase] = useState<'form' | 'verify-otp'>('form');
+  const [pendingSignup, setPendingSignup] = useState<PendingSignupInput | null>(null);
   const [pendingSignupEmail, setPendingSignupEmail] = useState('');
   const [signupEmailSent, setSignupEmailSent] = useState(false);
   const [otpCode, setOtpCode] = useState('');
@@ -59,6 +60,7 @@ export function AuthScreen({ role, onBack, onAuthSuccess }: AuthScreenProps) {
 
   const resetSignupFlow = () => {
     setSignupPhase('form');
+    setPendingSignup(null);
     setPendingSignupEmail('');
     setSignupEmailSent(false);
     setOtpCode('');
@@ -71,12 +73,16 @@ export function AuthScreen({ role, onBack, onAuthSuccess }: AuthScreenProps) {
       setAuthError('請輸入 6 位數驗證碼。');
       return;
     }
+    if (!pendingSignup) {
+      setAuthError('註冊資料已遺失，請返回重新填寫。');
+      return;
+    }
 
     try {
       setAuthError('');
       setAuthInfo('');
       setEmailLoading(true);
-      const { role: verifiedRole } = await verifySignupEmailOtp(pendingSignupEmail, code, password);
+      const { role: verifiedRole } = await completeSignupWithEmailVerification(pendingSignup, code);
       onAuthSuccess(verifiedRole ?? role ?? 'tenant');
     } catch (error) {
       setAuthError(formatAuthFailure(error, '驗證失敗，請稍後再試。'));
@@ -153,14 +159,15 @@ export function AuthScreen({ role, onBack, onAuthSuccess }: AuthScreenProps) {
         }
 
         const signupRole = role ?? 'tenant';
-        await signUpWithEmail({
+        const pending: PendingSignupInput = {
           email: signupEmail,
           password,
           fullName: fullName.trim(),
           username: normalizedUsername,
           role: signupRole,
-        });
+        };
 
+        setPendingSignup(pending);
         setPendingSignupEmail(signupEmail);
         setSignupPhase('verify-otp');
         setOtpCode('');

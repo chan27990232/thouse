@@ -1,12 +1,11 @@
 import type { AuthError } from '@supabase/supabase-js';
-import { supabase, isSupabaseConfigured } from './supabase';
+import { supabase } from './supabase';
 import { syncProfileForUser } from './profiles';
 import type { UserRole } from '../App';
 import { getRoleFromMetadata } from './auth';
-import { confirmSignupVerificationOtp, sendSignupVerificationOtp } from './signupEmailOtp';
+import { registerWithEmailCode, sendSignupVerificationOtp } from './signupEmailOtp';
 
 const AUTH_TIMEOUT_MS = 45_000;
-const SIGNUP_API_TIMEOUT_MS = 30_000;
 
 export const SIGNUP_RESEND_COOLDOWN_SEC = 60;
 
@@ -86,138 +85,58 @@ export function withAuthTimeoutMs<T>(promise: PromiseLike<T>, message: string, m
   ]);
 }
 
-type SignupAccountResponse = {
-  ok: boolean;
-  message?: string;
-  email?: string;
-  emailSent?: boolean;
-  emailWarning?: string;
-};
-
-function getSupabasePublicConfig() {
-  const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim() || '';
-  const anonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined)?.trim() || '';
-  return { supabaseUrl, anonKey };
-}
-
-async function invokeSignupAccountFunction(
-  body: Record<string, unknown>,
-): Promise<SignupAccountResponse> {
-  const { supabaseUrl, anonKey } = getSupabasePublicConfig();
-  if (!supabaseUrl || !anonKey) {
-    throw new Error('應用程式尚未設定 Supabase，無法註冊。');
-  }
-
-  const res = await withAuthTimeoutMs(
-    fetch(`${supabaseUrl}/functions/v1/signup-account`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${anonKey}`,
-        apikey: anonKey,
-      },
-      body: JSON.stringify(body),
-    }),
-    '註冊請求逾時，請稍後再試。',
-    SIGNUP_API_TIMEOUT_MS,
-  );
-
-  const payload = (await res.json().catch(() => ({}))) as SignupAccountResponse;
-  if (!res.ok || !payload.ok) {
-    throw new Error(payload.message || `註冊失敗（${res.status}）`);
-  }
-  return payload;
-}
-
-async function callSignupAccountApi(
-  body: Record<string, unknown>,
-): Promise<SignupAccountResponse> {
-  if (isSupabaseConfigured) {
-    return invokeSignupAccountFunction(body);
-  }
-
-  if (import.meta.env.PROD) {
-    throw new Error('註冊服務暫時無法使用，請稍後再試或聯絡客服。');
-  }
-
-  const res = await withAuthTimeoutMs(
-    fetch('/api/signup-account', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    }),
-    '註冊請求逾時，請稍後再試。',
-    SIGNUP_API_TIMEOUT_MS,
-  );
-
-  const payload = (await res.json().catch(() => ({}))) as SignupAccountResponse;
-  if (!res.ok || !payload.ok) {
-    throw new Error(payload.message || `註冊失敗（${res.status}）`);
-  }
-  return payload;
-}
-
-export async function signUpWithEmail(input: {
+export type PendingSignupInput = {
   email: string;
   password: string;
   fullName: string;
   username: string;
   role: UserRole;
-}): Promise<{ emailSent: false }> {
-  await callSignupAccountApi({
-    action: 'create',
-    email: input.email.trim().toLowerCase(),
+};
+
+/** 驗證電郵成功後才建立帳戶並登入。 */
+export async function completeSignupWithEmailVerification(input: PendingSignupInput, code: string) {
+  const normalizedEmail = input.email.trim().toLowerCase();
+  const signupRole = input.role === 'landlord' ? 'landlord' : 'tenant';
+
+  await registerWithEmailCode({
+    email: normalizedEmail,
+    code: code.trim(),
     password: input.password,
     fullName: input.fullName.trim(),
     username: input.username.trim().toLowerCase(),
-    role: input.role ?? 'tenant',
+    role: signupRole,
   });
 
-  return { emailSent: false };
+  const { data, error } = await withAuthTimeout(
+    supabase.auth.getSession(),
+    '登入逾時，請稍後再試。',
+  );
+  if (error || !data.session?.user) {
+    throw new Error(formatAuthFailure(error, '註冊成功但登入失敗，請手動登入。'));
+  }
+
+  const verifiedRole = getRoleFromMetadata(data.session.user.user_metadata) ?? signupRole;
+  await syncProfileForUser(data.session.user, verifiedRole);
+  return { session: data.session, role: verifiedRole };
 }
 
+/** @deprecated 請改用 completeSignupWithEmailVerification */
 export async function verifySignupEmailOtp(email: string, token: string, password?: string) {
-  const trimmed = token.trim();
-  const normalizedEmail = email.trim().toLowerCase();
-  const tryTypes = ['signup', 'email'] as const;
-
-  let lastError: Error | null = null;
-  for (const type of tryTypes) {
-    const { data, error } = await withAuthTimeout(
-      supabase.auth.verifyOtp({ email: normalizedEmail, token: trimmed, type }),
-      '驗證逾時，請稍後再試。',
-    );
-    if (!error && data.session) {
-      const role = getRoleFromMetadata(data.user?.user_metadata) ?? 'tenant';
-      if (data.user) {
-        await syncProfileForUser(data.user, role);
-      }
-      return { session: data.session, role };
-    }
-    if (error) {
-      lastError = error;
-    }
+  if (!password) {
+    throw new Error('驗證碼不正確或已過期。');
   }
-
-  if (password) {
-    await confirmSignupVerificationOtp(normalizedEmail, trimmed);
-    const { data, error } = await withAuthTimeout(
-      supabase.auth.signInWithPassword({ email: normalizedEmail, password }),
-      '登入逾時，請稍後再試。',
-    );
-    if (error) {
-      throw new Error(formatAuthFailure(error, '驗證成功但登入失敗，請手動登入。'));
-    }
-    const verifiedRole = getRoleFromMetadata(data.user?.user_metadata) ?? 'tenant';
-    if (data.user) {
-      await syncProfileForUser(data.user, verifiedRole);
-    }
-    return { session: data.session!, role: verifiedRole };
-  }
-
-  throw new Error(formatAuthFailure(lastError, '驗證碼不正確或已過期。'));
+  return completeSignupWithEmailVerification(
+    {
+      email,
+      password,
+      fullName: '',
+      username: email.split('@')[0] || 'user',
+      role: 'tenant',
+    },
+    token,
+  );
 }
 
 export async function resendSignupVerification(email: string) {
-  await sendSignupVerificationOtp(email, { forExistingAccount: true });
+  await sendSignupVerificationOtp(email);
 }

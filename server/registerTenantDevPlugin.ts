@@ -200,6 +200,9 @@ export function registerTenantDevApi(): Plugin {
             fullName?: string;
             role?: string;
             code?: string;
+            code?: string;
+            username?: string;
+            role?: string;
             application_id?: string;
             previous_status?: string | null;
           };
@@ -212,6 +215,8 @@ export function registerTenantDevApi(): Plugin {
                 code: body.code,
                 password: body.password,
                 fullName: body.fullName,
+                username: body.username,
+                role: body.role,
               },
               signupVerificationEnvFromProcess(env),
             );

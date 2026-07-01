@@ -28,6 +28,8 @@ export default async function handler(req: Req, res: Res) {
     code?: string;
     password?: string;
     fullName?: string;
+    username?: string;
+    role?: string;
   };
 
   const result = await handleSignupVerification(body);

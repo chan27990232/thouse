@@ -85,11 +85,13 @@ export async function sendSignupEmailOtp(email: string): Promise<void> {
   await sendSignupVerificationOtp(email);
 }
 
-export async function registerTenantWithEmailCode(input: {
+export async function registerWithEmailCode(input: {
   email: string;
   code: string;
   password: string;
   fullName: string;
+  username: string;
+  role: 'tenant' | 'landlord';
 }): Promise<void> {
   await invokeSignupVerification({
     action: 'register',
@@ -97,6 +99,8 @@ export async function registerTenantWithEmailCode(input: {
     code: input.code.trim(),
     password: input.password,
     fullName: input.fullName.trim(),
+    username: input.username.trim().toLowerCase(),
+    role: input.role,
   });
 
   const { error } = await supabase.auth.signInWithPassword({
@@ -107,4 +111,18 @@ export async function registerTenantWithEmailCode(input: {
   if (error) {
     throw new Error(`帳戶已建立但自動登入失敗：${error.message}`);
   }
+}
+
+/** @deprecated 請改用 registerWithEmailCode */
+export async function registerTenantWithEmailCode(input: {
+  email: string;
+  code: string;
+  password: string;
+  fullName: string;
+}): Promise<void> {
+  await registerWithEmailCode({
+    ...input,
+    username: input.email.split('@')[0]?.toLowerCase().replace(/[^a-z0-9._-]/g, '') || `user${Date.now()}`,
+    role: 'tenant',
+  });
 }
