@@ -10,7 +10,7 @@ async function invokeSignupVerification(body: Record<string, unknown>): Promise<
     const hint =
       error.message?.includes('Failed to send a request to the Edge Function') ||
       error.message?.includes('FunctionsRelayError')
-        ? '驗證碼郵件服務尚未部署。請部署 supabase/functions/signup-verification 並設定 RESEND_API_KEY。'
+        ? '驗證碼郵件服務尚未部署。請部署 signup-verification 並在 Supabase 設定 RESEND_API_KEY。'
         : error.message;
     throw new Error(hint);
   }
@@ -22,16 +22,34 @@ async function invokeSignupVerification(body: Record<string, unknown>): Promise<
   return payload;
 }
 
-export async function sendSignupEmailOtp(email: string): Promise<void> {
-  const check = await validateSignupEmailWithDatabase(email);
-  if (!check.ok) {
-    throw new Error(check.message);
+export async function sendSignupVerificationOtp(
+  email: string,
+  options?: { forExistingAccount?: boolean },
+): Promise<void> {
+  if (!options?.forExistingAccount) {
+    const check = await validateSignupEmailWithDatabase(email);
+    if (!check.ok) {
+      throw new Error(check.message);
+    }
   }
 
   await invokeSignupVerification({
-    action: 'send',
+    action: options?.forExistingAccount ? 'send_existing' : 'send',
     email: email.trim().toLowerCase(),
   });
+}
+
+export async function confirmSignupVerificationOtp(email: string, code: string): Promise<void> {
+  await invokeSignupVerification({
+    action: 'confirm',
+    email: email.trim().toLowerCase(),
+    code: code.trim(),
+  });
+}
+
+/** @deprecated 請改用 sendSignupVerificationOtp */
+export async function sendSignupEmailOtp(email: string): Promise<void> {
+  await sendSignupVerificationOtp(email);
 }
 
 export async function registerTenantWithEmailCode(input: {

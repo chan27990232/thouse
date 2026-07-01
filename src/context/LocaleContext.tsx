@@ -17,7 +17,26 @@ import { formatHomeMessage, homeMessages, type HomeMessages } from '../content/t
 import { buildLandlordT, type LandlordMessages } from '../content/translations/landlord';
 import { buildCommonT, type CommonMessages } from '../content/translations/common';
 import { authMessages, type AuthMessages } from '../content/translations/auth';
+import { buildNoticeT, type NoticeMessages } from '../content/translations/notice';
+import { buildChatT, type ChatMessages } from '../content/translations/chat';
+import { buildFiltersT, type FiltersMessages } from '../content/translations/filters';
+import { buildPropertyT, type PropertyMessages } from '../content/translations/property';
+import { buildProfileT, type ProfileMessages } from '../content/translations/profile';
+import { buildContactLandlordT, type ContactLandlordMessages } from '../content/translations/contactLandlord';
+import { buildRentalApplicationT, type RentalApplicationMessages } from '../content/translations/rentalApplication';
+import { buildPaymentT, type PaymentMessages } from '../content/translations/payment';
+import { buildLeaseWorkflowT, type LeaseWorkflowMessages } from '../content/translations/leaseWorkflow';
+import { buildLandlordWalletT, type LandlordWalletMessages } from '../content/translations/landlordWallet';
+import { buildUtilityBillT, type UtilityBillMessages } from '../content/translations/utilityBill';
+import { buildListPropertyT, type ListPropertyMessages } from '../content/translations/listProperty';
+import { buildPropertyManagementT, type PropertyManagementMessages } from '../content/translations/propertyManagement';
 import { formatMessage } from '../lib/i18nFormat';
+import {
+  extractPropertyAreaFromTitle,
+  localizePropertyDistrict,
+  localizePropertyText,
+  localizePropertyTitle,
+} from '../lib/localizePropertyText';
 
 type LocaleContextValue = {
   locale: AppLocale;
@@ -34,6 +53,41 @@ type LocaleContextValue = {
   authT: AuthMessages & {
     format: (key: keyof AuthMessages, vars?: Record<string, string | number>) => string;
   };
+  noticeT: NoticeMessages & {
+    format: (key: keyof NoticeMessages, vars?: Record<string, string | number>) => string;
+  };
+  chatT: ChatMessages & {
+    format: (key: keyof ChatMessages, vars?: Record<string, string | number>) => string;
+  };
+  filtersT: FiltersMessages & {
+    format: (key: keyof FiltersMessages, vars?: Record<string, string | number>) => string;
+    amenity: (name: string) => string;
+  };
+  propertyT: PropertyMessages & {
+    format: (key: keyof PropertyMessages, vars?: Record<string, string | number>) => string;
+  };
+  profileT: ProfileMessages & {
+    format: (key: keyof ProfileMessages, vars?: Record<string, string | number>) => string;
+  };
+  contactLandlordT: ContactLandlordMessages & {
+    format: (key: keyof ContactLandlordMessages, vars?: Record<string, string | number>) => string;
+  };
+  rentalApplicationT: RentalApplicationMessages & {
+    format: (key: keyof RentalApplicationMessages, vars?: Record<string, string | number>) => string;
+  };
+  paymentT: PaymentMessages & {
+    format: (key: keyof PaymentMessages, vars?: Record<string, string | number>) => string;
+    paymentMethodLabel: (method: import('../lib/leaseFirstPayment').PaymentMethodCode) => string;
+  };
+  leaseWorkflowT: ReturnType<typeof buildLeaseWorkflowT>;
+  landlordWalletT: LandlordWalletMessages & ReturnType<typeof buildLandlordWalletT>;
+  utilityBillT: UtilityBillMessages & ReturnType<typeof buildUtilityBillT>;
+  listPropertyT: ListPropertyMessages & ReturnType<typeof buildListPropertyT>;
+  propertyManagementT: PropertyManagementMessages & ReturnType<typeof buildPropertyManagementT>;
+  localizePropertyTitle: (title: string) => string;
+  localizePropertyText: (text: string) => string;
+  localizePropertyDistrict: (district?: string | null) => string;
+  extractPropertyAreaFromTitle: (title: string) => string | null;
 };
 
 const LocaleContext = createContext<LocaleContextValue | null>(null);
@@ -72,10 +126,88 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
   const landlordT = useMemo(() => buildLandlordT(locale), [locale]);
   const commonT = useMemo(() => buildCommonT(locale), [locale]);
   const authT = useMemo(() => withFormat(authMessages[locale]), [locale]);
+  const noticeT = useMemo(() => buildNoticeT(locale), [locale]);
+  const chatT = useMemo(() => buildChatT(locale), [locale]);
+  const filtersT = useMemo(() => buildFiltersT(locale), [locale]);
+  const propertyT = useMemo(() => buildPropertyT(locale), [locale]);
+  const profileT = useMemo(() => buildProfileT(locale), [locale]);
+  const contactLandlordT = useMemo(() => buildContactLandlordT(locale), [locale]);
+  const rentalApplicationT = useMemo(() => buildRentalApplicationT(locale), [locale]);
+  const paymentT = useMemo(() => buildPaymentT(locale), [locale]);
+  const leaseWorkflowT = useMemo(() => buildLeaseWorkflowT(locale), [locale]);
+  const landlordWalletT = useMemo(() => buildLandlordWalletT(locale), [locale]);
+  const utilityBillT = useMemo(() => buildUtilityBillT(locale), [locale]);
+  const listPropertyT = useMemo(() => buildListPropertyT(locale), [locale]);
+  const propertyManagementT = useMemo(() => buildPropertyManagementT(locale), [locale]);
+
+  const localizePropertyTitleFn = useCallback(
+    (title: string) => localizePropertyTitle(title, locale),
+    [locale],
+  );
+  const localizePropertyTextFn = useCallback(
+    (text: string) => localizePropertyText(text, locale),
+    [locale],
+  );
+  const localizePropertyDistrictFn = useCallback(
+    (district?: string | null) => localizePropertyDistrict(district, locale),
+    [locale],
+  );
+  const extractPropertyAreaFromTitleFn = useCallback(
+    (title: string) => extractPropertyAreaFromTitle(title, locale),
+    [locale],
+  );
 
   const value = useMemo(
-    () => ({ locale, setLocale, homeT, landlordT, commonT, authT }),
-    [locale, setLocale, homeT, landlordT, commonT, authT],
+    () => ({
+      locale,
+      setLocale,
+      homeT,
+      landlordT,
+      commonT,
+      authT,
+      noticeT,
+      chatT,
+      filtersT,
+      propertyT,
+      profileT,
+      contactLandlordT,
+      rentalApplicationT,
+      paymentT,
+      leaseWorkflowT,
+      landlordWalletT,
+      utilityBillT,
+      listPropertyT,
+      propertyManagementT,
+      localizePropertyTitle: localizePropertyTitleFn,
+      localizePropertyText: localizePropertyTextFn,
+      localizePropertyDistrict: localizePropertyDistrictFn,
+      extractPropertyAreaFromTitle: extractPropertyAreaFromTitleFn,
+    }),
+    [
+      locale,
+      setLocale,
+      homeT,
+      landlordT,
+      commonT,
+      authT,
+      noticeT,
+      chatT,
+      filtersT,
+      propertyT,
+      profileT,
+      contactLandlordT,
+      rentalApplicationT,
+      paymentT,
+      leaseWorkflowT,
+      landlordWalletT,
+      utilityBillT,
+      listPropertyT,
+      propertyManagementT,
+      localizePropertyTitleFn,
+      localizePropertyTextFn,
+      localizePropertyDistrictFn,
+      extractPropertyAreaFromTitleFn,
+    ],
   );
 
   return <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>;

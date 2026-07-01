@@ -16,13 +16,19 @@ export function LoginPage({ onSession }: { onSession: () => void }) {
       return;
     }
     setSubmitting(true);
-    const { data: email, error: rpcError } = await supabase.rpc('resolve_password_login_email', {
-      p_login: id,
-    });
-    if (rpcError || !email || typeof email !== 'string') {
-      setErr('帳號或密碼錯誤。');
-      setSubmitting(false);
-      return;
+    let email: string | null = null;
+    if (id.includes('@')) {
+      email = id;
+    } else {
+      const { data, error: rpcError } = await supabase.rpc('resolve_password_login_email', {
+        p_login: id,
+      });
+      if (rpcError || !data || typeof data !== 'string') {
+        setErr('找不到此用戶 ID，請確認用戶名、UUID 或電郵是否正確。');
+        setSubmitting(false);
+        return;
+      }
+      email = data;
     }
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     setSubmitting(false);
@@ -36,7 +42,7 @@ export function LoginPage({ onSession }: { onSession: () => void }) {
   return (
     <div className="login-box">
       <h1>管理後台登入</h1>
-      <p>輸入主站帳戶的用戶名（username）或 profiles 的 UUID，以及密碼。帳戶需已寫入 app_admins。</p>
+      <p>輸入主站帳戶的用戶名（username）、電郵或 profiles 的 UUID，以及密碼。帳戶需已寫入 app_admins。</p>
       <form onSubmit={handle}>
         <label htmlFor="a-userid">用戶 ID</label>
         <input
@@ -46,7 +52,7 @@ export function LoginPage({ onSession }: { onSession: () => void }) {
           autoComplete="username"
           value={userId}
           onChange={(e) => setUserId(e.target.value)}
-          placeholder="用戶名 或 8-4-4-4-12 格式的 UUID"
+          placeholder="用戶名、電郵 或 UUID"
           required
         />
         <label htmlFor="a-pw">密碼</label>

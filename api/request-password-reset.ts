@@ -1,0 +1,63 @@
+type Req = { method?: string; body?: unknown };
+type Res = {
+  status: (code: number) => Res;
+  json: (body: unknown) => void;
+  setHeader: (name: string, value: string) => void;
+};
+
+export default async function handler(req: Req, res: Res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    res.status(204).json(null);
+    return;
+  }
+
+  if (req.method !== 'POST') {
+    res.status(405).json({ ok: false, message: 'Method not allowed' });
+    return;
+  }
+
+  const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim();
+  const anonKey = (process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '').trim();
+
+  if (!supabaseUrl || !anonKey) {
+    res.status(500).json({ ok: false, message: '伺服器尚未設定 Supabase。' });
+    return;
+  }
+
+  const body = (req.body ?? {}) as {
+    identifier?: string;
+    email?: string;
+    redirectTo?: string;
+  };
+
+  try {
+    const upstream = await fetch(`${supabaseUrl}/functions/v1/request-password-reset`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${anonKey}`,
+        apikey: anonKey,
+      },
+      body: JSON.stringify({
+        identifier: String(body.identifier ?? body.email ?? ''),
+        redirectTo: String(body.redirectTo ?? ''),
+      }),
+    });
+
+    const payload = (await upstream.json().catch(() => ({}))) as {
+      ok?: boolean;
+      message?: string;
+    };
+
+    res.status(upstream.status).json(payload);
+  } catch (error) {
+    res.status(500).json({
+      ok: false,
+      message: error instanceof Error ? error.message : '重設密碼服務暫時無法使用',
+    });
+  }
+}

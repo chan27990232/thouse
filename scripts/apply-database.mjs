@@ -104,6 +104,7 @@ const SQL_FILES = [
   'admin_support.sql',
   'respond_to_lease_application_rpc.sql',
   'platform_review_lease_application_rpc.sql',
+  'lease_rejection_email_notify.sql',
   'landlord_manage_lease_rpc.sql',
   'lease_management_requests_workflow.sql',
   'lease_management_request_files.sql',

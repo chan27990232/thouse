@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { archiveConversationLocal, unarchiveConversationLocal } from './chatInbox';
 import { buildChatMessageBody, getChatMessagePreview, type ParsedChatAttachment } from './chatMessageBody';
 
 export interface ConversationRow {
@@ -33,16 +34,11 @@ export interface ConversationWithProperty {
 function formatMessageWithContact(params: {
   body: string;
   name: string;
-  phone: string;
-  email: string;
 }) {
-  const emailLine = params.email.trim() ? params.email.trim() : '（未提供）';
   return `${params.body.trim()}
 
 ---
-聯絡人：${params.name.trim()}
-電話：${params.phone.trim()}
-電郵：${emailLine}`;
+聯絡人：${params.name.trim()}`;
 }
 
 export async function sendTenantInquiryMessage(params: {
@@ -52,14 +48,10 @@ export async function sendTenantInquiryMessage(params: {
   tenantDisplayName: string;
   message: string;
   contactName: string;
-  contactPhone: string;
-  contactEmail: string;
 }) {
   const fullBody = formatMessageWithContact({
     body: params.message,
     name: params.contactName,
-    phone: params.contactPhone,
-    email: params.contactEmail,
   });
 
   const { data: existing, error: findError } = await supabase
@@ -134,6 +126,38 @@ export async function markConversationRead(conversationId: string) {
     p_conversation_id: conversationId,
   });
   if (error) throw error;
+}
+
+export async function markAllConversationsRead(conversationIds: string[]) {
+  const { error } = await supabase.rpc('mark_all_conversation_messages_read');
+  if (!error) return;
+  await Promise.all(conversationIds.map((id) => markConversationRead(id)));
+}
+
+export async function setConversationArchived(conversationId: string, archived: boolean) {
+  const { error } = await supabase.rpc('set_conversation_archived', {
+    p_conversation_id: conversationId,
+    p_archived: archived,
+  });
+  if (error) throw error;
+}
+
+/** Archive in DB when available; always mirror in localStorage for this device. */
+export async function archiveConversationForUser(
+  conversationId: string,
+  userId: string,
+  archived: boolean,
+) {
+  try {
+    await setConversationArchived(conversationId, archived);
+  } catch {
+    // RPC or columns may not be deployed yet; local hide still works on this device.
+  }
+  if (archived) {
+    archiveConversationLocal(userId, conversationId);
+  } else {
+    unarchiveConversationLocal(userId, conversationId);
+  }
 }
 
 export async function fetchConversationMessages(conversationId: string) {

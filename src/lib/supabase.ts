@@ -17,7 +17,14 @@ const fallbackKey =
 export const supabase = createClient(
   supabaseUrl || fallbackUrl,
   supabaseAnonKey || fallbackKey,
-  { auth: { persistSession: Boolean(supabaseUrl && supabaseAnonKey) } }
+  {
+    auth: {
+      persistSession: Boolean(supabaseUrl && supabaseAnonKey),
+      detectSessionInUrl: true,
+      // implicit：重設密碼 email 連結以 hash 帶 token；pkce 則為 ?code= 易與首頁路由衝突
+      flowType: 'implicit',
+    },
+  }
 );
 
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);

@@ -65,8 +65,6 @@ export async function findEmailByUsername(username: string) {
 export interface PublicLandlordProfile {
   full_name: string;
   salutation: '' | '先生' | '女士';
-  phone: string;
-  email: string;
   response_time: string;
   is_verified: boolean;
 }

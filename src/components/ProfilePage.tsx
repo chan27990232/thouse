@@ -9,7 +9,11 @@ import {
   submitLandlordVerificationRequest,
   submitTenantVerificationRequest,
 } from '../lib/landlordVerification';
+import { computeLandlordResponseTimeLabel } from '../lib/landlordResponseTime';
 import { TransactionReviewPanel } from './TransactionReviewPanel';
+import { useLocale } from '../context/LocaleContext';
+import { responseTimeMessages } from '../content/translations/responseTime';
+import { formatLocaleDateTimeLong } from '../lib/i18nDate';
 
 interface ProfilePageProps {
   onBack: () => void;
@@ -17,11 +21,13 @@ interface ProfilePageProps {
 }
 
 export function ProfilePage({ onBack, onSignOut }: ProfilePageProps) {
+  const { locale, profileT } = useLocale();
   const [salutation, setSalutation] = useState<'' | '先生' | '女士'>('');
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [responseTime, setResponseTime] = useState('');
+  const [responseTimeLoading, setResponseTimeLoading] = useState(false);
   const [isVerified, setIsVerified] = useState(false);
   const [landlordVerificationStatus, setLandlordVerificationStatus] = useState<'none' | 'pending' | 'rejected'>('none');
   const [landlordVerificationRejectionReason, setLandlordVerificationRejectionReason] = useState('');
@@ -89,7 +95,8 @@ export function ProfilePage({ onBack, onSignOut }: ProfilePageProps) {
         setFullName(profile?.full_name ?? (typeof user.user_metadata?.full_name === 'string' ? user.user_metadata.full_name : ''));
         setPhone(profile?.phone ?? (typeof user.user_metadata?.phone === 'string' ? user.user_metadata.phone : ''));
         setEmail(profile?.email ?? user.email ?? '');
-        setResponseTime(typeof profile?.response_time === 'string' ? profile.response_time : '');
+        setResponseTime('');
+        setResponseTimeLoading(false);
         setIsVerified(Boolean(profile?.is_verified));
         const lvs = profile?.landlord_verification_status;
         setLandlordVerificationStatus(
@@ -129,7 +136,7 @@ export function ProfilePage({ onBack, onSignOut }: ProfilePageProps) {
         setRole(roleResolved);
       } catch (e) {
         if (isMounted) {
-          setError(e instanceof Error ? e.message : '無法載入個人資料');
+          setError(e instanceof Error ? e.message : profileT.loadError);
         }
       } finally {
         if (isMounted) setLoading(false);
@@ -141,21 +148,39 @@ export function ProfilePage({ onBack, onSignOut }: ProfilePageProps) {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [profileT.loadError]);
 
-  const formatSubmitted = (iso: string) => {
-    try {
-      return new Date(iso).toLocaleString('zh-HK', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-    } catch {
-      return iso;
-    }
-  };
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadResponseTime = async () => {
+      if (role !== 'landlord') {
+        setResponseTime('');
+        setResponseTimeLoading(false);
+        return;
+      }
+
+      setResponseTimeLoading(true);
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!isMounted || !user) return;
+        const label = await computeLandlordResponseTimeLabel(user.id, locale);
+        if (isMounted) setResponseTime(label);
+      } catch {
+        if (isMounted) setResponseTime(responseTimeMessages[locale].noData);
+      } finally {
+        if (isMounted) setResponseTimeLoading(false);
+      }
+    };
+
+    void loadResponseTime();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [role, locale]);
 
   const handleSubmitVerification = async () => {
     setVerifySubmitting(true);
@@ -165,24 +190,24 @@ export function ProfilePage({ onBack, onSignOut }: ProfilePageProps) {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (!user) throw new Error('未登入。');
+      if (!user) throw new Error(profileT.notSignedIn);
       if (role === 'landlord') {
         await submitLandlordVerificationRequest(user.id);
-        setInfo('已提交審核，請等候平台處理。');
+        setInfo(profileT.verificationSubmitted);
         setLandlordVerificationStatus('pending');
         setLandlordVerificationRejectionReason('');
         setLandlordVerificationSubmittedAt(new Date().toISOString());
       } else if (role === 'tenant') {
         await submitTenantVerificationRequest(user.id);
-        setInfo('已提交審核，請等候平台處理。');
+        setInfo(profileT.verificationSubmitted);
         setTenantVerificationStatus('pending');
         setTenantVerificationRejectionReason('');
         setTenantVerificationSubmittedAt(new Date().toISOString());
       } else {
-        throw new Error('僅限業主或租客帳戶。');
+        throw new Error(profileT.roleOnlyError);
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : '提交失敗，請稍後再試。');
+      setError(e instanceof Error ? e.message : profileT.submitFailed);
     } finally {
       setVerifySubmitting(false);
     }
@@ -199,7 +224,7 @@ export function ProfilePage({ onBack, onSignOut }: ProfilePageProps) {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        throw new Error('未登入，無法更新個人資料。');
+        throw new Error(profileT.notSignedInUpdate);
       }
 
       const { error } = await supabase.auth.updateUser({
@@ -219,30 +244,36 @@ export function ProfilePage({ onBack, onSignOut }: ProfilePageProps) {
           salutation,
           full_name: fullName.trim(),
           phone: phone.trim(),
-          response_time: responseTime.trim(),
           updated_at: new Date().toISOString(),
         })
         .eq('id', user.id);
 
       if (profileError) throw profileError;
 
-      setInfo('個人資料已更新。');
+      setInfo(profileT.profileUpdated);
     } catch (error) {
-      setError(error instanceof Error ? error.message : '更新失敗，請稍後再試。');
+      setError(error instanceof Error ? error.message : profileT.updateFailed);
     } finally {
       setSaving(false);
     }
   };
+
+  const verificationStatus =
+    role === 'landlord' ? landlordVerificationStatus : tenantVerificationStatus;
+  const verificationSubmittedAt =
+    role === 'landlord' ? landlordVerificationSubmittedAt : tenantVerificationSubmittedAt;
+  const verificationRejectionReason =
+    role === 'landlord' ? landlordVerificationRejectionReason : tenantVerificationRejectionReason;
 
   return (
     <div className="mx-auto min-h-screen w-full min-w-0 max-w-3xl overflow-x-hidden bg-white">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b p-4">
         <button onClick={onBack} className="flex min-w-0 items-center gap-2 text-gray-600 hover:text-black">
           <ArrowLeft className="h-5 w-5 shrink-0" />
-          <span>返回</span>
+          <span>{profileT.back}</span>
         </button>
         <Button variant="outline" onClick={onSignOut} className="shrink-0">
-          登出
+          {profileT.signOut}
         </Button>
       </div>
 
@@ -251,16 +282,16 @@ export function ProfilePage({ onBack, onSignOut }: ProfilePageProps) {
           <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center mb-4">
             <User className="w-10 h-10 text-gray-500" />
           </div>
-          <h1 className="text-2xl">個人資料</h1>
-          <p className="text-gray-600 mt-2">管理你的真實姓名與聯絡方式</p>
+          <h1 className="text-2xl">{profileT.title}</h1>
+          <p className="text-gray-600 mt-2">{profileT.subtitle}</p>
         </div>
 
         {loading ? (
-          <div className="text-center py-12 text-gray-500">正在載入個人資料...</div>
+          <div className="text-center py-12 text-gray-500">{profileT.loading}</div>
         ) : (
           <div className="space-y-5">
             <div>
-              <Label>稱謂</Label>
+              <Label>{profileT.salutation}</Label>
               <div className="mt-2 flex gap-3">
                 <Button
                   type="button"
@@ -268,7 +299,7 @@ export function ProfilePage({ onBack, onSignOut }: ProfilePageProps) {
                   className={salutation === '先生' ? 'bg-black text-white hover:bg-gray-800' : ''}
                   onClick={() => setSalutation('先生')}
                 >
-                  先生
+                  {profileT.salutationMr}
                 </Button>
                 <Button
                   type="button"
@@ -276,45 +307,43 @@ export function ProfilePage({ onBack, onSignOut }: ProfilePageProps) {
                   className={salutation === '女士' ? 'bg-black text-white hover:bg-gray-800' : ''}
                   onClick={() => setSalutation('女士')}
                 >
-                  女士
+                  {profileT.salutationMs}
                 </Button>
               </div>
             </div>
 
             <div>
-              <Label>真實姓名</Label>
+              <Label>{profileT.fullName}</Label>
               <Input
                 className="mt-2 h-12"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
-                placeholder="請輸入真實姓名"
+                placeholder={profileT.fullNamePlaceholder}
               />
             </div>
 
             <div>
-              <Label>電話</Label>
+              <Label>{profileT.phone}</Label>
               <Input
                 className="mt-2 h-12"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
-                placeholder="請輸入聯絡電話"
+                placeholder={profileT.phonePlaceholder}
               />
             </div>
 
             <div>
-              <Label>Email</Label>
+              <Label>{profileT.email}</Label>
               <Input className="mt-2 h-12 bg-gray-50" value={email} readOnly />
             </div>
 
             {role === 'landlord' ? (
               <div>
-                <Label>平均回覆時間</Label>
-                <Input
-                  className="mt-2 h-12"
-                  value={responseTime}
-                  onChange={(e) => setResponseTime(e.target.value)}
-                  placeholder="例如：1小時內"
-                />
+                <Label>{profileT.responseTime}</Label>
+                <div className="mt-2 flex min-h-12 items-center rounded-md border border-gray-200 bg-gray-50 px-3 text-sm text-gray-900">
+                  {responseTimeLoading ? profileT.responseTimeLoading : responseTime || '暫無數據'}
+                </div>
+                <p className="mt-1.5 text-xs text-gray-500">{profileT.responseTimeAutoHint}</p>
               </div>
             ) : null}
 
@@ -322,45 +351,43 @@ export function ProfilePage({ onBack, onSignOut }: ProfilePageProps) {
               isVerified ? (
                 <section
                   className="relative z-10 rounded-xl border border-gray-200 bg-white p-4 shadow-sm"
-                  aria-label="實名驗證"
+                  aria-label={profileT.verificationAria}
                 >
-                  <Label className="text-zinc-900">驗證狀態</Label>
+                  <Label className="text-zinc-900">{profileT.verificationStatus}</Label>
                   <div className="mt-2">
                     <div className="flex min-h-12 items-center rounded-md border border-green-200 bg-green-50 px-3 text-sm font-medium text-green-900">
-                      已驗證
+                      {profileT.verified}
                     </div>
                   </div>
                 </section>
               ) : (
               <section
                 className="relative z-10 rounded-xl border border-gray-200 bg-white p-4 shadow-sm"
-                aria-label="實名驗證"
+                aria-label={profileT.verificationAria}
               >
-                <Label className="text-zinc-900">驗證狀態</Label>
+                <Label className="text-zinc-900">{profileT.verificationStatus}</Label>
                 <div className="mt-2 space-y-3 text-zinc-900">
-                  {(role === 'landlord' ? landlordVerificationStatus : tenantVerificationStatus) === 'pending' ? (
+                  {verificationStatus === 'pending' ? (
                     <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-950">
-                      <p className="font-medium">待審核</p>
-                      {(role === 'landlord' ? landlordVerificationSubmittedAt : tenantVerificationSubmittedAt) ? (
+                      <p className="font-medium">{profileT.pendingReview}</p>
+                      {verificationSubmittedAt ? (
                         <p className="mt-1 text-xs text-amber-900">
-                          申請時間：
-                          {formatSubmitted(
-                            (role === 'landlord' ? landlordVerificationSubmittedAt : tenantVerificationSubmittedAt) ?? '',
-                          )}
+                          {profileT.submittedAt}
+                          {formatLocaleDateTimeLong(verificationSubmittedAt, locale)}
                         </p>
                       ) : null}
-                      <p className="mt-2 text-xs text-amber-900/90">我們會在合理時間內審核你的帳戶。</p>
+                      <p className="mt-2 text-xs text-amber-900/90">{profileT.pendingHint}</p>
                     </div>
-                  ) : (role === 'landlord' ? landlordVerificationStatus : tenantVerificationStatus) === 'rejected' ? (
+                  ) : verificationStatus === 'rejected' ? (
                     <div className="space-y-2">
                       <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-950">
-                        <p className="font-medium">已駁回</p>
-                        {(role === 'landlord' ? landlordVerificationRejectionReason : tenantVerificationRejectionReason).trim() ? (
+                        <p className="font-medium">{profileT.rejected}</p>
+                        {verificationRejectionReason.trim() ? (
                           <p className="mt-1.5 text-xs leading-relaxed whitespace-pre-wrap">
-                            {role === 'landlord' ? landlordVerificationRejectionReason : tenantVerificationRejectionReason}
+                            {verificationRejectionReason}
                           </p>
                         ) : (
-                          <p className="mt-1 text-xs text-red-800">請聯絡客服或依指示修正後再申請。</p>
+                          <p className="mt-1 text-xs text-red-800">{profileT.rejectedHint}</p>
                         )}
                       </div>
                       <button
@@ -369,7 +396,7 @@ export function ProfilePage({ onBack, onSignOut }: ProfilePageProps) {
                         onClick={() => void handleSubmitVerification()}
                         disabled={verifySubmitting}
                       >
-                        {verifySubmitting ? '提交中…' : '重新提交驗證申請'}
+                        {verifySubmitting ? profileT.submitting : profileT.resubmitVerification}
                       </button>
                     </div>
                   ) : (
@@ -378,12 +405,10 @@ export function ProfilePage({ onBack, onSignOut }: ProfilePageProps) {
                         className="flex min-h-12 items-center rounded-md border border-zinc-200 bg-zinc-50 px-3 text-sm font-medium text-zinc-900"
                         data-slot="verify-status"
                       >
-                        未驗證
+                        {profileT.notVerified}
                       </div>
                       <p className="text-xs text-zinc-600">
-                        {role === 'landlord'
-                          ? '審核通過後會顯示「已驗證」標示，提升租客信心。提交後由平台在後台審核。'
-                          : '審核通過後會顯示「已驗證」標示，讓業主更安心。提交後由平台在後台審核。'}
+                        {role === 'landlord' ? profileT.landlordVerifyHint : profileT.tenantVerifyHint}
                       </p>
                       <button
                         type="button"
@@ -391,7 +416,7 @@ export function ProfilePage({ onBack, onSignOut }: ProfilePageProps) {
                         onClick={() => void handleSubmitVerification()}
                         disabled={verifySubmitting}
                       >
-                        {verifySubmitting ? '提交中…' : '提交實名驗證申請'}
+                        {verifySubmitting ? profileT.submitting : profileT.submitVerification}
                       </button>
                     </div>
                   )}
@@ -404,7 +429,7 @@ export function ProfilePage({ onBack, onSignOut }: ProfilePageProps) {
             {info ? <p className="text-sm text-green-600">{info}</p> : null}
 
             <Button className="w-full h-12 bg-black text-white hover:bg-gray-800" onClick={handleSave} disabled={saving}>
-              {saving ? '儲存中...' : '儲存個人資料'}
+              {saving ? profileT.saving : profileT.saveProfile}
             </Button>
 
             <div className="pt-10 border-t">

@@ -5,6 +5,8 @@ import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 
+import { useLocale } from '../context/LocaleContext';
+
 interface Rental {
   id: string;
   propertyTitle: string;
@@ -20,6 +22,7 @@ interface Rental {
 }
 
 export function MyRentals() {
+  const { localizePropertyTitle } = useLocale();
   const [rentals] = useState<Rental[]>([
     {
       id: '1',
@@ -96,12 +99,12 @@ export function MyRentals() {
                 <div className="flex gap-3 p-4">
                   <img
                     src={rental.propertyImage}
-                    alt={rental.propertyTitle}
+                    alt={localizePropertyTitle(rental.propertyTitle)}
                     className="w-24 h-24 object-cover rounded"
                   />
                   <div className="flex-1 space-y-2">
                     <div className="flex items-start justify-between">
-                      <h3 className="text-sm">{rental.propertyTitle}</h3>
+                      <h3 className="text-sm">{localizePropertyTitle(rental.propertyTitle)}</h3>
                       {getStatusBadge(rental.status)}
                     </div>
                     <p className="text-lg">${rental.monthlyRent}/月</p>
@@ -155,12 +158,12 @@ export function MyRentals() {
                 <div className="flex gap-3 p-4">
                   <img
                     src={rental.propertyImage}
-                    alt={rental.propertyTitle}
+                    alt={localizePropertyTitle(rental.propertyTitle)}
                     className="w-24 h-24 object-cover rounded"
                   />
                   <div className="flex-1 space-y-2">
                     <div className="flex items-start justify-between">
-                      <h3 className="text-sm">{rental.propertyTitle}</h3>
+                      <h3 className="text-sm">{localizePropertyTitle(rental.propertyTitle)}</h3>
                       {getStatusBadge(rental.status)}
                     </div>
                     <p className="text-lg">${rental.monthlyRent}/月</p>
@@ -198,12 +201,12 @@ export function MyRentals() {
                 <div className="flex gap-3 p-4">
                   <img
                     src={rental.propertyImage}
-                    alt={rental.propertyTitle}
+                    alt={localizePropertyTitle(rental.propertyTitle)}
                     className="w-24 h-24 object-cover rounded grayscale"
                   />
                   <div className="flex-1 space-y-2">
                     <div className="flex items-start justify-between">
-                      <h3 className="text-sm">{rental.propertyTitle}</h3>
+                      <h3 className="text-sm">{localizePropertyTitle(rental.propertyTitle)}</h3>
                       {getStatusBadge(rental.status)}
                     </div>
                     <p className="text-sm text-gray-600">${rental.monthlyRent}/月</p>

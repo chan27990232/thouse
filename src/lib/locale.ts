@@ -8,10 +8,22 @@ export const LOCALE_LABELS: Record<AppLocale, string> = {
   en: 'Eng',
 };
 
+export const LOCALE_MENU_LABELS: Record<AppLocale, string> = {
+  'zh-TW': '繁體中文',
+  'zh-CN': '简体中文',
+  en: 'English',
+};
+
 export const LOCALE_HTML_LANG: Record<AppLocale, string> = {
   'zh-TW': 'zh-Hant',
   'zh-CN': 'zh-Hans',
   en: 'en',
+};
+
+export const LOCALE_DATE_LOCALE: Record<AppLocale, string> = {
+  'zh-TW': 'zh-HK',
+  'zh-CN': 'zh-CN',
+  en: 'en-GB',
 };
 
 export function readStoredLocale(): AppLocale {

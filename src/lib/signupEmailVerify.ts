@@ -3,6 +3,7 @@ import { supabase, isSupabaseConfigured } from './supabase';
 import { syncProfileForUser } from './profiles';
 import type { UserRole } from '../App';
 import { getRoleFromMetadata } from './auth';
+import { confirmSignupVerificationOtp, sendSignupVerificationOtp } from './signupEmailOtp';
 
 const AUTH_TIMEOUT_MS = 45_000;
 const SIGNUP_API_TIMEOUT_MS = 30_000;
@@ -33,8 +34,17 @@ function translateAuthMessage(message: string): string {
   if (m.includes('user already registered') || m.includes('already been registered')) {
     return '此電郵已被註冊，請直接登入或使用其他電郵。';
   }
-  if (m.includes('error sending confirmation email') || m.includes('smtp')) {
-    return '無法寄出驗證碼，請檢查 Supabase 寄信設定（SMTP）後再試。';
+  if (m.includes('error sending confirmation email') || m.includes('error sending recovery email')) {
+    return '無法寄出郵件，請確認 Supabase SMTP 或已部署 signup-verification / request-password-reset 並設定 RESEND_API_KEY。';
+  }
+  if (m.includes('smtp')) {
+    return '無法寄出郵件，請檢查 Supabase → Authentication → SMTP 設定。';
+  }
+  if (m.includes('redirect') || m.includes('invalid request') || m.includes('otp_expired') || m.includes('expired')) {
+    return '重設密碼連結無效或已過期，請重新申請忘記密碼。';
+  }
+  if (m.includes('email address not authorized') || m.includes('signup is disabled')) {
+    return '此電郵無法重設密碼，請確認帳戶已註冊。';
   }
   return message;
 }
@@ -166,14 +176,15 @@ export async function signUpWithEmail(input: {
   return { emailSent: false };
 }
 
-export async function verifySignupEmailOtp(email: string, token: string) {
+export async function verifySignupEmailOtp(email: string, token: string, password?: string) {
   const trimmed = token.trim();
+  const normalizedEmail = email.trim().toLowerCase();
   const tryTypes = ['signup', 'email'] as const;
 
   let lastError: Error | null = null;
   for (const type of tryTypes) {
     const { data, error } = await withAuthTimeout(
-      supabase.auth.verifyOtp({ email, token: trimmed, type }),
+      supabase.auth.verifyOtp({ email: normalizedEmail, token: trimmed, type }),
       '驗證逾時，請稍後再試。',
     );
     if (!error && data.session) {
@@ -188,21 +199,25 @@ export async function verifySignupEmailOtp(email: string, token: string) {
     }
   }
 
+  if (password) {
+    await confirmSignupVerificationOtp(normalizedEmail, trimmed);
+    const { data, error } = await withAuthTimeout(
+      supabase.auth.signInWithPassword({ email: normalizedEmail, password }),
+      '登入逾時，請稍後再試。',
+    );
+    if (error) {
+      throw new Error(formatAuthFailure(error, '驗證成功但登入失敗，請手動登入。'));
+    }
+    const verifiedRole = getRoleFromMetadata(data.user?.user_metadata) ?? 'tenant';
+    if (data.user) {
+      await syncProfileForUser(data.user, verifiedRole);
+    }
+    return { session: data.session!, role: verifiedRole };
+  }
+
   throw new Error(formatAuthFailure(lastError, '驗證碼不正確或已過期。'));
 }
 
 export async function resendSignupVerification(email: string) {
-  const payload = await callSignupAccountApi({
-    action: 'resend',
-    email: email.trim().toLowerCase(),
-  });
-
-  if (payload.emailSent === false) {
-    throw new Error(
-      formatAuthFailure(
-        payload.emailWarning,
-        '無法重發驗證碼，請檢查 Supabase SMTP 設定後再試。',
-      ),
-    );
-  }
+  await sendSignupVerificationOtp(email, { forExistingAccount: true });
 }

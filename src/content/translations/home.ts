@@ -54,6 +54,9 @@ const homeZhTW = {
   tube: '地鐵',
   schoolNet: '校網',
   listings: '租盤列表',
+  recentSearches: '最近搜尋',
+  clearSearchHistory: '清除紀錄',
+  removeSearchHistory: '移除',
 } as const;
 
 export type HomeMessages = typeof homeZhTW;
@@ -112,6 +115,9 @@ const homeZhCN: HomeMessages = {
   tube: '地铁',
   schoolNet: '校网',
   listings: '租盘列表',
+  recentSearches: '最近搜索',
+  clearSearchHistory: '清除记录',
+  removeSearchHistory: '移除',
 };
 
 const homeEn: HomeMessages = {
@@ -168,6 +174,9 @@ const homeEn: HomeMessages = {
   tube: 'MTR',
   schoolNet: 'School net',
   listings: 'Listings',
+  recentSearches: 'Recent searches',
+  clearSearchHistory: 'Clear history',
+  removeSearchHistory: 'Remove',
 };
 
 export const homeMessages: Record<AppLocale, HomeMessages> = {

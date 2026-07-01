@@ -7,6 +7,7 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from './ui/input-otp';
 import { supabase } from '../lib/supabase';
 import { AUTH_ROLE_STORAGE_KEY, getRoleFromMetadata } from '../lib/auth';
 import { findEmailByUsername } from '../lib/profiles';
+import { requestPasswordResetEmail, resolveLoginEmail } from '../lib/passwordRecovery';
 import { validateSignupEmailWithDatabase } from '../lib/signupEmailValidation';
 import { validatePasswordStrength, PASSWORD_REQUIREMENTS_HINT } from '../lib/passwordValidation';
 import {
@@ -75,7 +76,7 @@ export function AuthScreen({ role, onBack, onAuthSuccess }: AuthScreenProps) {
       setAuthError('');
       setAuthInfo('');
       setEmailLoading(true);
-      const { role: verifiedRole } = await verifySignupEmailOtp(pendingSignupEmail, code);
+      const { role: verifiedRole } = await verifySignupEmailOtp(pendingSignupEmail, code, password);
       onAuthSuccess(verifiedRole ?? role ?? 'tenant');
     } catch (error) {
       setAuthError(formatAuthFailure(error, '驗證失敗，請稍後再試。'));
@@ -169,12 +170,10 @@ export function AuthScreen({ role, onBack, onAuthSuccess }: AuthScreenProps) {
       }
 
       const loginIdentifier = email.trim();
-      const resolvedEmail = loginIdentifier.includes('@')
-        ? loginIdentifier
-        : await withAuthTimeout(
-            findEmailByUsername(loginIdentifier),
-            '登入逾時，請稍後再試。',
-          );
+      const resolvedEmail = await withAuthTimeout(
+        resolveLoginEmail(loginIdentifier),
+        '登入逾時，請稍後再試。',
+      );
 
       if (!resolvedEmail) {
         throw new Error('找不到這個用戶名稱，請檢查後再試。');
@@ -205,31 +204,11 @@ export function AuthScreen({ role, onBack, onAuthSuccess }: AuthScreenProps) {
       setAuthInfo('');
 
       if (!forgotPasswordEmail.trim()) {
-        throw new Error('請輸入你的電子郵件。');
+        throw new Error('請輸入你的電子郵件或用戶名稱。');
       }
 
       setEmailLoading(true);
-
-      const loginIdentifier = forgotPasswordEmail.trim();
-      const resolvedEmail = loginIdentifier.includes('@')
-        ? loginIdentifier.toLowerCase()
-        : await withAuthTimeout(
-            findEmailByUsername(loginIdentifier),
-            '查詢電郵逾時，請稍後再試。',
-          );
-
-      if (!resolvedEmail) {
-        throw new Error('找不到此電子郵件，請檢查後再試。');
-      }
-
-      const { error } = await withAuthTimeout(
-        supabase.auth.resetPasswordForEmail(resolvedEmail, {
-          redirectTo: window.location.origin,
-        }),
-        '寄送重設密碼信逾時，請稍後再試。',
-      );
-
-      if (error) throw error;
+      await requestPasswordResetEmail(forgotPasswordEmail);
 
       setAuthInfo('重設密碼連結已寄出，請到你的電子郵件收件匣查看。');
       setShowForgotPassword(false);
@@ -483,12 +462,11 @@ export function AuthScreen({ role, onBack, onAuthSuccess }: AuthScreenProps) {
           <div className="mt-4 space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
             <p className="text-sm text-gray-600">{authT.forgotPasswordDetail}</p>
             <div>
-              <label className="mb-2 block text-sm text-gray-700">{authT.email}</label>
+              <label className="mb-2 block text-sm text-gray-700">{authT.emailOrUsername}</label>
               <Input
-                type="email"
-                inputMode="email"
-                autoComplete="email"
-                placeholder={authT.emailPlaceholder}
+                type="text"
+                autoComplete="username"
+                placeholder={authT.emailOrUsernamePlaceholder}
                 value={forgotPasswordEmail}
                 onChange={(e) => setForgotPasswordEmail(e.target.value)}
                 className="h-12 bg-white"

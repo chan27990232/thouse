@@ -19,11 +19,12 @@ import {
   fetchPendingApplicationCounts,
   fetchLeaseApplicationsForLandlord,
   respondToLeaseApplication,
-  getLeaseWorkflowStatusLabel,
   type LandlordLeaseApplicationSummary,
 } from '../lib/leaseApplications';
-import { getPaymentMethodLabel, getLandlordLeasePaymentStatusLabel, type PaymentMethodCode } from '../lib/leaseFirstPayment';
+import { notifyLeaseRejectionByEmail } from '../lib/leaseRejectionNotify';
+import { type PaymentMethodCode } from '../lib/leaseFirstPayment';
 import { supabase } from '../lib/supabase';
+import { LOCALE_DATE_LOCALE } from '../lib/locale';
 import thouseLogo from 'figma:asset/f0c80b0c66e9c54aea3881bdf7a4eb152cbc4c0b.png';
 import { ThouseHomeFooter } from './ThouseHomeFooter';
 import { LanguageSwitcher } from './LanguageSwitcher';
@@ -55,7 +56,7 @@ interface ManagedProperty extends Property {
 }
 
 export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfileClick }: LandlordHomeProps) {
-  const { landlordT } = useLocale();
+  const { locale, landlordT, leaseWorkflowT, localizePropertyTitle } = useLocale();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [showAddProperty, setShowAddProperty] = useState(false);
   const [noticeOpen, setNoticeOpen] = useState(false);
@@ -178,7 +179,7 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
           nextDueDate: formatLandlordNextDueLabel(hasActiveLease, {
             nextDueDate: lease?.nextDueDate ?? null,
             nextRentStatus: lease?.nextRentStatus ?? null,
-          }),
+          }, locale),
           applications: pendingCounts[property.id] ?? 0,
           leaseApplicationId: lease?.leaseApplicationId ?? null,
           tenantEmail: lease?.tenantEmail ?? null,
@@ -194,7 +195,7 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
     if (!options?.silent) {
       setPropertiesLoading(false);
     }
-  }, []);
+  }, [locale]);
 
   useEffect(() => {
     void loadLandlordProperties();
@@ -212,7 +213,7 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
       })
       .catch((err: unknown) => {
         if (!cancelled) {
-          setApplicationsListError(err instanceof Error ? err.message : '無法載入申請列表');
+          setApplicationsListError(err instanceof Error ? err.message : landlordT.loadApplicationsError);
         }
       })
       .finally(() => {
@@ -236,13 +237,24 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
     setRespondApplicationLoadingId(row.id);
     setRespondFeedback(null);
     try {
+      const beforeRows = await fetchLeaseApplicationsForLandlord();
+      const beforeRejectedIds = new Set(
+        beforeRows.filter((r) => r.applicationStatus === 'rejected').map((r) => r.id),
+      );
+
       await respondToLeaseApplication(row.id, decision);
+
+      const afterRows = await fetchLeaseApplicationsForLandlord();
+      const newlyRejected = afterRows.filter(
+        (r) => r.applicationStatus === 'rejected' && !beforeRejectedIds.has(r.id),
+      );
+      for (const rejected of newlyRejected) {
+        void notifyLeaseRejectionByEmail(rejected.id, { previousStatus: 'awaiting_landlord' });
+      }
+
       setRespondFeedback({
         kind: 'ok',
-        message:
-          decision === 'approved'
-            ? '已同意申請並送交平台複審；複審通過後簽約始為完成。'
-            : '已拒絕該租約申請。',
+        message: decision === 'approved' ? landlordT.respondApproved : landlordT.respondRejected,
       });
       const rows = await fetchLeaseApplicationsForLandlord();
       setApplicationsList(rows);
@@ -253,7 +265,7 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
         message:
           e instanceof Error
             ? e.message
-            : '無法更新申請（請確認已在資料庫執行 respond_to_lease_application_rpc.sql）。',
+            : landlordT.respondError,
       });
     } finally {
       setRespondApplicationLoadingId(null);
@@ -440,14 +452,14 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
                       <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
                         <ImageWithFallback
                           src={property.image}
-                          alt={property.title}
+                          alt={localizePropertyTitle(property.title)}
                           className="h-44 w-full shrink-0 rounded-md object-cover sm:h-40 sm:w-56"
                         />
 
                         <div className="min-w-0 flex-1">
                           <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
                             <div className="min-w-0">
-                              <h3 className="font-medium truncate">{property.title}</h3>
+                              <h3 className="font-medium truncate">{localizePropertyTitle(property.title)}</h3>
                               <p className="text-sm text-gray-500 mt-1">
                                 {landlordT.format('propertyMeta', {
                                   area: property.area,
@@ -604,7 +616,7 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
                             : 'bg-gray-50 text-gray-800 ring-gray-200';
 
                   const payMethodUi = row.paymentMethod
-                    ? getPaymentMethodLabel(row.paymentMethod as PaymentMethodCode)
+                    ? leaseWorkflowT.paymentMethod(row.paymentMethod as PaymentMethodCode)
                     : '—';
 
                   return (
@@ -614,57 +626,59 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
                     >
                       <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
                         <div className="min-w-0 flex-1">
-                          <p className="truncate font-medium text-gray-900">{row.propertyTitle}</p>
+                          <p className="truncate font-medium text-gray-900">{localizePropertyTitle(row.propertyTitle)}</p>
                           <p className="mt-1 text-xs text-gray-500">
-                            申請時間：{new Date(row.createdAt).toLocaleString('zh-HK')}
+                            {landlordT.format('appliedAt', {
+                              time: new Date(row.createdAt).toLocaleString(LOCALE_DATE_LOCALE[locale]),
+                            })}
                           </p>
                         </div>
                         <span
                           className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${badgeClass}`}
                         >
-                          {getLeaseWorkflowStatusLabel(row.applicationStatus)}
+                          {leaseWorkflowT.workflowStatus(row.applicationStatus)}
                         </span>
                       </div>
                       <dl className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
                         <div className="sm:col-span-2">
-                          <dt className="text-xs text-gray-500">申請人</dt>
+                          <dt className="text-xs text-gray-500">{landlordT.applicant}</dt>
                           <dd className="font-medium">{row.applicantName}</dd>
                         </div>
                         <div>
-                          <dt className="text-xs text-gray-500">電話</dt>
+                          <dt className="text-xs text-gray-500">{landlordT.phone}</dt>
                           <dd className="break-all">{row.phone}</dd>
                         </div>
                         <div>
-                          <dt className="text-xs text-gray-500">電郵</dt>
+                          <dt className="text-xs text-gray-500">{landlordT.email}</dt>
                           <dd className="break-all">{row.email}</dd>
                         </div>
                         <div>
-                          <dt className="text-xs text-gray-500">首期／記帳金額</dt>
+                          <dt className="text-xs text-gray-500">{landlordT.firstPaymentAmount}</dt>
                           <dd>HK${row.firstPaymentTotal.toLocaleString()}</dd>
                         </div>
                         <div>
-                          <dt className="text-xs text-gray-500">租期（月）</dt>
+                          <dt className="text-xs text-gray-500">{landlordT.leaseMonthsField}</dt>
                           <dd>{row.leaseMonths}</dd>
                         </div>
                         <div>
-                          <dt className="text-xs text-gray-500">擬入住日期</dt>
+                          <dt className="text-xs text-gray-500">{landlordT.moveInDate}</dt>
                           <dd>
                             {row.moveInDate
-                              ? new Date(row.moveInDate + 'T12:00:00').toLocaleDateString('zh-HK')
+                              ? new Date(row.moveInDate + 'T12:00:00').toLocaleDateString(LOCALE_DATE_LOCALE[locale])
                               : '—'}
                           </dd>
                         </div>
                         <div>
-                          <dt className="text-xs text-gray-500">付款方式</dt>
+                          <dt className="text-xs text-gray-500">{landlordT.paymentMethod}</dt>
                           <dd>{payMethodUi}</dd>
                         </div>
                         <div>
-                          <dt className="text-xs text-gray-500">付款狀態</dt>
-                          <dd>{getLandlordLeasePaymentStatusLabel(row.paymentStatus)}</dd>
+                          <dt className="text-xs text-gray-500">{landlordT.paymentStatus}</dt>
+                          <dd>{leaseWorkflowT.landlordPaymentStatus(row.paymentStatus)}</dd>
                         </div>
                         {row.paymentReference ? (
                           <div className="sm:col-span-2">
-                            <dt className="text-xs text-gray-500">參考編號</dt>
+                            <dt className="text-xs text-gray-500">{landlordT.referenceNo}</dt>
                             <dd className="break-all font-mono text-xs">{row.paymentReference}</dd>
                           </div>
                         ) : null}
@@ -680,7 +694,7 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
                             {respondApplicationLoadingId === row.id ? (
                               <Loader2 className="h-4 w-4 animate-spin shrink-0" aria-hidden />
                             ) : null}
-                            接受租約申請
+                            {landlordT.acceptApplication}
                           </Button>
                           <Button
                             type="button"
@@ -692,7 +706,7 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
                             {respondApplicationLoadingId === row.id ? (
                               <Loader2 className="h-4 w-4 animate-spin shrink-0" aria-hidden />
                             ) : null}
-                            婉拒申請
+                            {landlordT.rejectApplication}
                           </Button>
                         </div>
                       ) : null}

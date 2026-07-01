@@ -12,7 +12,7 @@ type ChatMessageContentProps = {
 };
 
 export function ChatMessageContent({ body, isMe, className }: ChatMessageContentProps) {
-  const { locale } = useLocale();
+  const { locale, chatT } = useLocale();
   const { attachment, text } = parseChatMessageBody(body);
   const [translation, setTranslation] = useState<string | null>(null);
   const [translating, setTranslating] = useState(false);
@@ -32,7 +32,7 @@ export function ChatMessageContent({ body, isMe, className }: ChatMessageContent
       const result = await translateTextForLocale(translateTarget, locale);
       setTranslation(result);
     } catch (e) {
-      setTranslateError(e instanceof Error ? e.message : '翻譯失敗');
+      setTranslateError(e instanceof Error ? e.message : chatT.translateFailed);
     } finally {
       setTranslating(false);
     }
@@ -93,7 +93,7 @@ export function ChatMessageContent({ body, isMe, className }: ChatMessageContent
           ) : (
             <Languages className="h-3 w-3" strokeWidth={1.75} />
           )}
-          {translation ? '顯示原文' : '翻譯'}
+          {translation ? chatT.showOriginal : chatT.translate}
         </button>
       ) : null}
     </div>

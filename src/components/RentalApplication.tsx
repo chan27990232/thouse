@@ -10,6 +10,8 @@ import { Property } from '../App';
 import { Calendar as CalendarComponent } from './ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Checkbox } from './ui/checkbox';
+import { useLocale } from '../context/LocaleContext';
+import { LOCALE_DATE_LOCALE } from '../lib/locale';
 
 interface RentalApplicationProps {
   open: boolean;
@@ -36,6 +38,8 @@ export interface ApplicationData {
 }
 
 export function RentalApplication({ open, onOpenChange, property, onProceedToPayment }: RentalApplicationProps) {
+  const { locale, rentalApplicationT: t, localizePropertyTitle } = useLocale();
+  const displayTitle = localizePropertyTitle(property.title);
   const [step, setStep] = useState(1);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [fullName, setFullName] = useState('');
@@ -97,15 +101,13 @@ export function RentalApplication({ open, onOpenChange, property, onProceedToPay
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 pr-6">
             <FileSignature className="h-5 w-5 shrink-0" />
-            線上簽約 · {property.title}
+            {t.format('title', { title: displayTitle })}
           </DialogTitle>
-          <DialogDescription>
-            填寫簽約人資料與租期，核對金額後支付首期（按金＋首月），以完成線上簽約手續；業主確認後租約正式生效。
-          </DialogDescription>
+          <DialogDescription>{t.description}</DialogDescription>
           <div className="mt-2 flex gap-2 text-xs text-gray-500">
-            <span className={step >= 1 ? 'font-medium text-gray-900' : ''}>① 簽約人資料</span>
+            <span className={step >= 1 ? 'font-medium text-gray-900' : ''}>{t.step1Label}</span>
             <span>·</span>
-            <span className={step >= 2 ? 'font-medium text-gray-900' : ''}>② 租期、條款與金額</span>
+            <span className={step >= 2 ? 'font-medium text-gray-900' : ''}>{t.step2Label}</span>
           </div>
           <div className="mt-2 flex items-center gap-2">
             <div className={`h-1 flex-1 rounded ${step >= 1 ? 'bg-black' : 'bg-gray-200'}`} />
@@ -119,43 +121,43 @@ export function RentalApplication({ open, onOpenChange, property, onProceedToPay
             <div className="space-y-4">
               <h3 className="flex items-center gap-2 text-base font-semibold">
                 <User className="h-5 w-5" />
-                簽約人資料
+                {t.personalInfoTitle}
               </h3>
 
               <div className="space-y-2">
-                <Label htmlFor="fullName">全名 *</Label>
+                <Label htmlFor="fullName">{t.fullName}</Label>
                 <Input
                   id="fullName"
-                  placeholder="請輸入全名"
+                  placeholder={t.fullNamePlaceholder}
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="phone">電話號碼 *</Label>
+                <Label htmlFor="phone">{t.phone}</Label>
                 <Input
                   id="phone"
                   type="tel"
-                  placeholder="請輸入電話號碼"
+                  placeholder={t.phonePlaceholder}
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="email">電郵地址 *</Label>
+                <Label htmlFor="email">{t.email}</Label>
                 <Input
                   id="email"
                   type="email"
-                  placeholder="請輸入電郵地址"
+                  placeholder={t.emailPlaceholder}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="occupants">居住人數</Label>
+                <Label htmlFor="occupants">{t.occupants}</Label>
                 <RadioGroup value={numberOfOccupants} onValueChange={setNumberOfOccupants}>
                   <div className="flex gap-4">
                     {['1', '2', '3', '4', '5+'].map((num) => (
@@ -169,16 +171,16 @@ export function RentalApplication({ open, onOpenChange, property, onProceedToPay
               </div>
 
               <div className="space-y-2">
-                <Label>有寵物嗎？</Label>
+                <Label>{t.hasPets}</Label>
                 <RadioGroup value={hasPets ? 'yes' : 'no'} onValueChange={(v) => setHasPets(v === 'yes')}>
                   <div className="flex gap-4">
                     <div className="flex items-center space-x-2">
                       <RadioGroupItem value="no" id="pets-no" />
-                      <Label htmlFor="pets-no">沒有</Label>
+                      <Label htmlFor="pets-no">{t.noPets}</Label>
                     </div>
                     <div className="flex items-center space-x-2">
                       <RadioGroupItem value="yes" id="pets-yes" />
-                      <Label htmlFor="pets-yes">有</Label>
+                      <Label htmlFor="pets-yes">{t.yesPets}</Label>
                     </div>
                   </div>
                 </RadioGroup>
@@ -191,16 +193,16 @@ export function RentalApplication({ open, onOpenChange, property, onProceedToPay
             <div className="space-y-4">
               <h3 className="flex items-center gap-2 text-base font-semibold">
                 <FileText className="h-5 w-5" />
-                租期與條款
+                {t.leaseDetailsTitle}
               </h3>
 
               <div className="space-y-2">
-                <Label>入住日期 *</Label>
+                <Label>{t.moveInDate}</Label>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button variant="outline" className="w-full justify-start">
                       <Calendar className="w-4 h-4 mr-2" />
-                      {moveInDate ? moveInDate.toLocaleDateString('zh-HK') : '選擇日期'}
+                      {moveInDate ? moveInDate.toLocaleDateString(LOCALE_DATE_LOCALE[locale]) : t.pickDate}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0">
@@ -215,13 +217,13 @@ export function RentalApplication({ open, onOpenChange, property, onProceedToPay
               </div>
 
               <div className="space-y-2">
-                <Label>租期</Label>
+                <Label>{t.leaseDuration}</Label>
                 <RadioGroup value={leaseDuration} onValueChange={setLeaseDuration}>
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                     {['6', '12', '24', '36'].map((months) => (
                       <div key={months} className="flex items-center space-x-2">
                         <RadioGroupItem value={months} id={`duration-${months}`} />
-                        <Label htmlFor={`duration-${months}`}>{months} 個月</Label>
+                        <Label htmlFor={`duration-${months}`}>{t.format('leaseMonths', { months })}</Label>
                       </div>
                     ))}
                   </div>
@@ -229,31 +231,31 @@ export function RentalApplication({ open, onOpenChange, property, onProceedToPay
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="emergencyContact">緊急聯絡人 *</Label>
+                <Label htmlFor="emergencyContact">{t.emergencyContact}</Label>
                 <Input
                   id="emergencyContact"
-                  placeholder="請輸入緊急聯絡人姓名"
+                  placeholder={t.emergencyContactPlaceholder}
                   value={emergencyContact}
                   onChange={(e) => setEmergencyContact(e.target.value)}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="emergencyPhone">緊急聯絡人電話 *</Label>
+                <Label htmlFor="emergencyPhone">{t.emergencyPhone}</Label>
                 <Input
                   id="emergencyPhone"
                   type="tel"
-                  placeholder="請輸入電話號碼"
+                  placeholder={t.emergencyPhonePlaceholder}
                   value={emergencyPhone}
                   onChange={(e) => setEmergencyPhone(e.target.value)}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="additionalNotes">附加說明（可選）</Label>
+                <Label htmlFor="additionalNotes">{t.additionalNotes}</Label>
                 <Textarea
                   id="additionalNotes"
-                  placeholder="有任何特別要求或說明嗎？"
+                  placeholder={t.additionalNotesPlaceholder}
                   value={additionalNotes}
                   onChange={(e) => setAdditionalNotes(e.target.value)}
                   rows={3}
@@ -267,45 +269,48 @@ export function RentalApplication({ open, onOpenChange, property, onProceedToPay
                   onCheckedChange={(v) => setTermsAccepted(v === true)}
                 />
                 <label htmlFor="lease-terms" className="cursor-pointer text-sm leading-relaxed text-gray-800">
-                  本人已閱讀並同意本平台的<strong className="font-semibold">租賃與簽約條款</strong>，確認所填資料真實無誤；明白
-                  <strong className="font-semibold">完成支付首期後</strong>，須待業主確認方正式生效。
+                  {t.termsPrefix}
+                  <strong className="font-semibold">{t.termsLink}</strong>
+                  {t.termsMiddle}
+                  <strong className="font-semibold">{t.termsPayment}</strong>
+                  {t.termsSuffix}
                 </label>
               </div>
 
               {/* Summary */}
               <div className="space-y-2 rounded-lg bg-gray-50 p-4">
-                <h4 className="font-medium">首期應付摘要</h4>
+                <h4 className="font-medium">{t.summaryTitle}</h4>
                 <div className="space-y-1 text-sm">
                   <div className="flex justify-between">
-                    <span>每月租金</span>
+                    <span>{t.monthlyRent}</span>
                     <span>${property.price}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>按金（2個月）</span>
+                    <span>{t.depositTwoMonths}</span>
                     <span>${property.price * 2}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>首月租金</span>
+                    <span>{t.firstMonthRent}</span>
                     <span>${property.price}</span>
                   </div>
                   <div className="border-t pt-2 flex justify-between">
-                    <span>租金小計</span>
+                    <span>{t.rentalSubtotal}</span>
                     <span>${property.price * 3}</span>
                   </div>
                   <div className="flex justify-between text-xs text-gray-600">
-                    <span>平台費用 (1%)</span>
+                    <span>{t.platformFee}</span>
                     <span>+${Math.round(property.price * 3 * 0.01)}</span>
                   </div>
                   <div className="flex justify-between text-xs text-gray-600">
-                    <span>代理費</span>
+                    <span>{t.agencyFee}</span>
                     <span>$0</span>
                   </div>
                   <div className="flex justify-between text-xs text-gray-600">
-                    <span>額外費用</span>
+                    <span>{t.extraFees}</span>
                     <span>$0</span>
                   </div>
                   <div className="border-t pt-2 flex justify-between">
-                    <span className="font-medium">首期總額</span>
+                    <span className="font-medium">{t.firstPaymentTotal}</span>
                     <span className="text-lg font-medium">${property.price * 3 + Math.round(property.price * 3 * 0.01)}</span>
                   </div>
                 </div>
@@ -317,7 +322,7 @@ export function RentalApplication({ open, onOpenChange, property, onProceedToPay
           <div className="flex gap-2 pt-4">
             {step > 1 && (
               <Button variant="outline" onClick={handleBack} className="flex-1">
-                上一步
+                {t.back}
               </Button>
             )}
             {step < 2 ? (
@@ -329,7 +334,7 @@ export function RentalApplication({ open, onOpenChange, property, onProceedToPay
                   (step === 2 && !isStep2Valid)
                 }
               >
-                下一步
+                {t.next}
                 <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             ) : (
@@ -338,7 +343,7 @@ export function RentalApplication({ open, onOpenChange, property, onProceedToPay
                 className="flex-1 bg-black text-white hover:bg-gray-800"
                 disabled={!isStep2Valid}
               >
-                前往支付首期
+                {t.proceedToPayment}
                 <CreditCard className="ml-2 h-4 w-4" />
               </Button>
             )}

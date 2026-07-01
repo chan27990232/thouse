@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Search, Bell, MessageCircle, User, SlidersHorizontal, House, Home as HomeIcon, Heart, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { Search, Bell, MessageCircle, User, SlidersHorizontal, House, Heart, X, Clock, History } from 'lucide-react';
 import { PropertyCard } from './PropertyCard';
 import { Property, UserRole } from '../App';
 import { Input } from './ui/input';
@@ -18,11 +18,20 @@ import {
   type HeroMoreFiltersValues,
 } from './HeroMoreFiltersDialog';
 import { NoticeDialog } from './NoticeDialog';
-import { HK_DISTRICTS } from '../lib/hkDistricts';
+import { HK_DISTRICTS, getDistrictLabel, propertyMatchesDistrict } from '../lib/hkDistricts';
 import { loadHomepageProperties } from '../lib/properties';
 import { fetchUnreadInquiryCount } from '../lib/conversations';
 import { textMatchesQuery } from '../lib/searchText';
 import { getMtrStationsForLine } from '../lib/hkMtr';
+import {
+  clearHeroSearchHistory,
+  formatHeroSearchHistoryLabel,
+  loadHeroSearchHistory,
+  removeHeroSearchHistoryEntry,
+  saveHeroSearchHistory,
+  type HeroSearchHistoryEntry,
+  type HeroSearchSnapshot,
+} from '../lib/heroSearchHistory';
 import thouseLogo from 'figma:asset/f0c80b0c66e9c54aea3881bdf7a4eb152cbc4c0b.png';
 import { ThouseHomeFooter } from './ThouseHomeFooter';
 import { LanguageSwitcher } from './LanguageSwitcher';
@@ -37,6 +46,14 @@ const HERO_PRICE_MAX = 80000;
 
 function clampHeroPrice(value: number): number {
   return Math.min(HERO_PRICE_MAX, Math.max(0, value));
+}
+
+function formatHeroPrice(n: number): string {
+  return n.toLocaleString('en-HK');
+}
+
+function isOpenEndedMax(max: number): boolean {
+  return max >= HERO_PRICE_MAX;
 }
 
 function parseHeroPriceInput(raw: string): number {
@@ -67,7 +84,7 @@ export function Home({
   onProfileClick,
   onMyPropertiesClick,
 }: HomeProps) {
-  const { homeT, commonT } = useLocale();
+  const { locale, homeT, commonT, filtersT } = useLocale();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'home' | 'favorites'>('home');
   const [searchDialogOpen, setSearchDialogOpen] = useState(false);
@@ -90,7 +107,72 @@ export function Home({
 
   const [unreadCount, setUnreadCount] = useState(0);
   const [properties, setProperties] = useState<Property[]>([]);
+  const [searchHistory, setSearchHistory] = useState<HeroSearchHistoryEntry[]>(() => loadHeroSearchHistory());
+  const [searchHistoryOpen, setSearchHistoryOpen] = useState(false);
   const listingsRef = useRef<HTMLDivElement | null>(null);
+  const searchBoxRef = useRef<HTMLDivElement | null>(null);
+
+  const buildSearchSnapshot = useCallback((): HeroSearchSnapshot => {
+    return {
+      searchQuery,
+      areaType,
+      selectedDistrict,
+      selectedTubeLine,
+      selectedTubeStation,
+      selectedSchoolNet,
+      priceRange: [priceRange[0], priceRange[1]] as [number, number],
+      areaRange: [areaRange[0], areaRange[1]] as [number, number],
+      floorLevels,
+      buildingAges,
+      hasToilet,
+      amenities,
+      roomFilter,
+      heroUnitType,
+    };
+  }, [
+    searchQuery,
+    areaType,
+    selectedDistrict,
+    selectedTubeLine,
+    selectedTubeStation,
+    selectedSchoolNet,
+    priceRange,
+    areaRange,
+    floorLevels,
+    buildingAges,
+    hasToilet,
+    amenities,
+    roomFilter,
+    heroUnitType,
+  ]);
+
+  const applySearchSnapshot = useCallback((snapshot: HeroSearchSnapshot) => {
+    setSearchQuery(snapshot.searchQuery);
+    setAreaType(snapshot.areaType);
+    setSelectedDistrict(snapshot.selectedDistrict);
+    setSelectedTubeLine(snapshot.selectedTubeLine);
+    setSelectedTubeStation(snapshot.selectedTubeStation);
+    setSelectedSchoolNet(snapshot.selectedSchoolNet);
+    setPriceRange([snapshot.priceRange[0], snapshot.priceRange[1]]);
+    setAreaRange([snapshot.areaRange[0], snapshot.areaRange[1]]);
+    setFloorLevels(snapshot.floorLevels);
+    setBuildingAges(snapshot.buildingAges);
+    setHasToilet(snapshot.hasToilet);
+    setAmenities(snapshot.amenities);
+    setRoomFilter(snapshot.roomFilter);
+    setHeroUnitType(snapshot.heroUnitType);
+  }, []);
+
+  useEffect(() => {
+    if (!searchHistoryOpen) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (searchBoxRef.current && !searchBoxRef.current.contains(e.target as Node)) {
+        setSearchHistoryOpen(false);
+      }
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => document.removeEventListener('pointerdown', onPointerDown);
+  }, [searchHistoryOpen]);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -234,7 +316,7 @@ export function Home({
 
   const filteredProperties = properties.filter((p) => {
     if (!textMatchesQuery(p.title, searchQuery)) return false;
-    if (areaType === 'district' && selectedDistrict && !textMatchesQuery(p.title, selectedDistrict)) return false;
+    if (areaType === 'district' && selectedDistrict && !propertyMatchesDistrict(p, selectedDistrict)) return false;
     if (!matchesTubeArea(p)) return false;
     if (areaType === 'school' && selectedSchoolNet && !textMatchesQuery(p.title, selectedSchoolNet)) return false;
     if (p.price < priceRange[0] || p.price > priceRange[1]) return false;
@@ -249,9 +331,17 @@ export function Home({
   const favoriteProperties = properties.filter((p) => p.isFavorite);
   const listings = activeTab === 'favorites' ? favoriteProperties : filteredProperties;
 
-  const runHeroSearch = () => {
+  const runHeroSearch = (snapshotToSave?: HeroSearchSnapshot) => {
+    const snapshot = snapshotToSave ?? buildSearchSnapshot();
+    setSearchHistory(saveHeroSearchHistory(snapshot));
+    setSearchHistoryOpen(false);
     setActiveTab('home');
     listingsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const applyHistoryEntry = (entry: HeroSearchHistoryEntry) => {
+    applySearchSnapshot(entry);
+    runHeroSearch(entry);
   };
 
   const scrollToTop = () => {
@@ -276,6 +366,12 @@ export function Home({
     setPriceRange(([min, _]) => [min, Math.max(nextMax, min)]);
   };
 
+  const priceMinDisplay = priceRange[0] === 0 ? '' : formatHeroPrice(priceRange[0]);
+  const priceMaxDisplay = isOpenEndedMax(priceRange[1]) ? '' : formatHeroPrice(priceRange[1]);
+  const priceSliderLabel = isOpenEndedMax(priceRange[1])
+    ? `HK$${formatHeroPrice(priceRange[0])} – ${formatHeroPrice(HERO_PRICE_MAX)}+`
+    : `HK$${formatHeroPrice(priceRange[0])} – HK$${formatHeroPrice(priceRange[1])}`;
+
   return (
     <div className="flex min-h-screen min-w-0 flex-col overflow-x-hidden bg-white">
       <header className="sticky top-0 z-50 shrink-0 border-b border-gray-200/80 bg-white/95 pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] pt-[max(0.5rem,env(safe-area-inset-top))] backdrop-blur-sm sm:px-4 md:px-8 lg:px-10">
@@ -291,18 +387,6 @@ export function Home({
           </button>
 
           <div className="flex min-w-0 shrink-0 items-center justify-end gap-0.5 sm:gap-1.5 md:gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('home');
-                scrollToTop();
-              }}
-              className={navIconBtnClass(activeTab === 'home')}
-              aria-label={homeT.home}
-              aria-current={activeTab === 'home' ? 'page' : undefined}
-            >
-              <HomeIcon className="h-4 w-4 sm:h-5 sm:w-5" />
-            </button>
             <button
               type="button"
               onClick={() => {
@@ -418,20 +502,76 @@ export function Home({
             <div className="mx-auto w-full max-w-7xl rounded-2xl border border-gray-200/90 bg-white p-3.5 shadow-lg sm:w-[min(100%,_96%)] sm:rounded-3xl sm:p-7 md:p-9 md:shadow-[0_12px_40px_rgba(15,23,42,0.12),0_4px_12px_rgba(15,23,42,0.06)]">
                 {/* 關鍵字列：手機直向堆疊；手機欄高加大利於觸控 */}
                 <div className="flex w-full min-w-0 flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:gap-4">
-                  <div className="flex h-14 w-full min-w-0 flex-1 items-center gap-2.5 rounded-2xl border border-gray-200 bg-gray-50/60 px-3 shadow-sm ring-1 ring-gray-200/60 sm:h-auto sm:min-h-0 sm:rounded-full sm:px-5 sm:py-3.5">
-                    <Search className="h-5 w-5 shrink-0 text-gray-400 sm:h-[18px] sm:w-[18px]" />
-                    <Input
-                      type="text"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && runHeroSearch()}
-                      placeholder={homeT.searchPlaceholder}
-                      className="h-full min-w-0 flex-1 border-0 bg-transparent p-0 text-base text-gray-800 placeholder:text-gray-400 shadow-none focus-visible:ring-0 sm:min-h-[2.5rem] sm:text-sm"
-                    />
+                  <div ref={searchBoxRef} className="relative min-w-0 flex-1">
+                    <div className="flex h-14 w-full min-w-0 items-center gap-2.5 rounded-2xl border border-gray-200 bg-gray-50/60 px-3 shadow-sm ring-1 ring-gray-200/60 sm:h-auto sm:min-h-0 sm:rounded-full sm:px-5 sm:py-3.5">
+                      <Search className="h-5 w-5 shrink-0 text-gray-400 sm:h-[18px] sm:w-[18px]" />
+                      <Input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        onFocus={() => setSearchHistoryOpen(true)}
+                        onKeyDown={(e) => e.key === 'Enter' && runHeroSearch()}
+                        placeholder={homeT.searchPlaceholder}
+                        className="h-full min-w-0 flex-1 border-0 bg-transparent p-0 text-base text-gray-800 placeholder:text-gray-400 shadow-none focus-visible:ring-0 sm:min-h-[2.5rem] sm:text-sm"
+                        autoComplete="off"
+                      />
+                    </div>
+                    {searchHistoryOpen && searchHistory.length > 0 ? (
+                      <div
+                        className="absolute left-0 right-0 top-[calc(100%+0.375rem)] z-30 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg"
+                        role="listbox"
+                        aria-label={homeT.recentSearches}
+                      >
+                        <div className="flex items-center justify-between border-b border-gray-100 px-3 py-2">
+                          <span className="flex items-center gap-1.5 text-xs font-medium text-gray-600">
+                            <History className="h-3.5 w-3.5" />
+                            {homeT.recentSearches}
+                          </span>
+                          <button
+                            type="button"
+                            className="text-xs text-gray-500 hover:text-gray-800"
+                            onClick={() => {
+                              clearHeroSearchHistory();
+                              setSearchHistory([]);
+                            }}
+                          >
+                            {homeT.clearSearchHistory}
+                          </button>
+                        </div>
+                        <ul className="max-h-56 overflow-y-auto py-1">
+                          {searchHistory.map((entry) => (
+                            <li key={entry.id}>
+                              <div className="flex items-center gap-1 px-1">
+                                <button
+                                  type="button"
+                                  role="option"
+                                  className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-2.5 text-left text-sm text-gray-800 hover:bg-gray-50"
+                                  onClick={() => applyHistoryEntry(entry)}
+                                >
+                                  <Clock className="h-4 w-4 shrink-0 text-gray-400" />
+                                  <span className="truncate">{formatHeroSearchHistoryLabel(entry, locale)}</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  className="shrink-0 rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+                                  aria-label={homeT.removeSearchHistory}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSearchHistory(removeHeroSearchHistoryEntry(entry.id));
+                                  }}
+                                >
+                                  <X className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
                   </div>
                   <Button
                     type="button"
-                    onClick={runHeroSearch}
+                    onClick={() => runHeroSearch()}
                     className="!h-14 w-full min-h-14 shrink-0 rounded-2xl border-0 px-6 !py-3 text-base font-medium text-white shadow-sm transition hover:opacity-95 focus-visible:ring-2 focus-visible:ring-[#1a365d] focus-visible:ring-offset-2 sm:!h-12 sm:min-h-12 sm:rounded-full sm:!py-2.5 sm:text-sm sm:w-auto sm:px-8"
                     style={{ backgroundColor: NAVY }}
                   >
@@ -464,7 +604,7 @@ export function Home({
                         <SelectItem value="any">{homeT.anyDistrict}</SelectItem>
                         {HK_DISTRICTS.map((d) => (
                           <SelectItem key={d} value={d}>
-                            {d}
+                            {getDistrictLabel(d, locale)}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -479,12 +619,12 @@ export function Home({
                     </Label>
                     <div className="pt-0.5">
                       <div
-                        className="mb-2 flex min-h-[2.5rem] flex-wrap items-center gap-2 rounded-lg border border-gray-200/80 bg-slate-50/90 px-2.5 py-2 sm:gap-2.5 sm:px-3"
+                        className="mb-2 flex min-h-[2.75rem] flex-wrap items-center gap-2 rounded-lg border border-gray-200/80 bg-slate-50/90 px-2.5 py-2 sm:gap-2.5 sm:px-3"
                         aria-live="polite"
                         aria-atomic="true"
                       >
-                        <label className="flex min-w-0 flex-1 items-center gap-1.5">
-                          <span className="shrink-0 text-xs text-gray-600">{homeT.minRent}</span>
+                        <label className="flex min-w-[8.5rem] flex-1 items-center gap-1.5 sm:min-w-[9.5rem]">
+                          <span className="w-7 shrink-0 text-xs text-gray-600">{homeT.minRent}</span>
                           <div className="relative min-w-0 flex-1">
                             <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">
                               HK$
@@ -493,19 +633,19 @@ export function Home({
                               type="text"
                               inputMode="numeric"
                               aria-label={homeT.minRent}
-                              value={priceRange[0] === 0 ? '' : String(priceRange[0])}
+                              value={priceMinDisplay}
                               placeholder="0"
                               onChange={(e) => setPriceMin(e.target.value)}
                               onBlur={() => setPriceRange(([min, max]) => [clampHeroPrice(min), max])}
-                              className="h-9 border-gray-200 bg-white pl-9 pr-2 text-sm tabular-nums shadow-sm focus-visible:ring-1 focus-visible:ring-gray-300"
+                              className="h-10 border-gray-200 bg-white pl-9 pr-2 text-sm tabular-nums shadow-sm focus-visible:ring-1 focus-visible:ring-gray-300"
                             />
                           </div>
                         </label>
                         <span className="shrink-0 text-gray-300" aria-hidden>
-                          |
+                          —
                         </span>
-                        <label className="flex min-w-0 flex-1 items-center gap-1.5">
-                          <span className="shrink-0 text-xs text-gray-600">{homeT.maxRent}</span>
+                        <label className="flex min-w-[8.5rem] flex-1 items-center gap-1.5 sm:min-w-[9.5rem]">
+                          <span className="w-7 shrink-0 text-xs text-gray-600">{homeT.maxRent}</span>
                           <div className="relative min-w-0 flex-1">
                             <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">
                               HK$
@@ -514,32 +654,39 @@ export function Home({
                               type="text"
                               inputMode="numeric"
                               aria-label={homeT.maxRent}
-                              value={String(priceRange[1])}
+                              value={priceMaxDisplay}
+                              placeholder={`${formatHeroPrice(HERO_PRICE_MAX)}+`}
                               onChange={(e) => setPriceMax(e.target.value)}
                               onBlur={() =>
                                 setPriceRange(([min, max]) => [min, Math.max(clampHeroPrice(max), min)])
                               }
-                              className="h-9 border-gray-200 bg-white pl-9 pr-2 text-sm tabular-nums shadow-sm focus-visible:ring-1 focus-visible:ring-gray-300"
+                              className="h-10 border-gray-200 bg-white pl-9 pr-2 text-sm tabular-nums shadow-sm focus-visible:ring-1 focus-visible:ring-gray-300"
                             />
                           </div>
                         </label>
                       </div>
-                      <Slider
-                        value={priceRange}
-                        onValueChange={(v) => setPriceRange(v as [number, number])}
-                        min={0}
-                        max={HERO_PRICE_MAX}
-                        step={200}
-                        className="w-full touch-manipulation"
-                        rangeStyle={{ backgroundColor: NAVY }}
-                        thumbStyle={{
-                          backgroundColor: NAVY,
-                          borderColor: NAVY,
-                          borderWidth: 2,
-                          width: 20,
-                          height: 20,
-                        }}
-                      />
+                      <div className="px-1 pb-1 pt-2">
+                        <Slider
+                          value={priceRange}
+                          onValueChange={(v) => {
+                            const next = v as [number, number];
+                            setPriceRange([clampHeroPrice(next[0]), clampHeroPrice(next[1])]);
+                          }}
+                          min={0}
+                          max={HERO_PRICE_MAX}
+                          step={500}
+                          className="w-full touch-manipulation py-2"
+                          rangeStyle={{ backgroundColor: NAVY }}
+                          thumbStyle={{
+                            backgroundColor: NAVY,
+                            borderColor: NAVY,
+                            borderWidth: 2,
+                            width: 22,
+                            height: 22,
+                          }}
+                        />
+                      </div>
+                      <p className="text-center text-xs tabular-nums text-gray-500">{priceSliderLabel}</p>
                     </div>
                   </div>
 
@@ -658,7 +805,7 @@ export function Home({
                         key={a}
                         className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs text-gray-800"
                       >
-                        {a}
+                        {filtersT.amenity(a)}
                       </span>
                     ))}
                     <button

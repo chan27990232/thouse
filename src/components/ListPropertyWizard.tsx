@@ -22,10 +22,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from './ui/select';
+import { useLocale } from '../context/LocaleContext';
+import {
+  getListingPropertyTypes,
+  LISTING_FEATURE_TAG_KEYS,
+  type ListingFeatureTagKey,
+  type buildListPropertyT,
+} from '../content/translations/listProperty';
 import { HK_DISTRICTS } from '../lib/hkDistricts';
 import {
-  LISTING_FEATURE_TAGS,
-  LISTING_PROPERTY_TYPES,
   LISTING_ROOM_OPTIONS,
   buildListingDescription,
   buildListingTitle,
@@ -35,27 +40,25 @@ import { uploadDeedFiles, uploadListingCoverImage, uploadProofPhotoFiles } from 
 import { supabase } from '../lib/supabase';
 import { cn } from './ui/utils';
 
-const STEPS = [
-  { id: 'type', label: '物業類型', icon: Home },
-  { id: 'location', label: '位置', icon: MapPin },
-  { id: 'specs', label: '租金規格', icon: Building2 },
-  { id: 'media', label: '相片證明', icon: Camera },
-  { id: 'publish', label: '介紹預覽', icon: Sparkles },
-] as const;
+type StepId = 'type' | 'location' | 'specs' | 'media' | 'publish';
 
-type StepId = (typeof STEPS)[number]['id'];
+type WizardStep = {
+  id: StepId;
+  label: string;
+  icon: typeof Home;
+};
 
-function StepHeader({ step }: { step: number }) {
+type ListPropertyT = ReturnType<typeof buildListPropertyT>;
+
+function StepHeader({ step, t, steps }: { step: number; t: ListPropertyT; steps: WizardStep[] }) {
   return (
     <div className="mb-6">
       <div className="mb-3 flex items-center justify-between gap-2 text-xs text-gray-500">
-        <span>
-          步驟 {step + 1} / {STEPS.length}
-        </span>
-        <span>{STEPS[step].label}</span>
+        <span>{t.format('stepProgress', { current: step + 1, total: steps.length })}</span>
+        <span>{steps[step].label}</span>
       </div>
       <div className="flex gap-1">
-        {STEPS.map((s, i) => {
+        {steps.map((s, i) => {
           const Icon = s.icon;
           const done = i < step;
           const active = i === step;
@@ -122,7 +125,15 @@ function Chip({
   );
 }
 
-function FilePreviewRow({ files, onRemove }: { files: File[]; onRemove: (i: number) => void }) {
+function FilePreviewRow({
+  files,
+  onRemove,
+  removeLabel,
+}: {
+  files: File[];
+  onRemove: (i: number) => void;
+  removeLabel: string;
+}) {
   if (files.length === 0) return null;
   return (
     <ul className="space-y-1.5">
@@ -133,7 +144,7 @@ function FilePreviewRow({ files, onRemove }: { files: File[]; onRemove: (i: numb
         >
           <span className="min-w-0 truncate">{f.name}</span>
           <button type="button" className="shrink-0 text-gray-500 hover:text-red-600" onClick={() => onRemove(i)}>
-            移除
+            {removeLabel}
           </button>
         </li>
       ))}
@@ -148,6 +159,21 @@ export interface ListPropertyWizardProps {
 }
 
 export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListPropertyWizardProps) {
+  const { locale, listPropertyT: t, commonT } = useLocale();
+
+  const steps = useMemo<WizardStep[]>(
+    () => [
+      { id: 'type', label: t.stepType, icon: Home },
+      { id: 'location', label: t.stepLocation, icon: MapPin },
+      { id: 'specs', label: t.stepSpecs, icon: Building2 },
+      { id: 'media', label: t.stepMedia, icon: Camera },
+      { id: 'publish', label: t.stepPublish, icon: Sparkles },
+    ],
+    [t]
+  );
+
+  const propertyTypes = useMemo(() => getListingPropertyTypes(locale), [locale]);
+
   const [step, setStep] = useState(0);
   const [saveLoading, setSaveLoading] = useState(false);
   const [saveError, setSaveError] = useState('');
@@ -178,32 +204,41 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
   );
   const displayTitle = useCustomTitle && customTitle.trim() ? customTitle.trim() : autoTitle;
 
+  const previewLayout = bedrooms === 0 ? t.openPlan : t.format('roomCount', { n: bedrooms });
+  const previewBathCount = t.format('bathCount', { n: bathrooms });
+  const previewMeta = t.format('previewMeta', {
+    area: area || '—',
+    floor: floor || '—',
+    layout: previewLayout,
+    bathCount: previewBathCount,
+  });
+
   const toggleFeature = (tag: string) => {
-    setFeatures((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
+    setFeatures((prev) => (prev.includes(tag) ? prev.filter((f) => f !== tag) : [...prev, tag]));
   };
 
   const validateStep = (s: number): string | null => {
-    if (s === 0 && !propertyTypeId) return '請選擇物業類型';
+    if (s === 0 && !propertyTypeId) return t.errSelectType;
     if (s === 1) {
-      if (!district) return '請選擇地區';
-      if (!estateName.trim()) return '請輸入屋苑名稱';
-      if (!buildingName.trim()) return '請輸入大廈名稱';
+      if (!district) return t.errSelectDistrict;
+      if (!estateName.trim()) return t.errEstateName;
+      if (!buildingName.trim()) return t.errBuildingName;
       const f = Number(floor);
-      if (!Number.isFinite(f) || f < 0) return '請輸入樓層';
-      if (!unit.trim()) return '請輸入單位';
+      if (!Number.isFinite(f) || f < 0) return t.errFloor;
+      if (!unit.trim()) return t.errUnit;
     }
     if (s === 2) {
       const p = Number(price);
       const a = Number(area);
-      if (!Number.isFinite(p) || p < 1000) return '請輸入有效月租金額（HK$1,000 起）';
-      if (!Number.isFinite(a) || a < 50) return '請輸入實用面積（平方呎）';
+      if (!Number.isFinite(p) || p < 1000) return t.errPrice;
+      if (!Number.isFinite(a) || a < 50) return t.errArea;
     }
     if (s === 3) {
-      if (proofFiles.length < 1) return '請上傳至少一張實景相片或影片';
-      if (deedFiles.length < 1) return '請上傳至少一份房產證明';
-      if (!coverFile && !coverUrl.trim()) return '請上傳租盤主圖或填寫主圖網址';
+      if (proofFiles.length < 1) return t.errProofPhoto;
+      if (deedFiles.length < 1) return t.errDeed;
+      if (!coverFile && !coverUrl.trim()) return t.errCover;
     }
-    if (s === 4 && !displayTitle) return '請確認放盤標題';
+    if (s === 4 && !displayTitle) return t.errTitle;
     return null;
   };
 
@@ -214,7 +249,7 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
       return;
     }
     setSaveError('');
-    setStep((s) => Math.min(s + 1, STEPS.length - 1));
+    setStep((s) => Math.min(s + 1, steps.length - 1));
   };
 
   const goBack = () => {
@@ -240,11 +275,11 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
       const deedPaths = await uploadDeedFiles(landlordId, deedFiles);
 
       const addressLines = [
-        `屋苑：${estateName.trim()}`,
-        `大廈：${buildingName.trim()}`,
-        blockTower.trim() ? `座數：${blockTower.trim()}` : '',
-        `樓層：${floor}`,
-        `單位：${unit.trim()}`,
+        `${t.addrEstate}${estateName.trim()}`,
+        `${t.addrBuilding}${buildingName.trim()}`,
+        blockTower.trim() ? `${t.addrBlock}${blockTower.trim()}` : '',
+        `${t.addrFloor}${floor}`,
+        `${t.addrUnit}${unit.trim()}`,
       ].filter(Boolean);
 
       const payload: Record<string, unknown> = {
@@ -265,7 +300,7 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
             district,
           }),
           '',
-          '地址（內部）：',
+          t.addrInternalHeader,
           ...addressLines,
         ].join('\n'),
         status: 'available',
@@ -279,39 +314,37 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
       if (error) {
         const m = (error.message || '').toLowerCase();
         if (m.includes('column') || m.includes('proof_photo') || m.includes('verification') || m.includes('property_deed_urls')) {
-          throw new Error(
-            '資料庫尚未套用審核欄位。請執行 supabase/property_listing_verification.sql 及 property_listing_deed_urls.sql 後再試。'
-          );
+          throw new Error(t.errDbMigration);
         }
         throw error;
       }
 
       await onSuccess();
     } catch (e) {
-      setSaveError(e instanceof Error ? e.message : '新增租盤失敗，請稍後再試。');
+      setSaveError(e instanceof Error ? e.message : t.errSubmitFailed);
     } finally {
       setSaveLoading(false);
     }
   };
 
-  const stepId = STEPS[step].id;
+  const stepId = steps[step].id;
 
   return (
     <div className="flex flex-col">
-      <StepHeader step={step} />
+      <StepHeader step={step} t={t} steps={steps} />
 
       {stepId === 'type' ? (
-        <SectionCard title="放盤用途" hint="簡屋目前僅支援住宅出租放盤。">
+        <SectionCard title={t.purposeTitle} hint={t.purposeHint}>
           <div className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-900">
             <Home className="h-4 w-4" />
-            出租
+            {t.rentOut}
           </div>
           <div>
-            <Label className="text-xs text-gray-600">物業類型</Label>
+            <Label className="text-xs text-gray-600">{t.propertyType}</Label>
             <div className="mt-2 flex flex-wrap gap-2">
-              {LISTING_PROPERTY_TYPES.map((t) => (
-                <Chip key={t.id} active={propertyTypeId === t.id} onClick={() => setPropertyTypeId(t.id)}>
-                  {t.label}
+              {propertyTypes.map((pt) => (
+                <Chip key={pt.id} active={propertyTypeId === pt.id} onClick={() => setPropertyTypeId(pt.id)}>
+                  {pt.label}
                 </Chip>
               ))}
             </div>
@@ -321,10 +354,10 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
 
       {stepId === 'location' ? (
         <div className="space-y-4">
-          <SectionCard title="地區" hint="請選擇物業所在的香港行政區。">
+          <SectionCard title={t.districtTitle} hint={t.districtHint}>
             <Select value={district} onValueChange={setDistrict}>
               <SelectTrigger className="w-full bg-white">
-                <SelectValue placeholder="選擇地區（十八區）" />
+                <SelectValue placeholder={t.districtPlaceholder} />
               </SelectTrigger>
               <SelectContent>
                 {HK_DISTRICTS.map((d) => (
@@ -335,30 +368,30 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
               </SelectContent>
             </Select>
           </SectionCard>
-          <SectionCard title="地址資料" hint="屋苑、大廈、樓層、單位為必填；座數選填。提交後如需修改，須經平台處理。">
+          <SectionCard title={t.addressTitle} hint={t.addressHint}>
             <div>
-              <Label htmlFor="estate-name">屋苑名稱</Label>
+              <Label htmlFor="estate-name">{t.estateName}</Label>
               <Input
                 id="estate-name"
                 className="mt-1.5 bg-white"
-                placeholder="例如：海濱花園、太古城"
+                placeholder={t.estatePlaceholder}
                 value={estateName}
                 onChange={(e) => setEstateName(e.target.value)}
               />
             </div>
             <div>
-              <Label htmlFor="building-name">大廈名稱</Label>
+              <Label htmlFor="building-name">{t.buildingName}</Label>
               <Input
                 id="building-name"
                 className="mt-1.5 bg-white"
-                placeholder="例如：雅賓大廈、某苑某座"
+                placeholder={t.buildingPlaceholder}
                 value={buildingName}
                 onChange={(e) => setBuildingName(e.target.value)}
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label htmlFor="floor">樓層</Label>
+                <Label htmlFor="floor">{t.floor}</Label>
                 <Input
                   id="floor"
                   type="text"
@@ -370,22 +403,22 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
                 />
               </div>
               <div>
-                <Label htmlFor="unit">單位</Label>
+                <Label htmlFor="unit">{t.unit}</Label>
                 <Input
                   id="unit"
                   className="mt-1.5 bg-white"
-                  placeholder="例如：A、12A"
+                  placeholder={t.unitPlaceholder}
                   value={unit}
                   onChange={(e) => setUnit(e.target.value)}
                 />
               </div>
             </div>
             <div>
-              <Label htmlFor="block-tower">座數（選填）</Label>
+              <Label htmlFor="block-tower">{t.blockTower}</Label>
               <Input
                 id="block-tower"
                 className="mt-1.5 bg-white"
-                placeholder="例如：1座、A座"
+                placeholder={t.blockPlaceholder}
                 value={blockTower}
                 onChange={(e) => setBlockTower(e.target.value)}
               />
@@ -396,7 +429,7 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
 
       {stepId === 'specs' ? (
         <div className="space-y-4">
-          <SectionCard title="租金" hint="請填寫每月租金（港幣）。">
+          <SectionCard title={t.rentTitle} hint={t.rentHint}>
             <div className="relative">
               <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">
                 HK$
@@ -411,9 +444,9 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
               />
             </div>
           </SectionCard>
-          <SectionCard title="面積">
+          <SectionCard title={t.areaTitle}>
             <div>
-              <Label>實用面積（呎）</Label>
+              <Label>{t.areaLabel}</Label>
               <Input
                 type="text"
                 inputMode="numeric"
@@ -424,33 +457,33 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
               />
             </div>
           </SectionCard>
-          <SectionCard title="間隔">
+          <SectionCard title={t.layoutTitle}>
             <div>
-              <Label className="text-xs text-gray-600">房間</Label>
+              <Label className="text-xs text-gray-600">{t.rooms}</Label>
               <div className="mt-2 flex flex-wrap gap-2">
                 {LISTING_ROOM_OPTIONS.map((n) => (
                   <Chip key={n} active={bedrooms === n} onClick={() => setBedrooms(n)}>
-                    {n === 0 ? '開放式' : `${n} 房`}
+                    {n === 0 ? t.openPlan : t.format('roomCount', { n })}
                   </Chip>
                 ))}
               </div>
             </div>
             <div>
-              <Label className="text-xs text-gray-600">浴室</Label>
+              <Label className="text-xs text-gray-600">{t.bathrooms}</Label>
               <div className="mt-2 flex flex-wrap gap-2">
                 {[1, 2, 3].map((n) => (
                   <Chip key={n} active={bathrooms === n} onClick={() => setBathrooms(n)}>
-                    {n} 廁
+                    {t.format('bathCount', { n })}
                   </Chip>
                 ))}
               </div>
             </div>
           </SectionCard>
-          <SectionCard title="單位特色（選填）">
+          <SectionCard title={t.featuresTitle}>
             <div className="flex flex-wrap gap-2">
-              {LISTING_FEATURE_TAGS.map((tag) => (
+              {LISTING_FEATURE_TAG_KEYS.map((tag) => (
                 <Chip key={tag} active={features.includes(tag)} onClick={() => toggleFeature(tag)}>
-                  {tag}
+                  {t.featureTag(tag)}
                 </Chip>
               ))}
             </div>
@@ -460,10 +493,7 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
 
       {stepId === 'media' ? (
         <div className="space-y-4">
-          <SectionCard
-            title="租盤主圖"
-            hint="將顯示於搜尋列表；建議橫向相片，光線充足。"
-          >
+          <SectionCard title={t.coverTitle} hint={t.coverHint}>
             <Input
               type="file"
               accept="image/jpeg,image/png,image/webp"
@@ -479,9 +509,10 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
               <FilePreviewRow
                 files={[coverFile]}
                 onRemove={() => setCoverFile(null)}
+                removeLabel={t.remove}
               />
             ) : null}
-            <p className="text-xs text-gray-500">或填寫圖片網址</p>
+            <p className="text-xs text-gray-500">{t.orImageUrl}</p>
             <Input
               placeholder="https://..."
               className="bg-white"
@@ -490,10 +521,7 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
               disabled={Boolean(coverFile)}
             />
           </SectionCard>
-          <SectionCard
-            title="實景相片"
-            hint="至少一張，用作平台審核佐證。請提供足夠相片證明屋內設備以供核實；亦可上傳影片。"
-          >
+          <SectionCard title={t.proofTitle} hint={t.proofHint}>
             <Input
               type="file"
               accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm"
@@ -507,9 +535,13 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
                 e.target.value = '';
               }}
             />
-            <FilePreviewRow files={proofFiles} onRemove={(i) => setProofFiles((f) => f.filter((_, j) => j !== i))} />
+            <FilePreviewRow
+              files={proofFiles}
+              onRemove={(i) => setProofFiles((f) => f.filter((_, j) => j !== i))}
+              removeLabel={t.remove}
+            />
           </SectionCard>
-          <SectionCard title="房產證明" hint="可上傳多張圖片或 PDF，僅供審核，不會公開。">
+          <SectionCard title={t.deedTitle} hint={t.deedHint}>
             <div className="flex items-center gap-2 rounded-lg border border-dashed border-gray-300 bg-white p-3">
               <FileCheck2 className="h-5 w-5 shrink-0 text-gray-500" />
               <Input
@@ -526,16 +558,20 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
                 }}
               />
             </div>
-            <FilePreviewRow files={deedFiles} onRemove={(i) => setDeedFiles((f) => f.filter((_, j) => j !== i))} />
+            <FilePreviewRow
+              files={deedFiles}
+              onRemove={(i) => setDeedFiles((f) => f.filter((_, j) => j !== i))}
+              removeLabel={t.remove}
+            />
           </SectionCard>
         </div>
       ) : null}
 
       {stepId === 'publish' ? (
         <div className="space-y-4">
-          <SectionCard title="放盤標題">
+          <SectionCard title={t.listingTitle}>
             <p className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-900">
-              {autoTitle || '（請先填寫位置與類型）'}
+              {autoTitle || t.titlePlaceholder}
             </p>
             <label className="flex items-center gap-2 text-xs text-gray-600">
               <input
@@ -543,7 +579,7 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
                 checked={useCustomTitle}
                 onChange={(e) => setUseCustomTitle(e.target.checked)}
               />
-              自行修改標題
+              {t.customTitle}
             </label>
             {useCustomTitle ? (
               <Input
@@ -554,40 +590,36 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
               />
             ) : null}
           </SectionCard>
-          <SectionCard title="租盤介紹（選填）">
+          <SectionCard title={t.descriptionTitle}>
             <Textarea
               className="min-h-[100px] resize-none bg-white"
-              placeholder="補充交通、周邊配套、租約要求等…"
+              placeholder={t.descriptionPlaceholder}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />
           </SectionCard>
           <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-            <p className="text-xs font-medium uppercase tracking-wide text-gray-500">預覽</p>
+            <p className="text-xs font-medium uppercase tracking-wide text-gray-500">{t.preview}</p>
             <h4 className="mt-2 text-base font-semibold text-gray-900">{displayTitle || '—'}</h4>
             <p className="mt-1 text-sm text-gray-600">
-              {district} · {LISTING_PROPERTY_TYPES.find((t) => t.id === propertyTypeId)?.label ?? '—'}
+              {district} · {propertyTypes.find((pt) => pt.id === propertyTypeId)?.label ?? '—'}
             </p>
             <p className="mt-2 text-lg font-bold text-gray-900">
               HK${Number(price || 0).toLocaleString('en-HK')}
-              <span className="text-sm font-normal text-gray-500"> /月</span>
+              <span className="text-sm font-normal text-gray-500"> {commonT.perMonth}</span>
             </p>
-            <p className="mt-1 text-sm text-gray-600">
-              {area || '—'} 呎 · {floor || '—'} 樓 · {bedrooms === 0 ? '開放式' : `${bedrooms} 房`} · {bathrooms} 廁
-            </p>
+            <p className="mt-1 text-sm text-gray-600">{previewMeta}</p>
             {features.length > 0 ? (
               <div className="mt-3 flex flex-wrap gap-1.5">
                 {features.map((f) => (
                   <span key={f} className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700">
-                    {f}
+                    {t.featureTag(f as ListingFeatureTagKey)}
                   </span>
                 ))}
               </div>
             ) : null}
           </div>
-          <p className="text-xs leading-relaxed text-gray-500">
-            提交後租盤進入審核，通過後方會出現在租客首頁。請確保資料真實準確。
-          </p>
+          <p className="text-xs leading-relaxed text-gray-500">{t.submitNote}</p>
         </div>
       ) : null}
 
@@ -600,17 +632,17 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
       <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-between">
         <Button type="button" variant="outline" onClick={step === 0 ? onCancel : goBack} disabled={saveLoading}>
           {step === 0 ? (
-            '取消'
+            t.cancel
           ) : (
             <>
               <ChevronLeft className="mr-1 h-4 w-4" />
-              上一步
+              {t.back}
             </>
           )}
         </Button>
-        {step < STEPS.length - 1 ? (
+        {step < steps.length - 1 ? (
           <Button type="button" className="bg-gray-900 text-white hover:bg-gray-800" onClick={goNext}>
-            下一步
+            {t.next}
             <ChevronRight className="ml-1 h-4 w-4" />
           </Button>
         ) : (
@@ -623,10 +655,10 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
             {saveLoading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                提交中…
+                {t.submitting}
               </>
             ) : (
-              '提交審核'
+              t.submitReview
             )}
           </Button>
         )}

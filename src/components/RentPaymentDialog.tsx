@@ -13,6 +13,7 @@ import {
 import { supabase } from '../lib/supabase';
 import { uploadBankTransferReceipt } from '../lib/leasePaymentReceiptUpload';
 import { formatDeadlineLabel } from '../lib/paymentDeadlines';
+import { useLocale } from '../context/LocaleContext';
 import type { LeasePaymentSubmitMethod } from '../lib/leaseFirstPayment';
 import { submitRentPayment, type RentPaymentSummary } from '../lib/rentPayments';
 
@@ -31,6 +32,8 @@ export function RentPaymentDialog({
   payment,
   onSuccess,
 }: RentPaymentDialogProps) {
+  const { localizePropertyTitle } = useLocale();
+  const displayPropertyTitle = localizePropertyTitle(payment.propertyTitle);
   const [paymentMethod, setPaymentMethod] = useState<'fps' | 'bank'>('fps');
   const [processing, setProcessing] = useState(false);
   const [paymentComplete, setPaymentComplete] = useState(false);
@@ -129,7 +132,7 @@ export function RentPaymentDialog({
         <DialogHeader>
           <DialogTitle>繳付每月租金</DialogTitle>
           <DialogDescription>
-            {payment.propertyTitle} · 第 {payment.periodIndex} 期 · 須於{' '}
+            {displayPropertyTitle} · 第 {payment.periodIndex} 期 · 須於{' '}
             {formatDeadlineLabel(payment.dueDate)}
           </DialogDescription>
         </DialogHeader>

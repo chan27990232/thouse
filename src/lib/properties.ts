@@ -15,6 +15,7 @@ interface PropertyRow {
   floor: number | string | null;
   bedrooms: number | string | null;
   bathrooms: number | string | null;
+  district: string | null;
 }
 
 function toNumber(value: number | string | null | undefined, fallback = 0) {
@@ -105,6 +106,7 @@ function mapProperty(row: PropertyRow): Property {
     floor: toNumber(row.floor),
     bedrooms: toNumber(row.bedrooms, 1),
     bathrooms: toNumber(row.bathrooms, 1),
+    district: (row.district ?? '').trim(),
     isFavorite: false,
   };
 }
@@ -113,7 +115,7 @@ function mapProperty(row: PropertyRow): Property {
 export async function loadHomepageProperties(): Promise<Property[]> {
   const { data, error } = await supabase
     .from('properties')
-    .select('id,landlord_id,title,image,price,area,floor,bedrooms,bathrooms')
+    .select('id,landlord_id,title,image,price,area,floor,bedrooms,bathrooms,district')
     .eq('verification_status', 'approved')
     .in('status', ['available', 'rented'])
     .order('id', { ascending: true });
@@ -126,4 +128,19 @@ export async function loadHomepageProperties(): Promise<Property[]> {
   const uniqueRows = dedupePropertyRows(raw, 'smallestId');
   uniqueRows.sort((a, b) => String(a.id).localeCompare(String(b.id)));
   return uniqueRows.map(mapProperty);
+}
+
+/** 依 id 載入單一物業（還原瀏覽位置用） */
+export async function loadPropertyById(id: string): Promise<Property | null> {
+  const trimmed = id.trim();
+  if (!trimmed) return null;
+
+  const { data, error } = await supabase
+    .from('properties')
+    .select('id,landlord_id,title,image,price,area,floor,bedrooms,bathrooms,district')
+    .eq('id', trimmed)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return mapProperty(data as PropertyRow);
 }

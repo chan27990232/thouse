@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useLocale } from '../context/LocaleContext';
+
 import { ArrowLeft, ClipboardList, Droplets, ExternalLink, FileText, House, Loader2, RefreshCw } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
@@ -61,6 +63,9 @@ function ActiveLeaseCard({
   onPayRent: (p: RentPaymentSummary) => void;
   onPayUtility: (payments: UtilityPaymentSummary[]) => void;
 }) {
+  const { localizePropertyTitle, localizePropertyDistrict } = useLocale();
+  const displayTitle = localizePropertyTitle(lease.propertyTitle);
+  const displayDistrict = localizePropertyDistrict(lease.propertyDistrict);
   const [rents, setRents] = useState<RentPaymentSummary[]>([]);
   const [utilities, setUtilities] = useState<UtilityPaymentSummary[]>([]);
   const [utilityBills, setUtilityBills] = useState<TenantUtilityBillFile[]>([]);
@@ -100,16 +105,16 @@ function ActiveLeaseCard({
       <div className="flex gap-3 border-b p-4">
         <ImageWithFallback
           src={lease.propertyImage || defaultPropertyImage}
-          alt={lease.propertyTitle}
+          alt={displayTitle}
           className="h-24 w-24 shrink-0 rounded-lg object-cover"
         />
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
-            <h2 className="text-base font-semibold leading-snug">{lease.propertyTitle}</h2>
+            <h2 className="text-base font-semibold leading-snug">{displayTitle}</h2>
             <Badge className="bg-green-600 hover:bg-green-600 shrink-0">租用中</Badge>
           </div>
           {lease.propertyDistrict ? (
-            <p className="mt-1 text-sm text-gray-600">{lease.propertyDistrict}</p>
+            <p className="mt-1 text-sm text-gray-600">{displayDistrict}</p>
           ) : null}
           <p className="mt-2 text-lg font-bold">
             HK${lease.monthlyRent.toLocaleString()}

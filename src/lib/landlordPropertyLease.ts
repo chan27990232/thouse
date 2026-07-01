@@ -1,7 +1,12 @@
 import { supabase } from './supabase';
-import { getLeaseWorkflowStatusLabel } from './leaseApplications';
+import type { AppLocale } from './locale';
+import { LOCALE_DATE_LOCALE } from './locale';
+import { landlordMessages } from '../content/translations/landlord';
+import { buildLeaseWorkflowT } from '../content/translations/leaseWorkflow';
+import { formatMessage } from './i18nFormat';
 import type { LeaseManagementRequestFileRecord } from './leaseManagementRequestFiles';
-import { getRentPaymentStatusLabel, type RentPaymentStatus } from './rentPayments';
+import { getLeaseWorkflowStatusLabel } from './leaseApplications';
+import { type RentPaymentStatus } from './rentPayments';
 
 export type LandlordLeaseAction = 'early_end' | 'renew' | 'breach';
 
@@ -66,14 +71,16 @@ const EMPTY_LEASE_INFO: LandlordPropertyLeaseInfo = {
 
 export function formatLandlordNextDueLabel(
   hasActiveLease: boolean,
-  info: Pick<LandlordPropertyLeaseInfo, 'nextDueDate' | 'nextRentStatus'>
+  info: Pick<LandlordPropertyLeaseInfo, 'nextDueDate' | 'nextRentStatus'>,
+  locale: AppLocale = 'zh-TW',
 ): string {
-  if (!hasActiveLease) return '待出租';
-  if (!info.nextDueDate) return '尚無待繳帳單';
-  const date = new Date(`${info.nextDueDate}T12:00:00`).toLocaleDateString('zh-HK');
+  const t = landlordMessages[locale];
+  if (!hasActiveLease) return t.nextDueAvailable;
+  if (!info.nextDueDate) return t.nextDueNoBill;
+  const date = new Date(`${info.nextDueDate}T12:00:00`).toLocaleDateString(LOCALE_DATE_LOCALE[locale]);
   if (!info.nextRentStatus) return date;
-  const status = getRentPaymentStatusLabel(info.nextRentStatus);
-  return `${date}（${status}）`;
+  const status = buildLeaseWorkflowT(locale).rentPaymentStatus(info.nextRentStatus);
+  return formatMessage(t.nextDueWithStatus, { date, status });
 }
 
 function mapLeaseRow(row: {

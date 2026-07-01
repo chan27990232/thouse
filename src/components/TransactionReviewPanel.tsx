@@ -12,15 +12,21 @@ import {
   type ReceivedReview,
 } from '../lib/transactionReviews';
 import { supabase } from '../lib/supabase';
+import { useLocale } from '../context/LocaleContext';
+import { formatLocaleDateTimeLong } from '../lib/i18nDate';
 
 function StarRow({
   value,
   onChange,
   disabled,
+  starAria,
+  starsOfFive,
 }: {
   value: number;
   onChange: (n: number) => void;
   disabled?: boolean;
+  starAria: (n: number) => string;
+  starsOfFive: (n: number) => string;
 }) {
   return (
     <div className="flex items-center gap-1">
@@ -31,14 +37,14 @@ function StarRow({
           disabled={disabled}
           onClick={() => onChange(n)}
           className="p-0.5 rounded disabled:opacity-50"
-          aria-label={`${n} 星`}
+          aria-label={starAria(n)}
         >
           <Star
             className={`w-7 h-7 ${n <= value ? 'fill-amber-400 text-amber-500' : 'text-gray-300'}`}
           />
         </button>
       ))}
-      <span className="text-sm text-gray-600 ml-1">{value} / 5</span>
+      <span className="text-sm text-gray-600 ml-1">{starsOfFive(value)}</span>
     </div>
   );
 }
@@ -50,14 +56,17 @@ function PendingCard({
   item: PendingLeaseForReview;
   onDone: () => void;
 }) {
+  const { profileT, chatT, localizePropertyTitle } = useLocale();
   const [stars, setStars] = useState(0);
   const [comment, setComment] = useState('');
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
 
+  const roleLabel = item.otherRoleLabel === '業主' ? chatT.landlord : chatT.tenant;
+
   const handleSubmit = async () => {
     if (stars < 1) {
-      setErr('請點選星等（1–5 星，5 星為滿分）');
+      setErr(profileT.selectStarsError);
       return;
     }
     setErr('');
@@ -71,7 +80,7 @@ function PendingCard({
       });
       onDone();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : '提交失敗');
+      setErr(e instanceof Error ? e.message : profileT.submitFailed);
     } finally {
       setSaving(false);
     }
@@ -80,23 +89,29 @@ function PendingCard({
   return (
     <div className="rounded-lg border p-4 space-y-3 bg-gray-50/80">
       <div className="text-sm text-gray-700">
-        <span className="font-medium text-gray-900">{item.propertyTitle}</span>
+        <span className="font-medium text-gray-900">{localizePropertyTitle(item.propertyTitle)}</span>
         <span className="mx-1">·</span>
-        評價{item.otherRoleLabel}：{item.otherPartyName}
+        {profileT.format('rateRole', { role: roleLabel, name: item.otherPartyName })}
       </div>
       <div>
-        <Label className="text-xs text-gray-500">星等</Label>
+        <Label className="text-xs text-gray-500">{profileT.starsLabel}</Label>
         <div className="mt-1">
-          <StarRow value={stars} onChange={setStars} disabled={saving} />
+          <StarRow
+            value={stars}
+            onChange={setStars}
+            disabled={saving}
+            starAria={(n) => profileT.format('starAria', { n })}
+            starsOfFive={(n) => profileT.format('starsOfFive', { n })}
+          />
         </div>
       </div>
       <div>
-        <Label className="text-xs text-gray-500">意見（選填）</Label>
+        <Label className="text-xs text-gray-500">{profileT.commentOptional}</Label>
         <Textarea
           className="mt-1 min-h-[72px] bg-white"
           value={comment}
           onChange={(e) => setComment(e.target.value)}
-          placeholder="實際完成交易後的心得…"
+          placeholder={profileT.commentPlaceholder}
           disabled={saving}
         />
       </div>
@@ -106,13 +121,14 @@ function PendingCard({
         onClick={() => void handleSubmit()}
         disabled={saving}
       >
-        {saving ? '提交中…' : '提交評價'}
+        {saving ? profileT.submitting : profileT.submitReview}
       </Button>
     </div>
   );
 }
 
 export function TransactionReviewPanel() {
+  const { locale, profileT, chatT, localizePropertyTitle } = useLocale();
   const [userId, setUserId] = useState<string | null>(null);
   const [summary, setSummary] = useState<{ avg: number; count: number } | null>(null);
   const [pending, setPending] = useState<PendingLeaseForReview[]>([]);
@@ -138,9 +154,9 @@ export function TransactionReviewPanel() {
       setPending(p);
       setReceived(r);
     } catch (e) {
-      setLoadErr(e instanceof Error ? e.message : '無法載入評價資料');
+      setLoadErr(e instanceof Error ? e.message : profileT.reviewsLoadError);
     }
-  }, []);
+  }, [profileT.reviewsLoadError]);
 
   useEffect(() => {
     let mounted = true;
@@ -171,15 +187,15 @@ export function TransactionReviewPanel() {
 
   if (loading) {
     return (
-      <div className="rounded-lg border p-4 text-sm text-gray-500 text-center">載入交易評價…</div>
+      <div className="rounded-lg border p-4 text-sm text-gray-500 text-center">{profileT.reviewsLoading}</div>
     );
   }
 
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-medium">交易評價</h2>
-        <p className="text-sm text-gray-600 mt-1">簽約申請已核准後，可為對方留 1–5 星評價（5 星為滿分）。</p>
+        <h2 className="text-lg font-medium">{profileT.reviewsTitle}</h2>
+        <p className="text-sm text-gray-600 mt-1">{profileT.reviewsIntro}</p>
       </div>
 
       {loadErr ? <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-md p-3">{loadErr}</p> : null}
@@ -187,12 +203,14 @@ export function TransactionReviewPanel() {
       {summary && (
         <div className="rounded-lg border p-4 flex items-center justify-between">
           <div>
-            <p className="text-sm text-gray-500">我獲得的平均星等</p>
+            <p className="text-sm text-gray-500">{profileT.myAvgRating}</p>
             <p className="text-2xl font-semibold mt-1">
               {summary.count === 0 ? '—' : summary.avg.toFixed(2)}
               <span className="text-sm font-normal text-gray-500 ml-2">/ 5</span>
             </p>
-            <p className="text-xs text-gray-500 mt-1">共 {summary.count} 筆實際交易評價</p>
+            <p className="text-xs text-gray-500 mt-1">
+              {profileT.format('reviewCount', { count: summary.count })}
+            </p>
           </div>
           <div className="flex gap-0.5">
             {[1, 2, 3, 4, 5].map((n) => (
@@ -207,7 +225,7 @@ export function TransactionReviewPanel() {
 
       {pending.length > 0 && (
         <div className="space-y-3">
-          <h3 className="text-sm font-medium text-gray-800">待評價的核准簽約</h3>
+          <h3 className="text-sm font-medium text-gray-800">{profileT.pendingReviews}</h3>
           {pending.map((item) => (
             <PendingCard
               key={item.leaseApplicationId}
@@ -222,20 +240,22 @@ export function TransactionReviewPanel() {
 
       {received.length > 0 && (
         <div className="space-y-2">
-          <h3 className="text-sm font-medium text-gray-800">他人留給我的評價</h3>
+          <h3 className="text-sm font-medium text-gray-800">{profileT.receivedReviews}</h3>
           <ul className="space-y-2">
             {received.map((r) => (
               <li key={r.id} className="rounded-lg border p-3 text-sm bg-white">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-gray-700 font-medium">
-                    {r.fromRole === 'tenant' ? '租客' : '業主'} · {r.fromNameHint}
+                    {r.fromRole === 'tenant' ? chatT.tenant : chatT.landlord} · {r.fromNameHint}
                   </span>
-                  <span className="text-amber-600 shrink-0">{r.stars} / 5 星</span>
+                  <span className="text-amber-600 shrink-0">
+                    {profileT.format('starsOfFive', { n: r.stars })}
+                  </span>
                 </div>
-                <p className="text-xs text-gray-500 mt-0.5">{r.propertyTitle}</p>
+                <p className="text-xs text-gray-500 mt-0.5">{localizePropertyTitle(r.propertyTitle)}</p>
                 {r.comment ? <p className="text-gray-600 mt-2 leading-relaxed">{r.comment}</p> : null}
                 <p className="text-xs text-gray-400 mt-2">
-                  {new Date(r.createdAt).toLocaleString('zh-HK', { dateStyle: 'short', timeStyle: 'short' })}
+                  {formatLocaleDateTimeLong(r.createdAt, locale)}
                 </p>
               </li>
             ))}
@@ -244,7 +264,7 @@ export function TransactionReviewPanel() {
       )}
 
       {pending.length === 0 && received.length === 0 && !loadErr && (summary?.count ?? 0) === 0 && (
-        <p className="text-sm text-gray-500">尚無可顯示的核准簽約或評價；核准通過簽約後可於此留評。</p>
+        <p className="text-sm text-gray-500">{profileT.noReviewsYet}</p>
       )}
     </div>
   );

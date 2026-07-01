@@ -24,8 +24,6 @@ import {
   fetchLeaseManagementRequestsForLease,
   formatLandlordNextDueLabel,
   getPendingLeaseManagementRequest,
-  LEASE_MANAGEMENT_ACTION_LABELS,
-  LEASE_MANAGEMENT_REQUEST_STATUS_LABELS,
   submitLandlordLeaseManagementRequest,
   type LandlordLeaseAction,
   type LandlordPropertyLeaseInfo,
@@ -39,9 +37,11 @@ import {
 import { LeaseManagementFileUpload } from './LeaseManagementFileUpload';
 import { parseDdMmYyyy } from '../lib/dateInput';
 import { supabase } from '../lib/supabase';
+import { useLocale } from '../context/LocaleContext';
+import { LOCALE_DATE_LOCALE } from '../lib/locale';
 
 export interface ManagedProperty extends Property {
-  status: '已出租' | '招租中';
+  status: 'rented' | 'available';
   tenantName: string | null;
   nextDueDate: string;
   applications: number;
@@ -108,8 +108,10 @@ function ActionCard({
 }
 
 function PendingRequestPanel({ request }: { request: LeaseManagementRequestSummary }) {
+  const { locale, propertyManagementT: pmT } = useLocale();
   const [openingFile, setOpeningFile] = useState<string | null>(null);
   const awaitingTenant = request.status === 'awaiting_tenant';
+  const dateLocale = LOCALE_DATE_LOCALE[locale];
 
   const openFile = async (storagePath: string, fileName: string) => {
     try {
@@ -117,20 +119,23 @@ function PendingRequestPanel({ request }: { request: LeaseManagementRequestSumma
       const url = await getLeaseManagementFileSignedUrl(storagePath);
       window.open(url, '_blank', 'noopener,noreferrer');
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : `無法開啟「${fileName}」`);
+      toast.error(
+        e instanceof Error ? e.message : pmT.format('fileOpenError', { name: fileName }),
+      );
     } finally {
       setOpeningFile(null);
     }
   };
 
-  const detail =
-    request.requestType === 'renew'
-      ? `延長 ${request.renewalMonths ?? '—'} 個月`
-      : request.requestType === 'early_end'
-        ? request.earlyEndDate
-          ? `結束日 ${new Date(`${request.earlyEndDate}T12:00:00`).toLocaleDateString('zh-HK')}`
-          : '結束日：今天（審核時生效）'
-        : null;
+  const earlyEndDateLabel = request.earlyEndDate
+    ? new Date(`${request.earlyEndDate}T12:00:00`).toLocaleDateString(dateLocale)
+    : undefined;
+
+  const detail = pmT.requestContentDetail(request.requestType, {
+    renewalMonths: request.renewalMonths,
+    earlyEndDate: request.earlyEndDate,
+    earlyEndDateLabel,
+  });
 
   return (
     <div className="rounded-xl border border-sky-200 bg-gradient-to-b from-sky-50 to-white p-5">
@@ -140,53 +145,42 @@ function PendingRequestPanel({ request }: { request: LeaseManagementRequestSumma
         </div>
         <h3 className="mt-4 text-lg font-semibold text-gray-900">
           {awaitingTenant && request.requestType === 'renew'
-            ? '已邀請租客續約'
-            : '申請已提交，處理中'}
+            ? pmT.invitedRenew
+            : pmT.requestSubmitted}
         </h3>
         <p className="mt-2 max-w-md text-sm leading-relaxed text-gray-600">
           {awaitingTenant && request.requestType === 'renew' ? (
-            <>
-              已向租客發出續約邀請（延長 <strong>{request.renewalMonths ?? '—'}</strong> 個月）。
-              租客確認後，平台才會審核申請。審核完成前無法提交新申請。
-            </>
+            pmT.format('renewInviteBody', { months: request.renewalMonths ?? pmT.notAvailable })
           ) : (
-            <>
-              平台管理員正在審核你的
-              <strong> {LEASE_MANAGEMENT_ACTION_LABELS[request.requestType]} </strong>
-              申請。審核完成前無法提交新申請。
-            </>
+            pmT.format('pendingReviewBody', { action: pmT.actionLabel(request.requestType) })
           )}
         </p>
       </div>
 
       <dl className="mt-5 space-y-3 rounded-lg border border-sky-100 bg-white/80 p-4 text-sm">
         <div className="flex flex-wrap justify-between gap-2">
-          <dt className="text-gray-500">申請類型</dt>
-          <dd className="font-medium text-gray-900">
-            {LEASE_MANAGEMENT_ACTION_LABELS[request.requestType]}
-          </dd>
+          <dt className="text-gray-500">{pmT.requestType}</dt>
+          <dd className="font-medium text-gray-900">{pmT.actionLabel(request.requestType)}</dd>
         </div>
         <div className="flex flex-wrap justify-between gap-2">
-          <dt className="text-gray-500">狀態</dt>
-          <dd className="font-medium text-gray-900">
-            {LEASE_MANAGEMENT_REQUEST_STATUS_LABELS[request.status]}
-          </dd>
+          <dt className="text-gray-500">{pmT.requestStatus}</dt>
+          <dd className="font-medium text-gray-900">{pmT.requestStatusLabel(request.status)}</dd>
         </div>
         <div className="flex flex-wrap justify-between gap-2">
-          <dt className="text-gray-500">提交時間</dt>
+          <dt className="text-gray-500">{pmT.submittedAt}</dt>
           <dd className="font-medium text-gray-900">
-            {new Date(request.createdAt).toLocaleString('zh-HK')}
+            {new Date(request.createdAt).toLocaleString(dateLocale)}
           </dd>
         </div>
         {detail ? (
           <div className="flex flex-wrap justify-between gap-2">
-            <dt className="text-gray-500">申請內容</dt>
+            <dt className="text-gray-500">{pmT.requestContent}</dt>
             <dd className="font-medium text-gray-900">{detail}</dd>
           </div>
         ) : null}
         {request.notes.trim() ? (
           <div>
-            <dt className="text-gray-500">備註</dt>
+            <dt className="text-gray-500">{pmT.notes}</dt>
             <dd className="mt-1 whitespace-pre-wrap rounded-md bg-gray-50 px-3 py-2 text-gray-900">
               {request.notes}
             </dd>
@@ -196,7 +190,9 @@ function PendingRequestPanel({ request }: { request: LeaseManagementRequestSumma
 
       {request.files.length > 0 ? (
         <div className="mt-4">
-          <p className="mb-2 text-xs font-medium text-gray-700">已上傳附件（{request.files.length}）</p>
+          <p className="mb-2 text-xs font-medium text-gray-700">
+            {pmT.format('attachments', { count: request.files.length })}
+          </p>
           <ul className="space-y-1.5">
             {request.files.map((f) => (
               <li key={f.id}>
@@ -230,6 +226,9 @@ export function PropertyManagementDialog({
   mode,
   onSaved,
 }: PropertyManagementDialogProps) {
+  const { locale, landlordT, propertyManagementT: pmT, leaseWorkflowT, localizePropertyTitle } = useLocale();
+  const displayTitle = property ? localizePropertyTitle(property.title) : '';
+  const dateLocale = LOCALE_DATE_LOCALE[locale];
   const [leaseInfo, setLeaseInfo] = useState<LandlordPropertyLeaseInfo | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [renewMonths, setRenewMonths] = useState('12');
@@ -311,25 +310,31 @@ export function PropertyManagementDialog({
   const leaseId = leaseInfo?.leaseApplicationId ?? property.leaseApplicationId ?? null;
   const hasActiveLease = Boolean(leaseId);
   const tenantName = leaseInfo?.tenantName ?? property.tenantName;
-  const nextDueLabel = formatLandlordNextDueLabel(hasActiveLease, {
-    nextDueDate: leaseInfo?.nextDueDate ?? null,
-    nextRentStatus: leaseInfo?.nextRentStatus ?? null,
-  });
+  const nextDueLabel = formatLandlordNextDueLabel(
+    hasActiveLease,
+    {
+      nextDueDate: leaseInfo?.nextDueDate ?? null,
+      nextRentStatus: leaseInfo?.nextRentStatus ?? null,
+    },
+    locale,
+  );
   const leaseNotes = leaseInfo?.leaseNotes ?? property.leaseNotes ?? '';
   const managementNotes = leaseInfo?.landlordManagementNotes ?? '';
   const moveInLabel = leaseInfo?.moveInDate
-    ? new Date(`${leaseInfo.moveInDate}T12:00:00`).toLocaleDateString('zh-HK')
-    : '—';
-  const leaseMonthsLabel = leaseInfo?.leaseMonths ? `${leaseInfo.leaseMonths} 個月` : '—';
+    ? new Date(`${leaseInfo.moveInDate}T12:00:00`).toLocaleDateString(dateLocale)
+    : pmT.notAvailable;
+  const leaseMonthsLabel = pmT.leaseMonthsLabel(leaseInfo?.leaseMonths);
   const lastRenewedLabel = leaseInfo?.lastRenewedAt
-    ? new Date(leaseInfo.lastRenewedAt).toLocaleString('zh-HK')
-    : '—';
+    ? new Date(leaseInfo.lastRenewedAt).toLocaleString(dateLocale)
+    : pmT.notAvailable;
+  const statusLabel =
+    property.status === 'rented' ? landlordT.statusRented : landlordT.statusAvailable;
   const pendingRequest = getPendingLeaseManagementRequest(managementRequests);
   const formsDisabled = Boolean(pendingRequest) || actionLoading !== null;
 
   const runAction = async (action: LandlordLeaseAction) => {
     if (!leaseId) {
-      toast.error('找不到進行中的核准租約');
+      toast.error(pmT.errorNoActiveLease);
       return;
     }
 
@@ -341,13 +346,13 @@ export function PropertyManagementDialog({
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (!user) throw new Error('請先登入');
+      if (!user) throw new Error(pmT.errorSignIn);
 
       let requestId = '';
       if (action === 'renew') {
         const months = parseInt(renewMonths, 10);
         if (!Number.isFinite(months) || months < 1 || months > 60) {
-          throw new Error('續約月數須為 1–60');
+          throw new Error(pmT.errorRenewMonthsRange);
         }
         requestId = await submitLandlordLeaseManagementRequest({
           leaseApplicationId: leaseId,
@@ -355,11 +360,11 @@ export function PropertyManagementDialog({
           renewalMonths: months,
           notes: renewNotes,
         });
-        toast.success('已發出續約邀請，等候租客確認');
+        toast.success(pmT.toastRenewSuccess);
       } else if (action === 'early_end') {
         const parsedEnd = earlyEndDate.trim() ? parseDdMmYyyy(earlyEndDate) : null;
         if (earlyEndDate.trim() && !parsedEnd) {
-          throw new Error('結束日期格式須為 dd/mm/yyyy');
+          throw new Error(pmT.errorEarlyEndDateFormat);
         }
         requestId = await submitLandlordLeaseManagementRequest({
           leaseApplicationId: leaseId,
@@ -367,20 +372,20 @@ export function PropertyManagementDialog({
           earlyEndDate: parsedEnd ?? undefined,
           notes: earlyEndNotes,
         });
-        toast.success('已提交提早結束申請，待平台審核');
+        toast.success(pmT.toastEarlyEndSuccess);
       } else {
         if (!breachNotes.trim()) {
-          throw new Error('請填寫違約說明');
+          throw new Error(pmT.errorBreachNotesRequired);
         }
         requestId = await submitLandlordLeaseManagementRequest({
           leaseApplicationId: leaseId,
           action: 'breach',
           notes: breachNotes,
         });
-        toast.success('已提交違約申請，待平台審核');
+        toast.success(pmT.toastBreachSuccess);
       }
 
-      if (!requestId) throw new Error('無法取得申請編號');
+      if (!requestId) throw new Error(pmT.errorNoRequestId);
       if (files.length > 0) {
         await uploadLeaseManagementRequestFiles(user.id, requestId, files);
       }
@@ -395,23 +400,11 @@ export function PropertyManagementDialog({
       setBreachFiles([]);
       onSaved?.();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : '操作失敗');
+      toast.error(e instanceof Error ? e.message : pmT.errorGeneric);
     } finally {
       setActionLoading(null);
       setConfirmAction(null);
     }
-  };
-
-  const confirmTitles: Record<LandlordLeaseAction, string> = {
-    renew: '邀請租客續約',
-    early_end: '提交提早結束申請',
-    breach: '提交違約申請',
-  };
-
-  const confirmDescriptions: Record<LandlordLeaseAction, string> = {
-    renew: `將向租客發出續約邀請（延長 ${renewMonths} 個月）。租客確認後，平台才會審核並延長租期。`,
-    early_end: '將向平台提交提早結束租約申請。審核通過後租約才會結束，物業改為招租中。',
-    breach: '將向平台提交違約申請。審核通過後租約才會以違約結束。',
   };
 
   return (
@@ -419,90 +412,94 @@ export function PropertyManagementDialog({
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{mode === 'details' ? '物業資料' : '管理租約'}</DialogTitle>
+            <DialogTitle>{mode === 'details' ? pmT.propertyDetails : pmT.manageLease}</DialogTitle>
           </DialogHeader>
 
           {detailLoading ? (
             <div className="flex items-center justify-center gap-2 py-12 text-sm text-gray-500">
               <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
-              載入租約資料…
+              {pmT.loadingLease}
             </div>
           ) : (
             <div className="space-y-5">
               <ImageWithFallback
                 src={property.image}
-                alt={property.title}
+                alt={displayTitle}
                 className="h-56 w-full rounded-lg object-cover"
               />
 
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <ReadOnlyField label="物業標題" value={property.title} />
-                <ReadOnlyField label="狀態" value={property.status} />
-                <ReadOnlyField label="月租" value={`HK$ ${property.price.toLocaleString('en-HK')}`} />
+                <ReadOnlyField label={pmT.propertyTitle} value={displayTitle} />
+                <ReadOnlyField label={pmT.status} value={statusLabel} />
+                <ReadOnlyField label={pmT.monthlyRent} value={pmT.monthlyRentLabel(property.price)} />
                 <ReadOnlyField
-                  label="物業規格"
-                  value={`${property.area} 平方呎 · ${property.floor} 樓 · ${property.bedrooms} 房 ${property.bathrooms} 廁`}
+                  label={pmT.propertySpecsLabel}
+                  value={pmT.propertySpecs(
+                    property.area,
+                    property.floor,
+                    property.bedrooms,
+                    property.bathrooms,
+                  )}
                 />
               </div>
 
               {mode === 'details' ? (
                 <div className="space-y-4">
-                  <ReadOnlyField label="租客" value={tenantName ?? '未有租客'} />
+                  <ReadOnlyField label={pmT.tenant} value={tenantName ?? pmT.noTenant} />
                   {hasActiveLease && leaseInfo?.tenantPhone ? (
-                    <ReadOnlyField label="租客電話" value={leaseInfo.tenantPhone} />
+                    <ReadOnlyField label={pmT.tenantPhone} value={leaseInfo.tenantPhone} />
                   ) : null}
                   {hasActiveLease && leaseInfo?.tenantEmail ? (
-                    <ReadOnlyField label="租客電郵" value={leaseInfo.tenantEmail} />
+                    <ReadOnlyField label={pmT.tenantEmail} value={leaseInfo.tenantEmail} />
                   ) : null}
                   {hasActiveLease ? (
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                      <ReadOnlyField label="入住日期" value={moveInLabel} />
-                      <ReadOnlyField label="租期" value={leaseMonthsLabel} />
+                      <ReadOnlyField label={pmT.moveInDate} value={moveInLabel} />
+                      <ReadOnlyField label={pmT.leaseTerm} value={leaseMonthsLabel} />
                     </div>
                   ) : null}
-                  <ReadOnlyField label="下次租金到期" value={nextDueLabel} />
-                  <ReadOnlyField label="待處理申請" value={String(property.applications)} />
+                  <ReadOnlyField label={pmT.nextRentDue} value={nextDueLabel} />
+                  <ReadOnlyField label={pmT.pendingApplications} value={String(property.applications)} />
                 </div>
               ) : !hasActiveLease ? (
                 <div className="space-y-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-                  <p className="font-medium">此物業目前沒有進行中的核准租約</p>
-                  <p className="text-amber-900/90">
-                    「續約／提早結束／違約」僅適用於平台已核准、租客正在租用的租約。若租約尚在申請或審核中，請先完成租約申請流程。
-                  </p>
+                  <p className="font-medium">{pmT.noActiveLeaseTitle}</p>
+                  <p className="text-amber-900/90">{pmT.noActiveLeaseHint}</p>
                   {leaseHint ? (
                     <p className="rounded-md border border-amber-200/80 bg-white/70 px-3 py-2 text-xs text-amber-950">
-                      最近租約紀錄：
-                      {leaseHint.tenantName ? ` ${leaseHint.tenantName} ·` : ''} {leaseHint.statusLabel}
+                      {pmT.recentLeaseRecord}
+                      {leaseHint.tenantName ? ` ${leaseHint.tenantName} ·` : ''}{' '}
+                      {leaseWorkflowT.workflowStatus(leaseHint.status)}
                       {leaseHint.status === 'ended_early' || leaseHint.status === 'ended_breach'
-                        ? '（已結束，可重新招租）'
+                        ? pmT.endedCanRelist
                         : ''}
                     </p>
                   ) : (
-                    <p className="text-xs text-amber-800/90">此物業尚無租約申請紀錄。</p>
+                    <p className="text-xs text-amber-800/90">{pmT.noLeaseApplications}</p>
                   )}
                   {property.applications > 0 ? (
                     <p className="text-xs font-medium text-amber-900">
-                      你有 {property.applications} 宗待處理租約申請，請在總覽「查看所有申請」處理。
+                      {pmT.format('applicationsHint', { count: property.applications })}
                     </p>
                   ) : null}
                 </div>
               ) : (
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    <ReadOnlyField label="租客名稱" value={tenantName ?? '—'} />
-                    <ReadOnlyField label="下次到期日" value={nextDueLabel} />
-                    <ReadOnlyField label="入住日期" value={moveInLabel} />
-                    <ReadOnlyField label="目前租期" value={leaseMonthsLabel} />
-                    <ReadOnlyField label="最近續約" value={lastRenewedLabel} />
-                    <ReadOnlyField label="月租" value={`HK$ ${property.price.toLocaleString('en-HK')}`} />
+                    <ReadOnlyField label={pmT.tenantName} value={tenantName ?? pmT.notAvailable} />
+                    <ReadOnlyField label={pmT.nextDueDate} value={nextDueLabel} />
+                    <ReadOnlyField label={pmT.moveInDate} value={moveInLabel} />
+                    <ReadOnlyField label={pmT.currentLeaseTerm} value={leaseMonthsLabel} />
+                    <ReadOnlyField label={pmT.lastRenewal} value={lastRenewedLabel} />
+                    <ReadOnlyField label={pmT.monthlyRent} value={pmT.monthlyRentLabel(property.price)} />
                   </div>
 
                   {leaseNotes ? (
-                    <ReadOnlyField label="租客申請備註" value={leaseNotes} />
+                    <ReadOnlyField label={pmT.tenantNotes} value={leaseNotes} />
                   ) : null}
                   {managementNotes ? (
                     <div>
-                      <Label>租約管理紀錄</Label>
+                      <Label>{pmT.leaseManagementLog}</Label>
                       <Textarea value={managementNotes} readOnly className="mt-2 min-h-[72px] resize-none bg-gray-50 text-xs" />
                     </div>
                   ) : null}
@@ -512,17 +509,19 @@ export function PropertyManagementDialog({
                   ) : (
                     <>
                   <p className="text-xs text-gray-500">
-                    以下操作均為<strong>提交申請</strong>，須經平台管理員審核後才會更新租約狀態。
+                    {pmT.submitHintPrefix}
+                    <strong>{pmT.submitHintEmphasis}</strong>
+                    {pmT.submitHintSuffix}
                   </p>
 
                   <ActionCard
                     icon={<RefreshCw className="h-4 w-4" />}
-                    title="續約"
-                    description="向租客發出續約邀請。租客確認後，平台才會審核並延長租期。"
+                    title={pmT.renewTitle}
+                    description={pmT.renewDesc}
                   >
                     <div className="space-y-3">
                       <div>
-                        <Label htmlFor="renew-months">延長月數</Label>
+                        <Label htmlFor="renew-months">{pmT.renewalMonths}</Label>
                         <Input
                           id="renew-months"
                           type="text"
@@ -533,12 +532,12 @@ export function PropertyManagementDialog({
                         />
                       </div>
                       <div>
-                        <Label htmlFor="renew-notes">備註（選填）</Label>
+                        <Label htmlFor="renew-notes">{pmT.notesOptional}</Label>
                         <Textarea
                           id="renew-notes"
                           value={renewNotes}
                           onChange={(e) => setRenewNotes(e.target.value)}
-                          placeholder="例如：雙方同意續租 12 個月、租金不變…"
+                          placeholder={pmT.renewNotesPlaceholder}
                           className="mt-2 min-h-[72px] resize-none"
                         />
                       </div>
@@ -555,37 +554,37 @@ export function PropertyManagementDialog({
                         onClick={() => setConfirmAction('renew')}
                       >
                         {actionLoading === 'renew' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                        邀請租客續約
+                        {pmT.inviteRenew}
                       </Button>
                     </div>
                   </ActionCard>
 
                   <ActionCard
                     icon={<CalendarOff className="h-4 w-4" />}
-                    title="提早結束租約"
-                    description="雙方同意提前退租時向平台申請。核准後租約結束，物業恢復招租。"
+                    title={pmT.earlyEndTitle}
+                    description={pmT.earlyEndDesc}
                   >
                     <div className="space-y-3">
                       <div>
-                        <Label htmlFor="early-end-date">結束日期</Label>
+                        <Label htmlFor="early-end-date">{pmT.earlyEndDate}</Label>
                         <Input
                           id="early-end-date"
                           type="text"
                           inputMode="numeric"
-                          placeholder="dd/mm/yyyy"
+                          placeholder={pmT.earlyEndDatePlaceholder}
                           value={earlyEndDate}
                           onChange={(e) => setEarlyEndDate(e.target.value)}
                           className="mt-2 max-w-[12rem]"
                         />
-                        <p className="mt-1 text-xs text-gray-500">留空則以今天為結束日</p>
+                        <p className="mt-1 text-xs text-gray-500">{pmT.earlyEndDateHint}</p>
                       </div>
                       <div>
-                        <Label htmlFor="early-end-notes">備註（選填）</Label>
+                        <Label htmlFor="early-end-notes">{pmT.notesOptional}</Label>
                         <Textarea
                           id="early-end-notes"
                           value={earlyEndNotes}
                           onChange={(e) => setEarlyEndNotes(e.target.value)}
-                          placeholder="例如：租客已交還鎖匙…"
+                          placeholder={pmT.earlyEndNotesPlaceholder}
                           className="mt-2 min-h-[72px] resize-none"
                         />
                       </div>
@@ -603,25 +602,25 @@ export function PropertyManagementDialog({
                         onClick={() => setConfirmAction('early_end')}
                       >
                         {actionLoading === 'early_end' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                        提交提早結束申請
+                        {pmT.submitEarlyEnd}
                       </Button>
                     </div>
                   </ActionCard>
 
                   <ActionCard
                     icon={<AlertTriangle className="h-4 w-4" />}
-                    title="違約"
-                    description="租客違反租約時向平台申請。核准後租約以違約結束，請務必填寫原因。"
+                    title={pmT.breachTitle}
+                    description={pmT.breachDesc}
                     tone="danger"
                   >
                     <div className="space-y-3">
                       <div>
-                        <Label htmlFor="breach-notes">違約說明（必填）</Label>
+                        <Label htmlFor="breach-notes">{pmT.breachNotesRequired}</Label>
                         <Textarea
                           id="breach-notes"
                           value={breachNotes}
                           onChange={(e) => setBreachNotes(e.target.value)}
-                          placeholder="例如：拖欠租金超過 30 日、未經同意轉租…"
+                          placeholder={pmT.breachNotesPlaceholder}
                           className="mt-2 min-h-[80px] resize-none border-red-200"
                         />
                       </div>
@@ -639,7 +638,7 @@ export function PropertyManagementDialog({
                         onClick={() => setConfirmAction('breach')}
                       >
                         {actionLoading === 'breach' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                        提交違約申請
+                        {pmT.submitBreach}
                       </Button>
                     </div>
                   </ActionCard>
@@ -656,14 +655,16 @@ export function PropertyManagementDialog({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {confirmAction ? confirmTitles[confirmAction] : ''}
+              {confirmAction ? pmT.confirmTitle(confirmAction) : ''}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {confirmAction ? confirmDescriptions[confirmAction] : ''}
+              {confirmAction
+                ? pmT.confirmDescription(confirmAction, { months: renewMonths })
+                : ''}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={actionLoading !== null}>取消</AlertDialogCancel>
+            <AlertDialogCancel disabled={actionLoading !== null}>{pmT.cancel}</AlertDialogCancel>
             <AlertDialogAction
               disabled={actionLoading !== null}
               onClick={(e) => {
@@ -673,7 +674,7 @@ export function PropertyManagementDialog({
               className={confirmAction === 'breach' ? 'bg-red-600 hover:bg-red-700' : undefined}
             >
               {actionLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              {confirmAction === 'renew' ? '發出邀請' : '提交申請'}
+              {confirmAction === 'renew' ? pmT.sendInvite : pmT.submitRequest}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { notifyLeaseRejectionByEmail } from '../lib/leaseRejectionNotify';
 
 /** 對應主站 leaseApplications LeaseWorkflowStatus */
 const STATUS_LABEL: Record<string, string> = {
@@ -96,6 +97,11 @@ export function LeaseApplicationsPage() {
   async function platformReview(applicationId: string, stage: 1 | 2, approve: boolean) {
     setActionId(applicationId);
     setErr('');
+    const beforeRejectedIds = new Set(
+      rows.filter((r) => r.status === 'rejected').map((r) => r.id),
+    );
+    const previousStatusById = new Map(rows.map((r) => [r.id, r.status]));
+
     const { error: rErr } = await supabase.rpc('platform_review_lease_application', {
       p_application_id: applicationId,
       p_stage: stage,
@@ -106,6 +112,20 @@ export function LeaseApplicationsPage() {
       setErr(rErr.message || '操作失敗');
       return;
     }
+
+    const { data: rawAfter } = await supabase
+      .from('lease_applications')
+      .select('id, status')
+      .eq('status', 'rejected');
+    const afterRejected = ((rawAfter ?? []) as { id: string; status: string }[]).filter(
+      (r) => !beforeRejectedIds.has(r.id),
+    );
+    for (const rejected of afterRejected) {
+      void notifyLeaseRejectionByEmail(rejected.id, {
+        previousStatus: previousStatusById.get(rejected.id) ?? null,
+      });
+    }
+
     await load();
   }
 

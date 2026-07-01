@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, MoreVertical, Search, ChevronLeft, Star } from 'lucide-react';
+import { toast } from 'sonner';
 import { Input } from './ui/input';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { ChatMessageContent } from './chat/ChatMessageContent';
@@ -10,12 +11,21 @@ import { supabase } from '../lib/supabase';
 import {
   type ConversationWithProperty,
   type ConversationMessageRow,
+  archiveConversationForUser,
   fetchConversationMessages,
   fetchConversationsForLandlord,
   fetchConversationsForTenant,
+  markAllConversationsRead,
   markConversationRead,
   sendChatMessage,
 } from '../lib/conversations';
+import {
+  isConversationArchived,
+  readArchivedConversationIds,
+  readChatSettings,
+  writeChatSettings,
+  type ChatSettings,
+} from '../lib/chatInbox';
 import { defaultPropertyImage } from '../lib/properties';
 import { getProfileStarSummary, type StarSummary } from '../lib/transactionReviews';
 import {
@@ -28,23 +38,28 @@ import {
   sendSupportMessageAsUser,
 } from '../lib/supportChat';
 import { cn } from './ui/utils';
+import { useLocale } from '../context/LocaleContext';
+import { formatLocaleDateTime } from '../lib/i18nDate';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from './ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from './ui/dialog';
+import { Checkbox } from './ui/checkbox';
+import { Label } from './ui/label';
 
 interface ChatPageProps {
   userRole: 'tenant' | 'landlord';
   onBack: () => void;
-}
-
-function formatListTime(iso: string) {
-  try {
-    return new Date(iso).toLocaleString('zh-HK', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  } catch {
-    return '';
-  }
 }
 
 function firstLine(text: string) {
@@ -65,6 +80,7 @@ function isSameUserId(a: string, b: string | null): boolean {
 }
 
 export function ChatPage({ userRole, onBack }: ChatPageProps) {
+  const { locale, chatT, commonT, localizePropertyTitle } = useLocale();
   const [userId, setUserId] = useState<string | null>(null);
   const [listLoading, setListLoading] = useState(true);
   const [threads, setThreads] = useState<ConversationWithProperty[]>([]);
@@ -78,6 +94,11 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
   const [peerRatingLoading, setPeerRatingLoading] = useState(false);
   const [supportTicket, setSupportTicket] = useState<SupportTicketSummary | null>(null);
   const [supportMessages, setSupportMessages] = useState<SupportMessageRow[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [chatSettings, setChatSettings] = useState<ChatSettings>(() => readChatSettings());
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [inboxActionLoading, setInboxActionLoading] = useState(false);
+  const [archivedRevision, setArchivedRevision] = useState(0);
 
   const isSupportActive = userRole === 'tenant' && activeId === THOUSE_SUPPORT_PIN_ID;
   const activeThread = isSupportActive ? null : (threads.find((t) => t.conversation.id === activeId) ?? null);
@@ -97,12 +118,12 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
           : await fetchConversationsForTenant(uid);
       setThreads(data);
     } catch (e) {
-      setLoadError(e instanceof Error ? e.message : '無法載入對話');
+      setLoadError(e instanceof Error ? e.message : chatT.loadError);
       setThreads([]);
     } finally {
       setListLoading(false);
     }
-  }, [userRole]);
+  }, [userRole, chatT.loadError]);
 
   const loadSupportTicket = useCallback(async (uid: string) => {
     try {
@@ -208,9 +229,80 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
     threads.reduce((s, t) => s + t.unreadCount, 0) +
     (userRole === 'tenant' && supportTicket?.hasUnreadFromStaff ? 1 : 0);
 
+  const archivedIds = useMemo(() => {
+    void archivedRevision;
+    return userId ? readArchivedConversationIds(userId) : new Set<string>();
+  }, [userId, archivedRevision]);
+
+  const visibleThreads = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return threads.filter((item) => {
+      const archived = archivedIds.has(item.conversation.id);
+      if (!chatSettings.showArchived && archived) return false;
+      if (!q) return true;
+      const localizedTitle = localizePropertyTitle(item.propertyTitle);
+      const haystack = [item.peerLabel, localizedTitle, item.propertyTitle, firstLine(item.lastMessageBody)]
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [threads, archivedIds, chatSettings.showArchived, searchQuery, localizePropertyTitle]);
+
+  const activeIsArchived =
+    Boolean(activeId && userId && !isSupportActive && archivedIds.has(activeId));
+
+  const bumpArchived = () => setArchivedRevision((n) => n + 1);
+
+  const handleMarkAllRead = async () => {
+    if (!userId || inboxActionLoading) return;
+    if (totalUnread === 0) {
+      toast.message(chatT.markAllReadNone);
+      return;
+    }
+    setInboxActionLoading(true);
+    try {
+      await markAllConversationsRead(threads.map((t) => t.conversation.id));
+      if (userRole === 'tenant' && supportTicket?.hasUnreadFromStaff) {
+        setSupportTicket((prev) => (prev ? { ...prev, hasUnreadFromStaff: false } : prev));
+      }
+      await loadThreads(userId);
+      toast.success(chatT.markAllReadDone);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : chatT.actionFailed);
+    } finally {
+      setInboxActionLoading(false);
+    }
+  };
+
+  const handleArchiveActive = async (archived: boolean) => {
+    if (!userId || !activeId || isSupportActive) return;
+    setInboxActionLoading(true);
+    try {
+      await archiveConversationForUser(activeId, userId, archived);
+      bumpArchived();
+      if (archived) {
+        setActiveId(null);
+        toast.success(chatT.archiveDone);
+      } else {
+        toast.success(chatT.unarchiveDone);
+      }
+      await loadThreads(userId);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : chatT.actionFailed);
+    } finally {
+      setInboxActionLoading(false);
+    }
+  };
+
+  const saveChatSettings = (next: ChatSettings) => {
+    setChatSettings(next);
+    writeChatSettings(next);
+  };
+
   const getAvatarText = (name: string) => name.replace(/[（）()]/g, '').slice(0, 1) || '⋯';
 
-  const getRoleLabel = (role: 'tenant' | 'landlord') => (role === 'landlord' ? '業主' : '租客');
+  const getRoleLabel = (role: 'tenant' | 'landlord') =>
+    role === 'landlord' ? chatT.landlord : chatT.tenant;
 
   const send = async (payload: { text: string; attachment: ParsedChatAttachment | null }) => {
     const { text, attachment } = payload;
@@ -238,9 +330,9 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
   if (userId === null && !listLoading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-3 px-4">
-        <p className="text-sm text-gray-600">請先登入以使用聊天室</p>
+        <p className="text-sm text-gray-600">{chatT.signInRequired}</p>
         <button type="button" onClick={onBack} className="text-sm underline">
-          返回
+          {chatT.back}
         </button>
       </div>
     );
@@ -268,38 +360,70 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
                     type="button"
                     onClick={onBack}
                     className="shrink-0 rounded-full p-2 text-gray-600 hover:bg-gray-100"
-                    aria-label="返回"
+                    aria-label={chatT.back}
                   >
                     <ArrowLeft className="h-5 w-5" />
                   </button>
                   <div className="min-w-0">
-                    <h2 className="text-lg font-semibold">收件匣</h2>
+                    <h2 className="text-lg font-semibold">{chatT.inbox}</h2>
                     <p className="text-xs text-gray-500">
-                      {listLoading ? '載入中…' : totalUnread > 0 ? `${totalUnread} 未讀` : '沒有未讀訊息'}
+                      {listLoading
+                        ? commonT.loading
+                        : totalUnread > 0
+                          ? chatT.format('unreadCount', { count: totalUnread })
+                          : chatT.noUnread}
                     </p>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  className="rounded-full p-2 text-gray-500 hover:bg-gray-100"
-                  aria-label="更多"
-                >
-                  <MoreVertical className="h-4 w-4" />
-                </button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      className="rounded-full p-2 text-gray-500 hover:bg-gray-100"
+                      aria-label={chatT.more}
+                      disabled={inboxActionLoading}
+                    >
+                      <MoreVertical className="h-4 w-4" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-52">
+                    <DropdownMenuItem onClick={() => void handleMarkAllRead()} disabled={inboxActionLoading}>
+                      {chatT.markAllRead}
+                    </DropdownMenuItem>
+                    {activeId && !isSupportActive ? (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={() => void handleArchiveActive(!activeIsArchived)}
+                          disabled={inboxActionLoading}
+                        >
+                          {activeIsArchived ? chatT.unarchiveConversation : chatT.archiveConversation}
+                        </DropdownMenuItem>
+                      </>
+                    ) : null}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => setSettingsOpen(true)}>{chatT.chatSettings}</DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                <Input className="border-0 bg-gray-50 pl-9" placeholder="搜尋對話" />
+                <Input
+                  className="border-0 bg-gray-50 pl-9"
+                  placeholder={chatT.searchConversations}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
               </div>
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto">
               {listLoading && threads.length === 0 ? (
-                <p className="p-4 text-sm text-gray-500">載入中…</p>
+                <p className="p-4 text-sm text-gray-500">{commonT.loading}</p>
               ) : null}
               {!listLoading && userRole !== 'tenant' && threads.length === 0 ? (
                 <p className="p-4 text-sm leading-relaxed text-gray-500">
-                  暫沒有對話；可從租盤內使用「聯絡業主」發出第一則查詢。
+                  {chatT.noConversations}
                 </p>
               ) : null}
               {userRole === 'tenant' && supportTicket ? (
@@ -321,14 +445,14 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
                       <div className="flex items-start justify-between gap-2">
                         <p className="truncate text-sm font-semibold text-gray-900">{THOUSE_SUPPORT_LABEL}</p>
                         <span className="shrink-0 text-[11px] text-gray-400">
-                          {supportTicket.lastMessageAt ? formatListTime(supportTicket.lastMessageAt) : ''}
+                          {supportTicket.lastMessageAt ? formatLocaleDateTime(supportTicket.lastMessageAt, locale) : ''}
                         </span>
                       </div>
-                      <p className="mt-0.5 truncate text-xs text-gray-600">平台客服</p>
+                      <p className="mt-0.5 truncate text-xs text-gray-600">{chatT.platformSupport}</p>
                       <p className="mt-1 line-clamp-2 text-xs text-gray-500">
                         {supportTicket.lastMessageBody
                           ? firstLine(supportTicket.lastMessageBody)
-                          : '如有租務或付款問題，歡迎留言'}
+                          : chatT.supportHint}
                       </p>
                     </div>
                     {supportTicket.hasUnreadFromStaff ? (
@@ -339,8 +463,9 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
                   </div>
                 </button>
               ) : null}
-              {threads.map((item) => {
+              {visibleThreads.map((item) => {
                 const isActive = item.conversation.id === activeId;
+                const isArchived = archivedIds.has(item.conversation.id);
                 return (
                   <button
                     type="button"
@@ -359,14 +484,21 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-2">
-                          <p className="truncate text-sm font-semibold text-gray-900">{item.peerLabel}</p>
+                          <p className="truncate text-sm font-semibold text-gray-900">
+                            {item.peerLabel}
+                            {isArchived ? (
+                              <span className="ml-1.5 text-[10px] font-normal text-gray-400">
+                                ({chatT.archivedBadge})
+                              </span>
+                            ) : null}
+                          </p>
                           <span className="shrink-0 text-[11px] text-gray-400">
-                            {item.lastMessageAt ? formatListTime(item.lastMessageAt) : ''}
+                            {item.lastMessageAt ? formatLocaleDateTime(item.lastMessageAt, locale) : ''}
                           </span>
                         </div>
-                        <p className="mt-0.5 truncate text-xs text-gray-600">{item.propertyTitle}</p>
+                        <p className="mt-0.5 truncate text-xs text-gray-600">{localizePropertyTitle(item.propertyTitle)}</p>
                         <p className="mt-1 line-clamp-2 text-xs text-gray-500">
-                          {item.lastMessageBody ? firstLine(item.lastMessageBody) : '暫沒有訊息'}
+                          {item.lastMessageBody ? firstLine(item.lastMessageBody) : chatT.noMessages}
                         </p>
                       </div>
                       <div className="flex shrink-0 flex-col items-end gap-1">
@@ -399,7 +531,7 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
           >
             {!activeThread && !isSupportActive ? (
               <div className="hidden flex-1 items-center justify-center text-sm text-gray-400 md:flex">
-                請在左側選擇一個對話
+                {chatT.selectConversation}
               </div>
             ) : isSupportActive ? (
               <>
@@ -410,7 +542,7 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
                         type="button"
                         onClick={() => setActiveId(null)}
                         className="shrink-0 rounded-full p-1.5 text-gray-600 hover:bg-gray-100 md:hidden"
-                        aria-label="返回列表"
+                        aria-label={chatT.backToList}
                       >
                         <ChevronLeft className="h-5 w-5" />
                       </button>
@@ -419,7 +551,7 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
                       </div>
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold">{THOUSE_SUPPORT_LABEL}</p>
-                        <p className="truncate text-xs text-gray-500">平台客服 · 租務與付款查詢</p>
+                        <p className="truncate text-xs text-gray-500">{chatT.supportSubtitle}</p>
                       </div>
                     </div>
                   </div>
@@ -429,9 +561,9 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
                   dir="ltr"
                   className="min-h-0 w-full min-w-0 flex-1 space-y-3 overflow-y-auto overflow-x-hidden bg-stone-50/90 px-3 py-4 text-left md:px-6"
                 >
-                  {msgLoading ? <p className="text-xs text-gray-500">載入訊息…</p> : null}
+                  {msgLoading ? <p className="text-xs text-gray-500">{chatT.loadingMessages}</p> : null}
                   {!msgLoading && supportMessages.length === 0 ? (
-                    <p className="text-center text-xs text-gray-500">歡迎聯絡 Thouse 客服，我們會盡快回覆。</p>
+                    <p className="text-center text-xs text-gray-500">{chatT.supportWelcome}</p>
                   ) : null}
                   {supportMessages.map((msg, index) => {
                     const isMe = !msg.is_staff;
@@ -471,7 +603,7 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
                       value={draft}
                       onChange={setDraft}
                       onSend={send}
-                      placeholder="輸入訊息"
+                      placeholder={chatT.messagePlaceholder}
                       userId={userId}
                     />
                   ) : null}
@@ -486,7 +618,7 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
                         type="button"
                         onClick={() => setActiveId(null)}
                         className="shrink-0 rounded-full p-1.5 text-gray-600 hover:bg-gray-100 md:hidden"
-                        aria-label="返回列表"
+                        aria-label={chatT.backToList}
                       >
                         <ChevronLeft className="h-5 w-5" />
                       </button>
@@ -503,12 +635,15 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
                               className="inline-flex shrink-0 items-center gap-0.5"
                               title={
                                 peerStarSummary.reviewCount > 0
-                                  ? `平均 ${peerStarSummary.avgStars.toFixed(1)} 星 · ${peerStarSummary.reviewCount} 則評價`
-                                  : '未有交易評分'
+                                  ? chatT.format('ratingSummary', {
+                                      avg: peerStarSummary.avgStars.toFixed(1),
+                                      count: peerStarSummary.reviewCount,
+                                    })
+                                  : chatT.noTransactionRating
                               }
                             >
                               {peerRatingLoading ? (
-                                <span className="text-[11px] text-gray-400">評分載入中…</span>
+                                <span className="text-[11px] text-gray-400">{chatT.ratingLoading}</span>
                               ) : (
                                 <>
                                   {[1, 2, 3, 4, 5].map((n) => {
@@ -523,7 +658,7 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
                                     );
                                   })}
                                   {peerStarSummary.reviewCount === 0 ? (
-                                    <span className="pl-0.5 text-[11px] text-gray-500">(未有評分)</span>
+                                    <span className="pl-0.5 text-[11px] text-gray-500">{chatT.noRating}</span>
                                   ) : (
                                     <span className="pl-0.5 text-[11px] text-gray-600 tabular-nums">
                                       {peerStarSummary.avgStars.toFixed(1)}
@@ -539,13 +674,26 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
                         </p>
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      className="shrink-0 rounded-full p-2 text-gray-500 hover:bg-gray-100"
-                      aria-label="更多"
-                    >
-                      <MoreVertical className="h-4 w-4" />
-                    </button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          type="button"
+                          className="shrink-0 rounded-full p-2 text-gray-500 hover:bg-gray-100"
+                          aria-label={chatT.more}
+                          disabled={inboxActionLoading}
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-52">
+                        <DropdownMenuItem
+                          onClick={() => void handleArchiveActive(!activeIsArchived)}
+                          disabled={inboxActionLoading}
+                        >
+                          {activeIsArchived ? chatT.unarchiveConversation : chatT.archiveConversation}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
 
                   {/* 物業橫幅：靠上、參考 Carousell 商品條 */}
@@ -553,16 +701,16 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
                     <div className="flex items-stretch gap-3 rounded-xl border border-gray-200 bg-gray-50/90 p-2.5">
                       <ImageWithFallback
                         src={activeThread.propertyImage || defaultPropertyImage}
-                        alt={activeThread.propertyTitle}
+                        alt={localizePropertyTitle(activeThread.propertyTitle)}
                         className="h-20 w-[88px] shrink-0 rounded-lg object-cover"
                       />
                       <div className="min-w-0 flex flex-1 flex-col justify-center gap-0.5 py-0.5">
                         <p className="line-clamp-2 text-sm font-medium leading-snug text-gray-900">
-                          {activeThread.propertyTitle}
+                          {localizePropertyTitle(activeThread.propertyTitle)}
                         </p>
                         <p className="text-base font-bold text-gray-900">
                           ${activeThread.propertyPrice.toLocaleString()}
-                          <span className="text-sm font-normal text-gray-500">/月</span>
+                          <span className="text-sm font-normal text-gray-500">{commonT.perMonth}</span>
                         </p>
                       </div>
                     </div>
@@ -573,7 +721,7 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
                   dir="ltr"
                   className="min-h-0 w-full min-w-0 flex-1 space-y-3 overflow-y-auto overflow-x-hidden bg-stone-50/90 px-3 py-4 text-left md:px-6"
                 >
-                  {msgLoading ? <p className="text-xs text-gray-500">載入訊息…</p> : null}
+                  {msgLoading ? <p className="text-xs text-gray-500">{chatT.loadingMessages}</p> : null}
                   {messages.map((msg, index) => {
                     const isMe = isSameUserId(msg.sender_id, userId);
                     const prev = index > 0 ? messages[index - 1] : null;
@@ -613,7 +761,7 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
                       value={draft}
                       onChange={setDraft}
                       onSend={send}
-                      placeholder="輸入訊息"
+                      placeholder={chatT.messagePlaceholder}
                       userId={userId}
                     />
                   ) : null}
@@ -623,6 +771,25 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
           </section>
         </div>
       </div>
+
+      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{chatT.chatSettingsTitle}</DialogTitle>
+            <DialogDescription>{chatT.showArchivedHint}</DialogDescription>
+          </DialogHeader>
+          <div className="flex items-start gap-3 py-2">
+            <Checkbox
+              id="chat-show-archived"
+              checked={chatSettings.showArchived}
+              onCheckedChange={(v) => saveChatSettings({ ...chatSettings, showArchived: v === true })}
+            />
+            <Label htmlFor="chat-show-archived" className="cursor-pointer text-sm leading-relaxed">
+              {chatT.showArchived}
+            </Label>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

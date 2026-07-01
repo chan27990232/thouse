@@ -1,9 +1,9 @@
+drop function if exists public.get_public_landlord_profile(uuid);
+
 create or replace function public.get_public_landlord_profile(profile_id uuid)
 returns table (
   full_name text,
   salutation text,
-  phone text,
-  email text,
   response_time text,
   is_verified boolean
 )
@@ -14,8 +14,6 @@ as $$
   select
     p.full_name,
     p.salutation,
-    p.phone,
-    p.email,
     p.response_time,
     p.is_verified
   from public.profiles p

@@ -1,10 +1,12 @@
 import React from 'react';
+import { useLocale } from '../context/LocaleContext';
 
 interface Props {
   onClose: () => void;
 }
 
 export const Notifications: React.FC<Props> = ({ onClose }) => {
+  const { localizePropertyTitle } = useLocale();
   const payments = [
     {
       id: '1',
@@ -46,7 +48,7 @@ export const Notifications: React.FC<Props> = ({ onClose }) => {
             >
               <div>
                 <div className="font-semibold text-xs">{p.title}</div>
-                <div className="text-[11px] text-gray-500">{p.propertyTitle}</div>
+                <div className="text-[11px] text-gray-500">{localizePropertyTitle(p.propertyTitle)}</div>
                 <div className="text-[11px] text-gray-500 mt-1">
                   日期：{p.date}
                 </div>

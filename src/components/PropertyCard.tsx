@@ -11,7 +11,8 @@ interface PropertyCardProps {
 }
 
 export function PropertyCard({ property, onToggleFavorite, onClick }: PropertyCardProps) {
-  const { commonT } = useLocale();
+  const { commonT, localizePropertyTitle } = useLocale();
+  const displayTitle = localizePropertyTitle(property.title);
   const imageClickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleImageClick = () => {
@@ -39,11 +40,11 @@ export function PropertyCard({ property, onToggleFavorite, onClick }: PropertyCa
           onClick={handleImageClick}
           onDoubleClick={handleImageDoubleClick}
           className="block w-full cursor-pointer"
-          aria-label={commonT.format('viewProperty', { title: property.title })}
+          aria-label={commonT.format('viewProperty', { title: displayTitle })}
         >
           <ImageWithFallback
             src={property.image}
-            alt={property.title}
+            alt={displayTitle}
             className="aspect-[4/3] w-full object-cover"
           />
         </button>
@@ -61,7 +62,7 @@ export function PropertyCard({ property, onToggleFavorite, onClick }: PropertyCa
       </div>
 
       <div className="flex flex-1 flex-col p-3">
-        <h3 className="mb-2 line-clamp-2 min-h-12">{property.title}</h3>
+        <h3 className="mb-2 line-clamp-2 min-h-12">{displayTitle}</h3>
 
         <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-600">
           <div className="flex items-center gap-1">

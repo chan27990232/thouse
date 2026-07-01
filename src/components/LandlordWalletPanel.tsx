@@ -5,18 +5,19 @@ import {
   fetchLandlordWalletBalance,
   fetchLandlordWalletLedger,
   fetchLandlordWithdrawalRequests,
-  ledgerEntryLabel,
   submitLandlordWithdrawal,
-  withdrawalStatusLabel,
   type WalletLedgerEntry,
   type WithdrawalRequest,
 } from '../lib/landlordWallet';
+import { useLocale } from '../context/LocaleContext';
+import { LOCALE_DATE_LOCALE } from '../lib/locale';
 
 function formatHkd(n: number) {
   return `HK$${n.toLocaleString('zh-HK', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 }
 
 export function LandlordWalletPanel() {
+  const { locale, landlordWalletT: t } = useLocale();
   const [balance, setBalance] = useState(0);
   const [ledger, setLedger] = useState<WalletLedgerEntry[]>([]);
   const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>([]);
@@ -50,14 +51,19 @@ export function LandlordWalletPanel() {
     void load();
   }, [load]);
 
+  const ledgerLabel = (entry: WalletLedgerEntry) => {
+    if (entry.description.trim()) return entry.description;
+    return t.ledgerSourceLabel(entry.sourceType, entry.amount);
+  };
+
   async function handleSubmitWithdrawal() {
     const parsed = Number(amount);
     if (!Number.isFinite(parsed) || parsed <= 0) {
-      setErr('請輸入有效提現金額');
+      setErr(t.errInvalidAmount);
       return;
     }
     if (parsed > balance) {
-      setErr('提現金額不可超過可用餘額');
+      setErr(t.errExceedsBalance);
       return;
     }
     setSubmitting(true);
@@ -72,11 +78,11 @@ export function LandlordWalletPanel() {
         accountNumber,
         fpsId,
       });
-      setOkMsg('提現申請已提交，平台審核後會轉帳至你指定的帳戶。');
+      setOkMsg(t.okWithdrawalSubmitted);
       setAmount('');
       await load();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : '提交失敗');
+      setErr(e instanceof Error ? e.message : t.errSubmitFailed);
     } finally {
       setSubmitting(false);
     }
@@ -86,7 +92,7 @@ export function LandlordWalletPanel() {
     return (
       <div className="flex items-center justify-center py-16 text-gray-500">
         <Loader2 className="mr-2 h-5 w-5 animate-spin" aria-hidden />
-        載入錢包…
+        {t.loadingWallet}
       </div>
     );
   }
@@ -96,7 +102,7 @@ export function LandlordWalletPanel() {
       <section className="rounded-xl bg-gradient-to-r from-gray-900 to-gray-700 p-5 text-white shadow-sm">
         <div className="flex items-center gap-2 text-sm text-gray-300">
           <Wallet className="h-4 w-4" aria-hidden />
-          可用餘額
+          {t.availableBalance}
         </div>
         <p className="mt-2 text-3xl font-semibold tracking-tight">{formatHkd(balance)}</p>
       </section>
@@ -115,12 +121,12 @@ export function LandlordWalletPanel() {
       <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
         <h2 className="flex items-center gap-2 text-base font-semibold text-gray-900">
           <ArrowDownToLine className="h-4 w-4" aria-hidden />
-          申請提現
+          {t.requestWithdrawal}
         </h2>
         <div className="mt-4 space-y-3">
           <div>
             <label htmlFor="withdraw-amount" className="block text-xs text-gray-500">
-              金額（HK$）
+              {t.amountHkd}
             </label>
             <input
               id="withdraw-amount"
@@ -130,11 +136,11 @@ export function LandlordWalletPanel() {
               className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              placeholder={`最多 ${balance.toLocaleString()}`}
+              placeholder={t.format('maxPlaceholder', { max: balance.toLocaleString() })}
             />
           </div>
           <div>
-            <span className="block text-xs text-gray-500">收款方式</span>
+            <span className="block text-xs text-gray-500">{t.payoutMethod}</span>
             <div className="mt-2 flex flex-wrap gap-2">
               <button
                 type="button"
@@ -145,7 +151,7 @@ export function LandlordWalletPanel() {
                 }`}
                 onClick={() => setPayoutMethod('bank_transfer')}
               >
-                銀行轉帳
+                {t.bankTransfer}
               </button>
               <button
                 type="button"
@@ -154,7 +160,7 @@ export function LandlordWalletPanel() {
                 }`}
                 onClick={() => setPayoutMethod('fps')}
               >
-                轉數快 FPS
+                {t.fps}
               </button>
             </div>
           </div>
@@ -162,7 +168,7 @@ export function LandlordWalletPanel() {
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="sm:col-span-2">
                 <label htmlFor="bank-name" className="block text-xs text-gray-500">
-                  銀行名稱
+                  {t.bankName}
                 </label>
                 <input
                   id="bank-name"
@@ -173,7 +179,7 @@ export function LandlordWalletPanel() {
               </div>
               <div>
                 <label htmlFor="account-holder" className="block text-xs text-gray-500">
-                  戶口持有人
+                  {t.accountHolder}
                 </label>
                 <input
                   id="account-holder"
@@ -184,7 +190,7 @@ export function LandlordWalletPanel() {
               </div>
               <div>
                 <label htmlFor="account-number" className="block text-xs text-gray-500">
-                  戶口號碼
+                  {t.accountNumber}
                 </label>
                 <input
                   id="account-number"
@@ -197,7 +203,7 @@ export function LandlordWalletPanel() {
           ) : (
             <div>
               <label htmlFor="fps-id" className="block text-xs text-gray-500">
-                轉數快識別碼（電話／電郵／FPS ID）
+                {t.fpsIdLabel}
               </label>
               <input
                 id="fps-id"
@@ -216,10 +222,10 @@ export function LandlordWalletPanel() {
             {submitting ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-                提交中…
+                {t.submitting}
               </>
             ) : (
-              '提交提現申請'
+              t.submitWithdrawal
             )}
           </Button>
         </div>
@@ -228,18 +234,18 @@ export function LandlordWalletPanel() {
       <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
         <h2 className="flex items-center gap-2 text-base font-semibold text-gray-900">
           <History className="h-4 w-4" aria-hidden />
-          入帳與提現紀錄
+          {t.ledgerTitle}
         </h2>
         {ledger.length === 0 && withdrawals.length === 0 ? (
-          <p className="mt-3 text-sm text-gray-500">尚無紀錄。待平台轉交租金後會顯示入帳明細。</p>
+          <p className="mt-3 text-sm text-gray-500">{t.ledgerEmpty}</p>
         ) : (
           <ul className="mt-3 divide-y divide-gray-100">
             {ledger.map((entry) => (
               <li key={entry.id} className="flex items-start justify-between gap-3 py-3 text-sm">
                 <div className="min-w-0">
-                  <p className="font-medium text-gray-900">{ledgerEntryLabel(entry)}</p>
+                  <p className="font-medium text-gray-900">{ledgerLabel(entry)}</p>
                   <p className="text-xs text-gray-500">
-                    {new Date(entry.createdAt).toLocaleString('zh-HK')}
+                    {new Date(entry.createdAt).toLocaleString(LOCALE_DATE_LOCALE[locale])}
                   </p>
                 </div>
                 <span className={`shrink-0 font-medium ${entry.amount >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
@@ -254,21 +260,21 @@ export function LandlordWalletPanel() {
 
       {withdrawals.length > 0 ? (
         <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-          <h2 className="text-base font-semibold text-gray-900">提現申請</h2>
+          <h2 className="text-base font-semibold text-gray-900">{t.withdrawalsTitle}</h2>
           <ul className="mt-3 space-y-3">
             {withdrawals.map((w) => (
               <li key={w.id} className="rounded-lg border border-gray-100 bg-gray-50 p-3 text-sm">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="font-medium">{formatHkd(w.amount)}</span>
                   <span className="rounded-full bg-white px-2 py-0.5 text-xs ring-1 ring-gray-200">
-                    {withdrawalStatusLabel(w.status)}
+                    {t.withdrawalStatusLabel(w.status)}
                   </span>
                 </div>
                 <p className="mt-1 text-xs text-gray-500">
-                  {new Date(w.createdAt).toLocaleString('zh-HK')}
+                  {new Date(w.createdAt).toLocaleString(LOCALE_DATE_LOCALE[locale])}
                   {w.payoutMethod === 'fps' ? ` · FPS：${w.fpsId}` : ` · ${w.bankName} ${w.accountNumber}`}
                 </p>
-                {w.adminNotes ? <p className="mt-1 text-xs text-gray-600">備註：{w.adminNotes}</p> : null}
+                {w.adminNotes ? <p className="mt-1 text-xs text-gray-600">{t.adminNotes}{w.adminNotes}</p> : null}
               </li>
             ))}
           </ul>

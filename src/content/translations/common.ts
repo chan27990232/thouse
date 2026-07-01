@@ -20,6 +20,9 @@ const commonZhTW = {
   companyLegalName: '簡屋有限公司',
   copyright: '©{year} 簡屋有限公司 版權所有 不得轉載',
   logoAlt: 'Thouse 簡屋',
+  instagramAria: 'Instagram',
+  languageAria: '語言',
+  loading: '載入中…',
 } as const;
 
 export type CommonMessages = typeof commonZhTW;
@@ -43,6 +46,9 @@ const commonZhCN: CommonMessages = {
   companyLegalName: '简屋有限公司',
   copyright: '©{year} 简屋有限公司 版权所有 不得转载',
   logoAlt: 'Thouse 简屋',
+  instagramAria: 'Instagram',
+  languageAria: '语言',
+  loading: '加载中…',
 };
 
 const commonEn: CommonMessages = {
@@ -61,9 +67,12 @@ const commonEn: CommonMessages = {
   buildingAge10_20: '10–20 yrs',
   buildingAge20Plus: '20+ yrs',
   footerNavAria: 'Footer navigation',
-  companyLegalName: 'Thouse Limited',
-  copyright: '©{year} Thouse Limited. All rights reserved.',
+  companyLegalName: 'T-House Limited',
+  copyright: '©{year} T-House Limited. All rights reserved.',
   logoAlt: 'Thouse',
+  instagramAria: 'Instagram',
+  languageAria: 'Language',
+  loading: 'Loading…',
 };
 
 export const commonMessages: Record<AppLocale, CommonMessages> = {

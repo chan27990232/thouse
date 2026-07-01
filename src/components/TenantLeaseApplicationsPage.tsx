@@ -13,6 +13,8 @@ import {
 } from '../lib/leaseApplications';
 import { getPaymentMethodLabel, type PaymentMethodCode } from '../lib/leaseFirstPayment';
 
+import { useLocale } from '../context/LocaleContext';
+
 interface TenantLeaseApplicationsPageProps {
   onBack: () => void;
 }
@@ -105,6 +107,7 @@ function StepIndicator({
 }
 
 export function TenantLeaseApplicationsPage({ onBack }: TenantLeaseApplicationsPageProps) {
+  const { localizePropertyTitle } = useLocale();
   const [rows, setRows] = useState<TenantLeaseApplicationSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -169,12 +172,12 @@ export function TenantLeaseApplicationsPage({ onBack }: TenantLeaseApplicationsP
                 <div className="flex gap-3 border-b p-4">
                   <ImageWithFallback
                     src={row.propertyImage || defaultPropertyImage}
-                    alt={row.propertyTitle}
+                    alt={localizePropertyTitle(row.propertyTitle)}
                     className="h-20 w-20 shrink-0 rounded-lg object-cover"
                   />
                   <div className="min-w-0 flex-1 space-y-2">
                     <div className="flex items-start justify-between gap-2">
-                      <h2 className="text-sm font-semibold leading-snug">{row.propertyTitle}</h2>
+                      <h2 className="text-sm font-semibold leading-snug">{localizePropertyTitle(row.propertyTitle)}</h2>
                       {getStatusBadge(row)}
                     </div>
                     <p className="text-base font-semibold">

@@ -4,6 +4,7 @@ import { Input } from '../ui/input';
 import { uploadChatAttachment, validateChatAttachmentFile } from '../../lib/chatAttachments';
 import type { ParsedChatAttachment } from '../../lib/chatMessageBody';
 import { cn } from '../ui/utils';
+import { useLocale } from '../../context/LocaleContext';
 
 type ChatComposerProps = {
   value: string;
@@ -14,26 +15,16 @@ type ChatComposerProps = {
   disabled?: boolean;
 };
 
-const ATTACH_MENU_ITEMS = [
-  {
-    id: 'document',
-    label: '文件',
-    icon: FileText,
-    iconClass: 'bg-[#7f66ff]',
-  },
-  {
-    id: 'media',
-    label: '相片和影片',
-    icon: ImageIcon,
-    iconClass: 'bg-[#007bfc]',
-  },
-  {
-    id: 'camera',
-    label: '相機',
-    icon: Camera,
-    iconClass: 'bg-[#ff2e74]',
-  },
-] as const;
+const ATTACH_MENU_ITEM_IDS = ['document', 'media', 'camera'] as const;
+
+const ATTACH_MENU_META: Record<
+  (typeof ATTACH_MENU_ITEM_IDS)[number],
+  { icon: typeof FileText; iconClass: string; labelKey: 'attachFile' | 'attachPhotoVideo' | 'attachCamera' }
+> = {
+  document: { icon: FileText, iconClass: 'bg-[#7f66ff]', labelKey: 'attachFile' },
+  media: { icon: ImageIcon, iconClass: 'bg-[#007bfc]', labelKey: 'attachPhotoVideo' },
+  camera: { icon: Camera, iconClass: 'bg-[#ff2e74]', labelKey: 'attachCamera' },
+};
 
 export function ChatComposer({
   value,
@@ -43,6 +34,7 @@ export function ChatComposer({
   userId,
   disabled,
 }: ChatComposerProps) {
+  const { chatT } = useLocale();
   const menuRef = useRef<HTMLDivElement>(null);
   const documentInputRef = useRef<HTMLInputElement>(null);
   const mediaInputRef = useRef<HTMLInputElement>(null);
@@ -104,7 +96,7 @@ export function ChatComposer({
       onChange('');
       clearPending();
     } catch (e) {
-      setError(e instanceof Error ? e.message : '無法送出訊息');
+      setError(e instanceof Error ? e.message : chatT.sendFailed);
     } finally {
       setUploading(false);
     }
@@ -134,7 +126,7 @@ export function ChatComposer({
             type="button"
             onClick={clearPending}
             className="rounded-full p-1 text-stone-500 hover:bg-stone-200/80"
-            aria-label="移除附件"
+            aria-label={chatT.removeAttachment}
           >
             <X className="h-4 w-4" />
           </button>
@@ -150,17 +142,18 @@ export function ChatComposer({
               className="absolute bottom-full left-0 z-30 mb-2 w-[min(100vw-2rem,15rem)] overflow-hidden rounded-2xl border border-stone-200/80 bg-white py-1.5 shadow-[0_8px_28px_rgba(0,0,0,0.12)]"
               role="menu"
             >
-              {ATTACH_MENU_ITEMS.map((item) => {
+              {ATTACH_MENU_ITEM_IDS.map((id) => {
+                const item = ATTACH_MENU_META[id];
                 const Icon = item.icon;
                 return (
                   <button
-                    key={item.id}
+                    key={id}
                     type="button"
                     role="menuitem"
                     disabled={uploading || disabled}
                     onClick={() => {
-                      if (item.id === 'document') documentInputRef.current?.click();
-                      else if (item.id === 'media') mediaInputRef.current?.click();
+                      if (id === 'document') documentInputRef.current?.click();
+                      else if (id === 'media') mediaInputRef.current?.click();
                       else cameraInputRef.current?.click();
                     }}
                     className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-[15px] text-stone-800 transition-colors hover:bg-stone-50 disabled:opacity-50"
@@ -173,7 +166,7 @@ export function ChatComposer({
                     >
                       <Icon className="h-5 w-5" strokeWidth={1.75} />
                     </span>
-                    <span className="font-normal">{item.label}</span>
+                    <span className="font-normal">{chatT[item.labelKey]}</span>
                   </button>
                 );
               })}
@@ -212,7 +205,7 @@ export function ChatComposer({
               'flex h-10 w-10 items-center justify-center rounded-full border border-stone-200 bg-white text-stone-600 shadow-sm transition hover:bg-stone-50 disabled:opacity-50',
               menuOpen && 'rotate-45 bg-stone-100'
             )}
-            aria-label={menuOpen ? '關閉附件選單' : '加入附件'}
+            aria-label={menuOpen ? chatT.closeAttachMenu : chatT.addAttachment}
             aria-expanded={menuOpen}
             aria-haspopup="menu"
           >
@@ -239,7 +232,7 @@ export function ChatComposer({
           onClick={() => void submit()}
           disabled={uploading || disabled || (!value.trim() && !pendingFile)}
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black text-white transition hover:bg-gray-800 disabled:opacity-50"
-          aria-label="送出"
+          aria-label={chatT.send}
         >
           <Send className="h-4 w-4 shrink-0" strokeWidth={2} />
         </button>

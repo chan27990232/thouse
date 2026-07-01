@@ -13,6 +13,7 @@ import {
 import { supabase } from '../lib/supabase';
 import { uploadBankTransferReceipt } from '../lib/leasePaymentReceiptUpload';
 import type { LeasePaymentSubmitMethod } from '../lib/leaseFirstPayment';
+import { useLocale } from '../context/LocaleContext';
 import { UTILITY_BILL_TYPE_OPTIONS, type UtilityBillType } from '../lib/propertyUtilityBills';
 import {
   formatUtilityBillMonthLabel,
@@ -45,6 +46,7 @@ export function UtilityPaymentDialog({
   payments,
   onSuccess,
 }: UtilityPaymentDialogProps) {
+  const { localizePropertyTitle } = useLocale();
   const [billType, setBillType] = useState<UtilityBillType>('water');
   const [paymentMethod, setPaymentMethod] = useState<'fps' | 'bank'>('fps');
   const [processing, setProcessing] = useState(false);
@@ -72,7 +74,7 @@ export function UtilityPaymentDialog({
 
   const activePayment = byType.get(billType) ?? null;
   const billMonthLabel = payments[0] ? formatUtilityBillMonthLabel(payments[0].billMonth) : '—';
-  const propertyTitle = payments[0]?.propertyTitle ?? '—';
+  const propertyTitle = localizePropertyTitle(payments[0]?.propertyTitle ?? '—');
 
   useEffect(() => {
     if (!open) return;

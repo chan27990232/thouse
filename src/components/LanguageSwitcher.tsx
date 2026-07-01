@@ -1,6 +1,14 @@
-import { LOCALE_LABELS, type AppLocale } from '../lib/locale';
+import { Languages } from 'lucide-react';
+import { LOCALE_LABELS, LOCALE_MENU_LABELS, type AppLocale } from '../lib/locale';
 import { useLocale } from '../context/LocaleContext';
 import { cn } from './ui/utils';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from './ui/dropdown-menu';
 
 const LOCALES: AppLocale[] = ['zh-TW', 'zh-CN', 'en'];
 
@@ -10,43 +18,35 @@ type LanguageSwitcherProps = {
 };
 
 export function LanguageSwitcher({ variant = 'hero', className }: LanguageSwitcherProps) {
-  const { locale, setLocale } = useLocale();
+  const { locale, setLocale, commonT } = useLocale();
 
   return (
-    <div
-      role="group"
-      aria-label="Language"
-      className={cn(
-        'inline-flex shrink-0 items-center rounded-full p-0.5 text-[10px] leading-none sm:text-[11px]',
-        variant === 'hero'
-          ? 'border border-white/80 bg-white shadow-sm'
-          : 'border border-gray-200 bg-gray-100',
-        className
-      )}
-    >
-      {LOCALES.map((loc) => {
-        const active = locale === loc;
-        return (
-          <button
-            key={loc}
-            type="button"
-            onClick={() => setLocale(loc)}
-            aria-pressed={active}
-            className={cn(
-              'rounded-full px-1.5 py-1 transition-colors sm:px-2 sm:py-1.5',
-              active
-                ? variant === 'hero'
-                  ? 'bg-gray-900 font-medium text-white'
-                  : 'bg-gray-900 font-medium text-white'
-                : variant === 'hero'
-                  ? 'text-gray-600 hover:bg-gray-50'
-                  : 'text-gray-600 hover:bg-gray-200/80'
-            )}
-          >
-            {LOCALE_LABELS[loc]}
-          </button>
-        );
-      })}
-    </div>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label={commonT.languageAria}
+          className={cn(
+            'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-base leading-none transition-colors sm:h-10 sm:w-10',
+            variant === 'hero'
+              ? 'border border-white/80 bg-white text-gray-800 shadow-sm hover:bg-gray-50'
+              : 'border border-gray-200 bg-gray-100 text-gray-800 hover:bg-gray-200/80',
+            className,
+          )}
+        >
+          <Languages className="h-4 w-4 sm:h-5 sm:w-5" strokeWidth={1.75} aria-hidden />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-[9rem]">
+        <DropdownMenuRadioGroup value={locale} onValueChange={(v) => setLocale(v as AppLocale)}>
+          {LOCALES.map((loc) => (
+            <DropdownMenuRadioItem key={loc} value={loc} className="cursor-pointer">
+              <span className="font-medium">{LOCALE_MENU_LABELS[loc]}</span>
+              <span className="ml-auto text-xs text-gray-500">{LOCALE_LABELS[loc]}</span>
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

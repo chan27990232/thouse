@@ -91,10 +91,21 @@ Deno.serve(async (req) => {
       return json({ ok: false, message: '請輸入 email。' }, 400);
     }
 
-    if (action === 'send') {
-      const check = await validateSignupEmail(supabase, email);
-      if (!check.ok) {
-        return json({ ok: false, message: check.message }, 400);
+    if (action === 'send' || action === 'send_existing') {
+      if (action === 'send') {
+        const check = await validateSignupEmail(supabase, email);
+        if (!check.ok) {
+          return json({ ok: false, message: check.message }, 400);
+        }
+      } else {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('email', email)
+          .maybeSingle();
+        if (!profile?.id) {
+          return json({ ok: true, message: '若該電郵已註冊，驗證碼已寄出。' });
+        }
       }
 
       const { data: recent } = await supabase
@@ -168,6 +179,46 @@ Deno.serve(async (req) => {
       }
 
       return json({ ok: true, message: '註冊成功。' });
+    }
+
+    if (action === 'confirm') {
+      const code = String(body.code ?? '').trim();
+      if (!code) {
+        return json({ ok: false, message: '請輸入驗證碼。' }, 400);
+      }
+
+      const { data: verified, error: verifyError } = await supabase.rpc('verify_signup_verification_code', {
+        p_email: email,
+        p_code: code,
+      });
+      if (verifyError) {
+        return json({ ok: false, message: verifyError.message }, 500);
+      }
+      if (!verified) {
+        return json({ ok: false, message: '驗證碼不正確或已過期。' }, 400);
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('email', email)
+        .maybeSingle();
+
+      if (profileError) {
+        return json({ ok: false, message: profileError.message }, 500);
+      }
+      if (!profile?.id) {
+        return json({ ok: false, message: '找不到帳戶。' }, 404);
+      }
+
+      const { error: updateError } = await supabase.auth.admin.updateUserById(profile.id, {
+        email_confirm: true,
+      });
+      if (updateError) {
+        return json({ ok: false, message: updateError.message }, 400);
+      }
+
+      return json({ ok: true, message: '電郵已驗證。' });
     }
 
     return json({ ok: false, message: '不支援的操作。' }, 400);

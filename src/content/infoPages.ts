@@ -16,7 +16,7 @@ const infoPagesZhTW: Record<InfoPageId, InfoPageContent> = {
     title: '聯絡我們',
     paragraphs: [
       '如有查詢、合作或技術支援，請電郵至：',
-      'thouseltdinfo@gmail.com',
+      'abbie@thousehk.com',
       '服務時間：星期一至五 10:00–18:00（公眾假期除外）。',
     ],
   },
@@ -48,7 +48,7 @@ const infoPagesZhCN: Record<InfoPageId, InfoPageContent> = {
     title: '联系我们',
     paragraphs: [
       '如有查询、合作或技术支持，请电邮至：',
-      'thouseltdinfo@gmail.com',
+      'abbie@thousehk.com',
       '服务时间：星期一至五 10:00–18:00（公众假期除外）。',
     ],
   },
@@ -80,7 +80,7 @@ const infoPagesEn: Record<InfoPageId, InfoPageContent> = {
     title: 'Contact us',
     paragraphs: [
       'For enquiries, partnerships, or technical support, email:',
-      'thouseltdinfo@gmail.com',
+      'abbie@thousehk.com',
       'Hours: Mon–Fri 10:00–18:00 (except public holidays).',
     ],
   },

@@ -1,11 +1,13 @@
 import { FileText, Film, ImageIcon } from 'lucide-react';
 import { parseChatMessageBody } from '../lib/chatMessageBody';
+import { useLocale } from '../context/LocaleContext';
 
 interface NoticeMessageBodyProps {
   body: string;
 }
 
 export function NoticeMessageBody({ body }: NoticeMessageBodyProps) {
+  const { noticeT } = useLocale();
   const { attachment, text } = parseChatMessageBody(body);
   const trimmedText = text.trim();
 
@@ -38,7 +40,7 @@ export function NoticeMessageBody({ body }: NoticeMessageBodyProps) {
               <FileText className="h-3.5 w-3.5 shrink-0" strokeWidth={1.75} />
             )}
             <span className="min-w-0 truncate">
-              {attachment.kind === 'video' ? '查看影片' : attachment.name}
+              {attachment.kind === 'video' ? noticeT.viewVideo : attachment.name}
             </span>
           </a>
         )
@@ -50,9 +52,9 @@ export function NoticeMessageBody({ body }: NoticeMessageBodyProps) {
 
       {!attachment && !trimmedText ? (
         body.includes('[thouse-attachment]') ? (
-          <p className="text-xs text-gray-600">傳送了附件</p>
+          <p className="text-xs text-gray-600">{noticeT.sentAttachment}</p>
         ) : (
-          <p className="text-xs text-gray-500 italic">（空白訊息）</p>
+          <p className="text-xs text-gray-500 italic">{noticeT.emptyMessage}</p>
         )
       ) : null}
     </div>
@@ -61,6 +63,7 @@ export function NoticeMessageBody({ body }: NoticeMessageBodyProps) {
 
 /** 收件匣列表等僅需一行摘要時使用 */
 export function NoticeMessagePreviewLine({ body }: { body: string }) {
+  const { noticeT } = useLocale();
   const { attachment, text } = parseChatMessageBody(body);
   const line = text.trim().split('\n').find((l) => l.trim())?.trim();
 
@@ -68,13 +71,13 @@ export function NoticeMessagePreviewLine({ body }: { body: string }) {
     return <span className="break-words">{line.length > 100 ? `${line.slice(0, 100)}…` : line}</span>;
   }
 
-  if (!attachment) return <span className="text-gray-500">（空白訊息）</span>;
+  if (!attachment) return <span className="text-gray-500">{noticeT.emptyMessage}</span>;
 
   if (attachment.kind === 'image') {
     return (
       <span className="inline-flex items-center gap-1 text-gray-700">
         <ImageIcon className="h-3.5 w-3.5 shrink-0" strokeWidth={1.75} />
-        傳送了圖片
+        {noticeT.sentImage}
       </span>
     );
   }
@@ -82,14 +85,14 @@ export function NoticeMessagePreviewLine({ body }: { body: string }) {
     return (
       <span className="inline-flex items-center gap-1 text-gray-700">
         <Film className="h-3.5 w-3.5 shrink-0" strokeWidth={1.75} />
-        傳送了影片
+        {noticeT.sentVideo}
       </span>
     );
   }
   return (
     <span className="inline-flex max-w-full items-center gap-1 text-gray-700">
       <FileText className="h-3.5 w-3.5 shrink-0" strokeWidth={1.75} />
-      <span className="truncate">傳送了檔案：{attachment.name}</span>
+      <span className="truncate">{noticeT.format('sentFile', { name: attachment.name })}</span>
     </span>
   );
 }

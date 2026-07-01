@@ -69,6 +69,12 @@
             "add-admin": "node scripts/add-app-admin-by-email.mjs",
             "db:fix-landlord": "node scripts/apply-database.mjs fix_properties_landlord_by_email.sql",
             "db:fix-landlord-uuid": "node scripts/apply-database.mjs fix_properties_landlord_to_uuid.sql",
-            "db:hk-holidays": "node scripts/seed-hk-public-holidays.mjs"
+            "db:hk-holidays": "node scripts/seed-hk-public-holidays.mjs",
+            "db:lease-rejection-email": "node scripts/apply-database.mjs lease_rejection_email_notify.sql",
+            "configure:lease-notify": "node scripts/configure-lease-notify.mjs",
+            "deploy:edge-function": "node scripts/deploy-edge-function.mjs",
+            "deploy:notify-lease-rejection": "node scripts/deploy-edge-function.mjs notify-lease-rejection --sync-secrets",
+            "deploy:signup-verification": "node scripts/deploy-edge-function.mjs signup-verification --sync-secrets",
+            "deploy:request-password-reset": "node scripts/deploy-edge-function.mjs request-password-reset --sync-secrets"
       }
 }

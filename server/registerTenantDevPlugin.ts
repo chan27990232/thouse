@@ -2,6 +2,10 @@ import type { Plugin } from 'vite';
 import { loadEnv } from 'vite';
 import { handleRegisterTenant } from './registerTenantHandler';
 import { handleSignupAccount, handleResendSignupOtp } from './signupAccountHandler';
+import {
+  handleLeaseRejectionNotify,
+  leaseRejectionNotifyEnvFromProcess,
+} from './leaseRejectionNotifyHandler';
 
 function readJsonBody(req: import('http').IncomingMessage): Promise<unknown> {
   return new Promise((resolve, reject) => {
@@ -107,6 +111,39 @@ async function proxyToRegisterFunction(
   };
 }
 
+async function proxyToRequestPasswordReset(
+  env: Record<string, string>,
+  body: { identifier?: string; email?: string; redirectTo?: string },
+) {
+  const supabaseUrl = (env.VITE_SUPABASE_URL || env.SUPABASE_URL || '').trim();
+  const anonKey = (env.VITE_SUPABASE_ANON_KEY || env.SUPABASE_ANON_KEY || '').trim();
+  if (!supabaseUrl || !anonKey) return null;
+
+  const upstream = await fetch(`${supabaseUrl}/functions/v1/request-password-reset`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${anonKey}`,
+      apikey: anonKey,
+    },
+    body: JSON.stringify({
+      identifier: String(body.identifier ?? body.email ?? ''),
+      redirectTo: String(body.redirectTo ?? ''),
+    }),
+  });
+
+  const payload = (await upstream.json().catch(() => ({}))) as {
+    ok?: boolean;
+    message?: string;
+  };
+
+  return {
+    ok: Boolean(payload.ok),
+    message: payload.message,
+    status: upstream.status,
+  };
+}
+
 export function registerTenantDevApi(): Plugin {
   return {
     name: 'register-tenant-dev-api',
@@ -114,7 +151,9 @@ export function registerTenantDevApi(): Plugin {
       server.middlewares.use(async (req, res, next) => {
         const isRegisterTenant = req.url?.startsWith('/api/register-tenant');
         const isSignupAccount = req.url?.startsWith('/api/signup-account');
-        if (!isRegisterTenant && !isSignupAccount) {
+        const isRequestPasswordReset = req.url?.startsWith('/api/request-password-reset');
+        const isLeaseRejectionNotify = req.url?.startsWith('/api/notify-lease-rejection');
+        if (!isRegisterTenant && !isSignupAccount && !isRequestPasswordReset && !isLeaseRejectionNotify) {
           next();
           return;
         }
@@ -123,7 +162,10 @@ export function registerTenantDevApi(): Plugin {
           res.statusCode = 204;
           res.setHeader('Access-Control-Allow-Origin', '*');
           res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-          res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+          res.setHeader(
+            'Access-Control-Allow-Headers',
+            'Content-Type, Authorization, x-lease-notify-secret',
+          );
           res.end();
           return;
         }
@@ -140,11 +182,52 @@ export function registerTenantDevApi(): Plugin {
           const body = (await readJsonBody(req)) as {
             action?: string;
             email?: string;
+            identifier?: string;
+            redirectTo?: string;
             username?: string;
             password?: string;
             fullName?: string;
             role?: string;
+            application_id?: string;
+            previous_status?: string | null;
           };
+
+          if (isLeaseRejectionNotify) {
+            const result = await handleLeaseRejectionNotify(
+              {
+                applicationId: String(body.application_id ?? ''),
+                previousStatus: body.previous_status,
+                authorizationHeader: req.headers.authorization ?? null,
+                notifySecretHeader:
+                  (req.headers['x-lease-notify-secret'] as string | undefined) ?? null,
+              },
+              leaseRejectionNotifyEnvFromProcess(env),
+            );
+            res.statusCode = result.status ?? (result.ok ? 200 : 400);
+            res.setHeader('Content-Type', 'application/json');
+            res.end(
+              JSON.stringify({
+                ok: result.ok,
+                message: result.message,
+                skipped: result.skipped,
+              }),
+            );
+            return;
+          }
+
+          if (isRequestPasswordReset) {
+            const proxied = await proxyToRequestPasswordReset(env, body);
+            if (proxied) {
+              res.statusCode = proxied.ok ? 200 : (proxied.status ?? 400);
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify(proxied));
+              return;
+            }
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ ok: false, message: '重設密碼服務未設定。' }));
+            return;
+          }
 
           if (isSignupAccount) {
             const proxied = await proxyToSignupFunction(env, body);

@@ -8,6 +8,7 @@ import {
   LEASE_MGMT_MAX_TOTAL_BYTES,
   validateLeaseManagementFiles,
 } from '../lib/leaseManagementRequestFiles';
+import { useLocale } from '../context/LocaleContext';
 
 interface LeaseManagementFileUploadProps {
   id: string;
@@ -17,6 +18,7 @@ interface LeaseManagementFileUploadProps {
 }
 
 export function LeaseManagementFileUpload({ id, files, onChange, disabled }: LeaseManagementFileUploadProps) {
+  const { propertyManagementT: pmT } = useLocale();
   const inputRef = useRef<HTMLInputElement>(null);
   const totalBytes = files.reduce((s, f) => s + f.size, 0);
 
@@ -27,7 +29,7 @@ export function LeaseManagementFileUpload({ id, files, onChange, disabled }: Lea
       validateLeaseManagementFiles(merged);
       onChange(merged);
     } catch (e) {
-      alert(e instanceof Error ? e.message : '無法加入檔案');
+      alert(e instanceof Error ? e.message : pmT.mgmtAddFileError);
     }
     if (inputRef.current) inputRef.current.value = '';
   };
@@ -40,11 +42,15 @@ export function LeaseManagementFileUpload({ id, files, onChange, disabled }: Lea
     <div className="rounded-lg border border-dashed border-gray-300 bg-white/80 p-3">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <Label htmlFor={id} className="text-xs font-medium text-gray-700">
-          證明文件（選填）
+          {pmT.mgmtFilesLabel}
         </Label>
         <span className="text-[11px] text-gray-500">
-          {files.length}/{LEASE_MGMT_MAX_FILES} 個 · {formatFileSize(totalBytes)} /{' '}
-          {formatFileSize(LEASE_MGMT_MAX_TOTAL_BYTES)}
+          {pmT.format('mgmtFilesSummary', {
+            count: files.length,
+            max: LEASE_MGMT_MAX_FILES,
+            size: formatFileSize(totalBytes),
+            maxSize: formatFileSize(LEASE_MGMT_MAX_TOTAL_BYTES),
+          })}
         </span>
       </div>
       <input
@@ -65,7 +71,7 @@ export function LeaseManagementFileUpload({ id, files, onChange, disabled }: Lea
         onClick={() => inputRef.current?.click()}
       >
         <FileUp className="h-4 w-4" />
-        選擇檔案
+        {pmT.mgmtSelectFiles}
       </Button>
       {files.length > 0 ? (
         <ul className="mt-2 space-y-1.5">
@@ -82,7 +88,7 @@ export function LeaseManagementFileUpload({ id, files, onChange, disabled }: Lea
                 <button
                   type="button"
                   className="shrink-0 rounded p-0.5 text-gray-500 hover:bg-gray-200 hover:text-gray-800"
-                  aria-label={`移除 ${f.name}`}
+                  aria-label={pmT.format('mgmtRemoveFile', { name: f.name })}
                   onClick={() => removeAt(i)}
                 >
                   <X className="h-3.5 w-3.5" />
@@ -93,7 +99,7 @@ export function LeaseManagementFileUpload({ id, files, onChange, disabled }: Lea
         </ul>
       ) : (
         <p className="mt-2 text-[11px] leading-relaxed text-gray-500">
-          可上傳合約、對話紀錄、照片等，最多 {LEASE_MGMT_MAX_FILES} 個檔案，總計 10GB 以內。
+          {pmT.format('mgmtFilesHint', { max: LEASE_MGMT_MAX_FILES })}
         </p>
       )}
     </div>
