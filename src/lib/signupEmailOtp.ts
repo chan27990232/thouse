@@ -1,9 +1,30 @@
 import { supabase } from './supabase';
 import { validateSignupEmailWithDatabase } from './signupEmailValidation';
+import { withAuthTimeoutMs } from './signupEmailVerify';
 
 type FnResponse = { ok: boolean; message?: string };
 
-async function invokeSignupVerification(body: Record<string, unknown>): Promise<FnResponse> {
+const SIGNUP_VERIFY_API_TIMEOUT_MS = 30_000;
+
+async function invokeSignupVerificationApi(body: Record<string, unknown>): Promise<FnResponse> {
+  const res = await withAuthTimeoutMs(
+    fetch('/api/signup-verification', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }),
+    '驗證碼請求逾時，請稍後再試。',
+    SIGNUP_VERIFY_API_TIMEOUT_MS,
+  );
+
+  const payload = (await res.json().catch(() => ({}))) as FnResponse;
+  if (!res.ok || !payload.ok) {
+    throw new Error(payload.message || `驗證碼服務失敗（${res.status}）`);
+  }
+  return payload;
+}
+
+async function invokeSignupVerificationEdge(body: Record<string, unknown>): Promise<FnResponse> {
   const { data, error } = await supabase.functions.invoke('signup-verification', { body });
 
   if (error) {
@@ -20,6 +41,18 @@ async function invokeSignupVerification(body: Record<string, unknown>): Promise<
     throw new Error(payload.message || '操作失敗');
   }
   return payload;
+}
+
+async function invokeSignupVerification(body: Record<string, unknown>): Promise<FnResponse> {
+  if (import.meta.env.PROD) {
+    return invokeSignupVerificationApi(body);
+  }
+
+  try {
+    return await invokeSignupVerificationApi(body);
+  } catch {
+    return invokeSignupVerificationEdge(body);
+  }
 }
 
 export async function sendSignupVerificationOtp(

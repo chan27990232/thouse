@@ -6,6 +6,10 @@ import {
   handleLeaseRejectionNotify,
   leaseRejectionNotifyEnvFromProcess,
 } from './leaseRejectionNotifyHandler';
+import {
+  handleSignupVerification,
+  signupVerificationEnvFromProcess,
+} from './signupVerificationHandler';
 
 function readJsonBody(req: import('http').IncomingMessage): Promise<unknown> {
   return new Promise((resolve, reject) => {
@@ -153,7 +157,14 @@ export function registerTenantDevApi(): Plugin {
         const isSignupAccount = req.url?.startsWith('/api/signup-account');
         const isRequestPasswordReset = req.url?.startsWith('/api/request-password-reset');
         const isLeaseRejectionNotify = req.url?.startsWith('/api/notify-lease-rejection');
-        if (!isRegisterTenant && !isSignupAccount && !isRequestPasswordReset && !isLeaseRejectionNotify) {
+        const isSignupVerification = req.url?.startsWith('/api/signup-verification');
+        if (
+          !isRegisterTenant &&
+          !isSignupAccount &&
+          !isRequestPasswordReset &&
+          !isLeaseRejectionNotify &&
+          !isSignupVerification
+        ) {
           next();
           return;
         }
@@ -188,9 +199,27 @@ export function registerTenantDevApi(): Plugin {
             password?: string;
             fullName?: string;
             role?: string;
+            code?: string;
             application_id?: string;
             previous_status?: string | null;
           };
+
+          if (isSignupVerification) {
+            const result = await handleSignupVerification(
+              {
+                action: body.action,
+                email: body.email,
+                code: body.code,
+                password: body.password,
+                fullName: body.fullName,
+              },
+              signupVerificationEnvFromProcess(env),
+            );
+            res.statusCode = result.status ?? (result.ok ? 200 : 400);
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ ok: result.ok, message: result.message }));
+            return;
+          }
 
           if (isLeaseRejectionNotify) {
             const result = await handleLeaseRejectionNotify(
