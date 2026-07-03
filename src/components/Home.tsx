@@ -21,7 +21,7 @@ import { NoticeDialog } from './NoticeDialog';
 import { HK_DISTRICTS, getDistrictLabel, propertyMatchesDistrict } from '../lib/hkDistricts';
 import { loadHomepageProperties } from '../lib/properties';
 import { fetchUnreadInquiryCount } from '../lib/conversations';
-import { textMatchesQuery } from '../lib/searchText';
+import { textMatchesQuery, propertyMatchesSearchQuery } from '../lib/searchText';
 import { getMtrStationsForLine } from '../lib/hkMtr';
 import {
   clearHeroSearchHistory,
@@ -72,6 +72,7 @@ interface HomeProps {
   onChatClick: () => void;
   onProfileClick: () => void;
   onMyPropertiesClick: () => void;
+  onGoHome: () => void;
 }
 
 export function Home({
@@ -83,6 +84,7 @@ export function Home({
   onChatClick,
   onProfileClick,
   onMyPropertiesClick,
+  onGoHome,
 }: HomeProps) {
   const { locale, homeT, commonT, filtersT } = useLocale();
   const [searchQuery, setSearchQuery] = useState('');
@@ -99,7 +101,7 @@ export function Home({
   const [priceRange, setPriceRange] = useState([0, HERO_PRICE_MAX]);
   const [areaRange, setAreaRange] = useState<[number, number]>([0, HERO_AREA_SQFT_MAX]);
   const [floorLevels, setFloorLevels] = useState<FloorLevel[]>([]);
-  const [hasToilet, setHasToilet] = useState(false);
+  const [roomFeatures, setRoomFeatures] = useState<string[]>([]);
   const [buildingAges, setBuildingAges] = useState<BuildingAge[]>([]);
   const [amenities, setAmenities] = useState<string[]>([]);
   const [roomFilter, setRoomFilter] = useState<string>('');
@@ -124,7 +126,7 @@ export function Home({
       areaRange: [areaRange[0], areaRange[1]] as [number, number],
       floorLevels,
       buildingAges,
-      hasToilet,
+      roomFeatures,
       amenities,
       roomFilter,
       heroUnitType,
@@ -140,7 +142,7 @@ export function Home({
     areaRange,
     floorLevels,
     buildingAges,
-    hasToilet,
+    roomFeatures,
     amenities,
     roomFilter,
     heroUnitType,
@@ -157,7 +159,13 @@ export function Home({
     setAreaRange([snapshot.areaRange[0], snapshot.areaRange[1]]);
     setFloorLevels(snapshot.floorLevels);
     setBuildingAges(snapshot.buildingAges);
-    setHasToilet(snapshot.hasToilet);
+    setRoomFeatures(
+      snapshot.roomFeatures?.length
+        ? snapshot.roomFeatures
+        : snapshot.hasToilet
+          ? ['獨立洗手間']
+          : []
+    );
     setAmenities(snapshot.amenities);
     setRoomFilter(snapshot.roomFilter);
     setHeroUnitType(snapshot.heroUnitType);
@@ -192,17 +200,18 @@ export function Home({
     };
   }, [isAuthenticated]);
 
+  const refreshHomepage = useCallback(async () => {
+    const [list, unread] = await Promise.all([
+      loadHomepageProperties(),
+      isAuthenticated ? fetchUnreadInquiryCount() : Promise.resolve(0),
+    ]);
+    setProperties(list);
+    if (isAuthenticated) setUnreadCount(unread);
+  }, [isAuthenticated]);
+
   useEffect(() => {
-    let isMounted = true;
-    const fetchProperties = async () => {
-      const list = await loadHomepageProperties();
-      if (isMounted) setProperties(list);
-    };
-    void fetchProperties();
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+    void refreshHomepage();
+  }, [refreshHomepage]);
 
   const toggleFavorite = (id: string) => {
     setProperties((prev) => prev.map((p) => (p.id === id ? { ...p, isFavorite: !p.isFavorite } : p)));
@@ -217,7 +226,7 @@ export function Home({
       areaRange,
       floorLevels,
       buildingAges,
-      hasPrivateToilet: hasToilet,
+      roomFeatures,
       amenities,
     }),
     [
@@ -228,7 +237,7 @@ export function Home({
       areaRange,
       floorLevels,
       buildingAges,
-      hasToilet,
+      roomFeatures,
       amenities,
     ]
   );
@@ -239,7 +248,7 @@ export function Home({
     setAreaRange(filters.areaRange);
     setFloorLevels(filters.floorLevels);
     setBuildingAges(filters.buildingAges);
-    setHasToilet(filters.hasPrivateToilet);
+    setRoomFeatures(filters.roomFeatures);
     setAmenities(filters.amenities);
     if (filters.areaType === 'tube' && (filters.selectedTubeLine || filters.selectedTubeStation)) {
       setAreaType('tube');
@@ -278,9 +287,9 @@ export function Home({
   const matchesFloorLevels = (p: Property) => {
     if (floorLevels.length === 0) return true;
     return floorLevels.some((level) => {
-      if (level === 'low') return p.floor >= 1 && p.floor <= 5;
-      if (level === 'mid') return p.floor >= 6 && p.floor <= 15;
-      if (level === 'high') return p.floor >= 16;
+      if (level === 'low') return p.floor >= 1 && p.floor <= 9;
+      if (level === 'mid') return p.floor >= 10 && p.floor <= 25;
+      if (level === 'high') return p.floor >= 26;
       return false;
     });
   };
@@ -314,15 +323,44 @@ export function Home({
     return true;
   };
 
+  const matchesRoomFeatures = (p: Property) => {
+    if (roomFeatures.length === 0) return true;
+    return roomFeatures.every((feature) => {
+      if (feature === '獨立洗手間') {
+        return p.roomFeatures?.includes(feature) || p.bathrooms >= 1;
+      }
+      return p.roomFeatures?.includes(feature) ?? false;
+    });
+  };
+
+  const matchesAmenities = (p: Property) => {
+    if (amenities.length === 0) return true;
+    return amenities.every((name) => p.amenities?.includes(name) ?? false);
+  };
+
+  const matchesBuildingAges = (p: Property) => {
+    if (buildingAges.length === 0) return true;
+    if (!p.buildingAge) return false;
+    return buildingAges.includes(p.buildingAge);
+  };
+
+  const matchesSchoolNet = (p: Property) => {
+    if (areaType !== 'school' || !selectedSchoolNet) return true;
+    if (p.schoolCatchment) return p.schoolCatchment === selectedSchoolNet;
+    return textMatchesQuery(p.title, selectedSchoolNet);
+  };
+
   const filteredProperties = properties.filter((p) => {
-    if (!textMatchesQuery(p.title, searchQuery)) return false;
+    if (!propertyMatchesSearchQuery(p, searchQuery)) return false;
     if (areaType === 'district' && selectedDistrict && !propertyMatchesDistrict(p, selectedDistrict)) return false;
     if (!matchesTubeArea(p)) return false;
-    if (areaType === 'school' && selectedSchoolNet && !textMatchesQuery(p.title, selectedSchoolNet)) return false;
+    if (!matchesSchoolNet(p)) return false;
     if (p.price < priceRange[0] || p.price > priceRange[1]) return false;
     if (p.area < areaRange[0] || p.area > areaRange[1]) return false;
     if (!matchesFloorLevels(p)) return false;
-    if (hasToilet && p.bathrooms < 1) return false;
+    if (!matchesBuildingAges(p)) return false;
+    if (!matchesRoomFeatures(p)) return false;
+    if (!matchesAmenities(p)) return false;
     if (!matchesRoom(p)) return false;
     if (!matchesUnitType(p)) return false;
     return true;
@@ -344,8 +382,31 @@ export function Home({
     runHeroSearch(entry);
   };
 
-  const scrollToTop = () => {
+  const resetHomeFilters = useCallback(() => {
+    setSearchQuery('');
+    setAreaType('district');
+    setSelectedDistrict('');
+    setSelectedTubeLine('');
+    setSelectedTubeStation('');
+    setSelectedSchoolNet('');
+    setPriceRange([0, HERO_PRICE_MAX]);
+    setAreaRange([0, HERO_AREA_SQFT_MAX]);
+    setFloorLevels([]);
+    setBuildingAges([]);
+    setRoomFeatures([]);
+    setAmenities([]);
+    setRoomFilter('');
+    setHeroUnitType('any');
+  }, []);
+
+  const goHome = () => {
+    onGoHome();
+    resetHomeFilters();
     setActiveTab('home');
+    setSearchHistoryOpen(false);
+    setSearchDialogOpen(false);
+    setNoticeOpen(false);
+    void refreshHomepage();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -366,6 +427,17 @@ export function Home({
     setPriceRange(([min, _]) => [min, Math.max(nextMax, min)]);
   };
 
+  const requireTenantAuth = useCallback(
+    (action: () => void) => {
+      if (!isAuthenticated) {
+        onAuthClick('tenant');
+        return;
+      }
+      action();
+    },
+    [isAuthenticated, onAuthClick],
+  );
+
   const priceMinDisplay = priceRange[0] === 0 ? '' : formatHeroPrice(priceRange[0]);
   const priceMaxDisplay = isOpenEndedMax(priceRange[1]) ? '' : formatHeroPrice(priceRange[1]);
   const priceSliderLabel = isOpenEndedMax(priceRange[1])
@@ -378,7 +450,7 @@ export function Home({
         <div className="flex min-h-14 items-center justify-between gap-2 py-2">
           <button
             type="button"
-            onClick={scrollToTop}
+            onClick={goHome}
             className="flex min-w-0 shrink-0 items-center gap-2 rounded-lg border border-gray-200 bg-white px-1.5 py-1 pr-2.5 text-gray-900 shadow-sm transition-colors hover:bg-gray-50 sm:px-2 sm:py-1.5 sm:pr-3"
             aria-label={homeT.home}
           >
@@ -389,10 +461,12 @@ export function Home({
           <div className="flex min-w-0 shrink-0 items-center justify-end gap-0.5 sm:gap-1.5 md:gap-2">
             <button
               type="button"
-              onClick={() => {
-                setActiveTab('favorites');
-                listingsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-              }}
+              onClick={() =>
+                requireTenantAuth(() => {
+                  setActiveTab('favorites');
+                  listingsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                })
+              }
               className={navIconBtnClass(activeTab === 'favorites')}
               aria-label={homeT.favorites}
               aria-current={activeTab === 'favorites' ? 'page' : undefined}
@@ -404,7 +478,7 @@ export function Home({
             <LanguageSwitcher variant="default" />
             <button
               type="button"
-              onClick={() => setNoticeOpen(true)}
+              onClick={() => requireTenantAuth(() => setNoticeOpen(true))}
               className={navIconBtnClass(false)}
               aria-label={homeT.notice}
             >
@@ -415,7 +489,7 @@ export function Home({
             </button>
             <button
               type="button"
-              onClick={onChatClick}
+              onClick={() => requireTenantAuth(onChatClick)}
               className={navIconBtnClass(false)}
               aria-label={homeT.chat}
             >
@@ -665,8 +739,9 @@ export function Home({
                           </div>
                         </label>
                       </div>
-                      <div className="px-1 pb-1 pt-2">
+                      <div className="px-0.5 pb-0.5 pt-3">
                         <Slider
+                          variant="navy"
                           value={priceRange}
                           onValueChange={(v) => {
                             const next = v as [number, number];
@@ -675,15 +750,7 @@ export function Home({
                           min={0}
                           max={HERO_PRICE_MAX}
                           step={500}
-                          className="w-full touch-manipulation py-2"
-                          rangeStyle={{ backgroundColor: NAVY }}
-                          thumbStyle={{
-                            backgroundColor: NAVY,
-                            borderColor: NAVY,
-                            borderWidth: 2,
-                            width: 22,
-                            height: 22,
-                          }}
+                          className="w-full touch-manipulation"
                         />
                       </div>
                       <p className="text-center text-xs tabular-nums text-gray-500">{priceSliderLabel}</p>
@@ -764,7 +831,7 @@ export function Home({
                     ) : null}
                     {moreFilterValues.areaType === 'school' && moreFilterValues.selectedSchoolNet ? (
                       <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs text-gray-800">
-                        {homeT.schoolNet}：{moreFilterValues.selectedSchoolNet}
+                        {homeT.schoolNet}：{filtersT.schoolNet(moreFilterValues.selectedSchoolNet)}
                       </span>
                     ) : null}
                     {(moreFilterValues.areaRange[0] > 0 || moreFilterValues.areaRange[1] < HERO_AREA_SQFT_MAX) && (
@@ -795,11 +862,14 @@ export function Home({
                               : commonT.buildingAge20Plus}
                       </span>
                     ))}
-                    {moreFilterValues.hasPrivateToilet ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs text-gray-800">
-                        {homeT.privateBathroom}
+                    {moreFilterValues.roomFeatures.map((feature) => (
+                      <span
+                        key={feature}
+                        className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs text-gray-800"
+                      >
+                        {filtersT.roomFeature(feature)}
                       </span>
-                    ) : null}
+                    ))}
                     {moreFilterValues.amenities.map((a) => (
                       <span
                         key={a}

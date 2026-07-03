@@ -1,4 +1,5 @@
 import type { Property } from '../App';
+import type { PropertyBuildingAge } from './propertyFilterFields';
 import { supabase } from './supabase';
 
 /** 物業未上傳圖片時使用之佔位圖（非假房源列表） */
@@ -16,6 +17,10 @@ interface PropertyRow {
   bedrooms: number | string | null;
   bathrooms: number | string | null;
   district: string | null;
+  room_features?: string[] | null;
+  amenities?: string[] | null;
+  building_age?: string | null;
+  school_net?: string | null;
 }
 
 function toNumber(value: number | string | null | undefined, fallback = 0) {
@@ -107,6 +112,10 @@ function mapProperty(row: PropertyRow): Property {
     bedrooms: toNumber(row.bedrooms, 1),
     bathrooms: toNumber(row.bathrooms, 1),
     district: (row.district ?? '').trim(),
+    roomFeatures: Array.isArray(row.room_features) ? row.room_features : undefined,
+    amenities: Array.isArray(row.amenities) ? row.amenities : undefined,
+    buildingAge: (row.building_age as PropertyBuildingAge | null) ?? undefined,
+    schoolCatchment: (row.school_net ?? '').trim() || undefined,
     isFavorite: false,
   };
 }
@@ -115,7 +124,7 @@ function mapProperty(row: PropertyRow): Property {
 export async function loadHomepageProperties(): Promise<Property[]> {
   const { data, error } = await supabase
     .from('properties')
-    .select('id,landlord_id,title,image,price,area,floor,bedrooms,bathrooms,district')
+    .select('id,landlord_id,title,image,price,area,floor,bedrooms,bathrooms,district,room_features,amenities,building_age,school_net')
     .eq('verification_status', 'approved')
     .in('status', ['available', 'rented'])
     .order('id', { ascending: true });
@@ -137,7 +146,7 @@ export async function loadPropertyById(id: string): Promise<Property | null> {
 
   const { data, error } = await supabase
     .from('properties')
-    .select('id,landlord_id,title,image,price,area,floor,bedrooms,bathrooms,district')
+    .select('id,landlord_id,title,image,price,area,floor,bedrooms,bathrooms,district,room_features,amenities,building_age,school_net')
     .eq('id', trimmed)
     .maybeSingle();
 

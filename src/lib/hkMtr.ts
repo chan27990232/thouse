@@ -1,3 +1,6 @@
+import type { AppLocale } from './locale';
+import { localizePropertyText } from './localizePropertyText';
+
 export const HK_MTR_LINES: Record<string, string[]> = {
   港島線: [
     '堅尼地城',
@@ -76,4 +79,23 @@ export const HK_MTR_LINE_NAMES = Object.keys(HK_MTR_LINES);
 
 export function getMtrStationsForLine(line: string): string[] {
   return HK_MTR_LINES[line] ?? [];
+}
+
+const MTR_LINE_LABELS: Record<string, Record<AppLocale, string>> = {
+  港島線: { 'zh-TW': '港島線', 'zh-CN': '港岛线', en: 'Island Line' },
+  荃灣線: { 'zh-TW': '荃灣線', 'zh-CN': '荃湾线', en: 'Tsuen Wan Line' },
+  觀塘線: { 'zh-TW': '觀塘線', 'zh-CN': '观塘线', en: 'Kwun Tong Line' },
+  東涌線: { 'zh-TW': '東涌線', 'zh-CN': '东涌线', en: 'Tung Chung Line' },
+  將軍澳線: { 'zh-TW': '將軍澳線', 'zh-CN': '将军澳线', en: 'Tseung Kwan O Line' },
+  屯馬線: { 'zh-TW': '屯馬線', 'zh-CN': '屯马线', en: 'Tuen Ma Line' },
+  南港島線: { 'zh-TW': '南港島線', 'zh-CN': '南港岛线', en: 'South Island Line' },
+  東鐵線: { 'zh-TW': '東鐵線', 'zh-CN': '东铁线', en: 'East Rail Line' },
+};
+
+export function getMtrLineLabel(line: string, locale: AppLocale): string {
+  return MTR_LINE_LABELS[line]?.[locale] ?? line;
+}
+
+export function getMtrStationLabel(station: string, locale: AppLocale): string {
+  return localizePropertyText(station, locale);
 }

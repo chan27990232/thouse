@@ -23,6 +23,9 @@ const commonZhTW = {
   instagramAria: 'Instagram',
   languageAria: '語言',
   loading: '載入中…',
+  chooseFile: '選擇檔案',
+  chooseFiles: '選擇檔案',
+  noFileChosen: '未選擇任何檔案',
 } as const;
 
 export type CommonMessages = typeof commonZhTW;
@@ -49,6 +52,9 @@ const commonZhCN: CommonMessages = {
   instagramAria: 'Instagram',
   languageAria: '语言',
   loading: '加载中…',
+  chooseFile: '选择文件',
+  chooseFiles: '选择文件',
+  noFileChosen: '未选择任何文件',
 };
 
 const commonEn: CommonMessages = {
@@ -73,6 +79,9 @@ const commonEn: CommonMessages = {
   instagramAria: 'Instagram',
   languageAria: 'Language',
   loading: 'Loading…',
+  chooseFile: 'Choose file',
+  chooseFiles: 'Choose files',
+  noFileChosen: 'No file chosen',
 };
 
 export const commonMessages: Record<AppLocale, CommonMessages> = {

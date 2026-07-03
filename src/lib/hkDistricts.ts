@@ -22,7 +22,7 @@ export const HK_DISTRICTS = [
   '離島區',
 ] as const;
 
-const DISTRICT_LABELS: Record<string, Record<AppLocale, string>> = {
+export const DISTRICT_LABELS: Record<string, Record<AppLocale, string>> = {
   中西區: { 'zh-TW': '中西區', 'zh-CN': '中西区', en: 'Central & Western' },
   東區: { 'zh-TW': '東區', 'zh-CN': '东区', en: 'Eastern' },
   南區: { 'zh-TW': '南區', 'zh-CN': '南区', en: 'Southern' },

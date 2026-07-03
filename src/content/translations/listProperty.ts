@@ -62,6 +62,10 @@ const listPropertyZhTW = {
   districtTitle: '地區',
   districtHint: '請選擇物業所在的香港行政區。',
   districtPlaceholder: '選擇地區（十八區）',
+  schoolNetTitle: '校網（選填）',
+  schoolNetHint: '與租客搜尋的校網選項一致，方便按校網找盤。',
+  schoolNetPlaceholder: '選擇校網',
+  schoolNetNone: '不指定校網',
 
   addressTitle: '地址資料',
   addressHint: '屋苑、大廈、樓層、單位為必填；座數選填。提交後如需修改，須經平台處理。',
@@ -79,13 +83,9 @@ const listPropertyZhTW = {
   rentHint: '請填寫每月租金（港幣）。',
   areaTitle: '面積',
   areaLabel: '實用面積（呎）',
-  layoutTitle: '間隔',
-  rooms: '房間',
-  bathrooms: '浴室',
-  bathCount: '{n} 廁',
-  openPlan: '開放式',
-  roomCount: '{n} 房',
-  featuresTitle: '單位特色（選填）',
+  buildingAgeTitle: '樓齡（選填）',
+  roomConfigTitle: '房間配置（選填）',
+  buildingFacilitiesTitle: '大廈設施（選填）',
 
   coverTitle: '租盤主圖',
   coverHint: '將顯示於搜尋列表；建議橫向相片，光線充足。',
@@ -102,7 +102,7 @@ const listPropertyZhTW = {
   descriptionPlaceholder: '補充交通、周邊配套、租約要求等…',
   preview: '預覽',
   previewPerMonth: '/月',
-  previewMeta: '{area} 呎 · {floor} 樓 · {layout} · {bathCount}',
+  previewMeta: '{area} 呎 · {floor} 樓',
   submitNote: '提交後租盤進入審核，通過後方會出現在租客首頁。請確保資料真實準確。',
 
   errDbMigration:
@@ -162,6 +162,10 @@ const listPropertyZhCN: ListPropertyMessages = {
   districtTitle: '地区',
   districtHint: '请选择物业所在的香港行政区。',
   districtPlaceholder: '选择地区（十八区）',
+  schoolNetTitle: '校网（选填）',
+  schoolNetHint: '与租客搜索的校网选项一致，方便按校网找盘。',
+  schoolNetPlaceholder: '选择校网',
+  schoolNetNone: '不指定校网',
 
   addressTitle: '地址资料',
   addressHint: '屋苑、大厦、楼层、单位为必填；座数选填。提交后如需修改，须经平台处理。',
@@ -179,13 +183,9 @@ const listPropertyZhCN: ListPropertyMessages = {
   rentHint: '请填写每月租金（港币）。',
   areaTitle: '面积',
   areaLabel: '实用面积（呎）',
-  layoutTitle: '间隔',
-  rooms: '房间',
-  bathrooms: '浴室',
-  bathCount: '{n} 厕',
-  openPlan: '开放式',
-  roomCount: '{n} 房',
-  featuresTitle: '单位特色（选填）',
+  buildingAgeTitle: '楼龄（选填）',
+  roomConfigTitle: '房间配置（选填）',
+  buildingFacilitiesTitle: '大厦设施（选填）',
 
   coverTitle: '租盘主图',
   coverHint: '将显示于搜索列表；建议横向相片，光线充足。',
@@ -202,7 +202,7 @@ const listPropertyZhCN: ListPropertyMessages = {
   descriptionPlaceholder: '补充交通、周边配套、租约要求等…',
   preview: '预览',
   previewPerMonth: '/月',
-  previewMeta: '{area} 呎 · {floor} 楼 · {layout} · {bathCount}',
+  previewMeta: '{area} 呎 · {floor} 楼',
   submitNote: '提交后租盘进入审核，通过后方会出现在租客首页。请确保资料真实准确。',
 
   errDbMigration:
@@ -260,6 +260,10 @@ const listPropertyEn: ListPropertyMessages = {
   districtTitle: 'District',
   districtHint: 'Select the Hong Kong district where the property is located.',
   districtPlaceholder: 'Select district (18 districts)',
+  schoolNetTitle: 'School net (optional)',
+  schoolNetHint: 'Matches tenant search school-net filters.',
+  schoolNetPlaceholder: 'Select school net',
+  schoolNetNone: 'No school net',
 
   addressTitle: 'Address details',
   addressHint:
@@ -278,13 +282,9 @@ const listPropertyEn: ListPropertyMessages = {
   rentHint: 'Enter the monthly rent in HKD.',
   areaTitle: 'Area',
   areaLabel: 'Saleable area (sq ft)',
-  layoutTitle: 'Layout',
-  rooms: 'Bedrooms',
-  bathrooms: 'Bathrooms',
-  bathCount: '{n} bath',
-  openPlan: 'Open plan',
-  roomCount: '{n} bed',
-  featuresTitle: 'Features (optional)',
+  buildingAgeTitle: 'Building age (optional)',
+  roomConfigTitle: 'Room features (optional)',
+  buildingFacilitiesTitle: 'Building facilities (optional)',
 
   coverTitle: 'Cover image',
   coverHint: 'Shown in search results; a well-lit landscape photo is recommended.',
@@ -302,7 +302,7 @@ const listPropertyEn: ListPropertyMessages = {
   descriptionPlaceholder: 'Transport, nearby amenities, lease requirements, etc.',
   preview: 'Preview',
   previewPerMonth: '/mo',
-  previewMeta: '{area} sq ft · Floor {floor} · {layout} · {bathCount}',
+  previewMeta: '{area} sq ft · Floor {floor}',
   submitNote:
     'After submission your listing enters review and appears on the tenant homepage once approved. Please ensure all details are accurate.',
 

@@ -35,6 +35,7 @@ interface LandlordHomeProps {
   onPropertyClick: (property: Property) => void;
   onChatClick: () => void;
   onProfileClick: () => void;
+  onGoHome: () => void;
 }
 
 type VerificationState = 'pending' | 'approved' | 'rejected';
@@ -55,7 +56,7 @@ interface ManagedProperty extends Property {
   verificationRejectedReason: string;
 }
 
-export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfileClick }: LandlordHomeProps) {
+export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfileClick, onGoHome }: LandlordHomeProps) {
   const { locale, landlordT, leaseWorkflowT, localizePropertyTitle } = useLocale();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [showAddProperty, setShowAddProperty] = useState(false);
@@ -292,13 +293,24 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
       <div className="sticky top-0 z-20 shrink-0 border-b bg-white">
         <div className="p-4 md:px-6 lg:px-8">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex min-w-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                onGoHome();
+                setActiveTab('dashboard');
+                void loadLandlordProperties();
+                void fetchUnreadInquiryCount().then(setUnreadCount);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="flex min-w-0 items-center gap-2 rounded-lg border border-transparent text-left transition-colors hover:opacity-90"
+              aria-label={landlordT.overview}
+            >
               <img src={thouseLogo} alt={landlordT.brandName} className="h-10 w-10 shrink-0" />
               <div className="min-w-0">
                 <span className="tracking-wider">{landlordT.brandName}</span>
                 <p className="text-xs text-gray-600">{landlordT.subtitle}</p>
               </div>
-            </div>
+            </button>
             <div className="flex shrink-0 items-center gap-1 sm:gap-2">
               <LanguageSwitcher variant="default" />
               <button onClick={() => setNoticeOpen(true)} className="relative rounded-full bg-gray-100 p-2 hover:bg-gray-200" aria-label={landlordT.notice}>

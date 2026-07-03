@@ -5,30 +5,32 @@ import {
   MapPin,
   Maximize2,
   SlidersHorizontal,
-  Dumbbell,
   Car,
-  Waves,
-  Home,
-  Flower2,
-  Baby,
-  CircleDot,
-  Trophy,
   Bath,
-  Footprints,
-  BookOpen,
   Shield,
-  UtensilsCrossed,
+  LayoutGrid,
+  Refrigerator,
+  BedSingle,
+  BedDouble,
+  Sofa,
+  WashingMachine,
+  AirVent,
+  Tv,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
-import { Label } from './ui/label';
 import { Input } from './ui/input';
 import { Slider } from './ui/slider';
-import { Checkbox } from './ui/checkbox';
 import { cn } from './ui/utils';
 import { HK_MTR_LINE_NAMES, getMtrStationsForLine } from '../lib/hkMtr';
 import { HK_SCHOOL_NETS } from '../lib/hkSchoolNets';
+import {
+  PROPERTY_BUILDING_AMENITY_KEYS,
+  PROPERTY_BUILDING_AGE_VALUES,
+  PROPERTY_ROOM_FEATURE_KEYS,
+  type PropertyBuildingAge,
+} from '../lib/propertyFilterFields';
 import { useLocale } from '../context/LocaleContext';
 
 const NAVY = '#1a365d' as const;
@@ -38,21 +40,23 @@ export const HERO_AREA_SQFT_MAX = 2000;
 export const BUILDING_AMENITIES: { name: string; icon: LucideIcon }[] = [
   { name: '升降機', icon: Building2 },
   { name: '停車場', icon: Car },
-  { name: '健身房', icon: Dumbbell },
-  { name: '游泳池', icon: Waves },
-  { name: '會所', icon: Home },
-  { name: '花園', icon: Flower2 },
-  { name: '兒童遊樂場', icon: Baby },
-  { name: '乒乓球場', icon: CircleDot },
-  { name: '網球場', icon: Trophy },
-  { name: '桑拿浴室', icon: Bath },
-  { name: '緩跑徑', icon: Footprints },
-  { name: '籃球場', icon: CircleDot },
-  { name: '瑜伽室', icon: Flower2 },
-  { name: '圖書館', icon: BookOpen },
-  { name: '燒烤區', icon: UtensilsCrossed },
   { name: '24小時保安', icon: Shield },
 ];
+
+export const ROOM_FEATURES: { name: string; icon: LucideIcon }[] = [
+  { name: '獨立洗手間', icon: Bath },
+  { name: '冰箱', icon: Refrigerator },
+  { name: '單人床', icon: BedSingle },
+  { name: '雙人床', icon: BedDouble },
+  { name: '沙發', icon: Sofa },
+  { name: '洗衣機', icon: WashingMachine },
+  { name: '冷氣', icon: AirVent },
+  { name: '電視', icon: Tv },
+];
+
+// Re-export canonical keys for listing form parity checks
+export { PROPERTY_ROOM_FEATURE_KEYS, PROPERTY_BUILDING_AMENITY_KEYS, PROPERTY_BUILDING_AGE_VALUES };
+export type { PropertyBuildingAge as BuildingAge };
 
 const FLOOR_OPTION_VALUES: { value: FloorLevel }[] = [
   { value: 'low' },
@@ -60,15 +64,12 @@ const FLOOR_OPTION_VALUES: { value: FloorLevel }[] = [
   { value: 'high' },
 ];
 
-const AGE_OPTION_VALUES: { value: BuildingAge }[] = [
-  { value: 'new' },
-  { value: '5-10' },
-  { value: '10-20' },
-  { value: '20+' },
-];
+const AGE_OPTION_VALUES: { value: PropertyBuildingAge }[] = PROPERTY_BUILDING_AGE_VALUES.map((value) => ({
+  value,
+}));
 
 export type FloorLevel = 'low' | 'mid' | 'high';
-export type BuildingAge = 'new' | '5-10' | '10-20' | '20+';
+export type BuildingAge = PropertyBuildingAge;
 
 export interface HeroMoreFiltersValues {
   areaType: 'tube' | 'school' | '';
@@ -78,7 +79,7 @@ export interface HeroMoreFiltersValues {
   areaRange: [number, number];
   floorLevels: FloorLevel[];
   buildingAges: BuildingAge[];
-  hasPrivateToilet: boolean;
+  roomFeatures: string[];
   amenities: string[];
 }
 
@@ -90,7 +91,7 @@ export const DEFAULT_HERO_MORE_FILTERS: HeroMoreFiltersValues = {
   areaRange: [0, HERO_AREA_SQFT_MAX],
   floorLevels: [],
   buildingAges: [],
-  hasPrivateToilet: false,
+  roomFeatures: [],
   amenities: [],
 };
 
@@ -102,7 +103,7 @@ export function countActiveHeroMoreFilters(values: HeroMoreFiltersValues): numbe
   if (values.areaRange[0] > 0 || values.areaRange[1] < HERO_AREA_SQFT_MAX) n += 1;
   n += values.floorLevels.length;
   n += values.buildingAges.length;
-  if (values.hasPrivateToilet) n += 1;
+  n += values.roomFeatures.length;
   n += values.amenities.length;
   return n;
 }
@@ -212,6 +213,15 @@ export function HeroMoreFiltersDialog({ open, onOpenChange, values, onApply }: H
     }));
   };
 
+  const toggleRoomFeature = (name: string) => {
+    setDraft((prev) => ({
+      ...prev,
+      roomFeatures: prev.roomFeatures.includes(name)
+        ? prev.roomFeatures.filter((f) => f !== name)
+        : [...prev.roomFeatures, name],
+    }));
+  };
+
   const toggleFloorLevel = (value: FloorLevel) => {
     setDraft((prev) => ({
       ...prev,
@@ -283,7 +293,7 @@ export function HeroMoreFiltersDialog({ open, onOpenChange, values, onApply }: H
                           }))
                         }
                       >
-                        {line}
+                        {filtersT.mtrLine(line)}
                       </FilterPill>
                     ))}
                   </div>
@@ -291,7 +301,7 @@ export function HeroMoreFiltersDialog({ open, onOpenChange, values, onApply }: H
                 {draft.selectedTubeLine ? (
                   <div>
                     <p className="mb-2 text-xs font-medium text-gray-600">
-                      {filtersT.format('selectStation', { line: draft.selectedTubeLine })}
+                      {filtersT.format('selectStation', { line: filtersT.mtrLine(draft.selectedTubeLine) })}
                     </p>
                     <div className="flex max-h-40 flex-wrap gap-2 overflow-y-auto">
                       {tubeStations.map((station) => (
@@ -305,7 +315,7 @@ export function HeroMoreFiltersDialog({ open, onOpenChange, values, onApply }: H
                             }))
                           }
                         >
-                          {station}
+                          {filtersT.mtrStation(station)}
                         </FilterPill>
                       ))}
                     </div>
@@ -329,7 +339,7 @@ export function HeroMoreFiltersDialog({ open, onOpenChange, values, onApply }: H
                         }))
                       }
                     >
-                      {net}
+                      {filtersT.schoolNet(net)}
                     </FilterPill>
                   ))}
                 </div>
@@ -397,20 +407,13 @@ export function HeroMoreFiltersDialog({ open, onOpenChange, values, onApply }: H
               </label>
             </div>
             <Slider
+              variant="navy"
               value={draft.areaRange}
               onValueChange={(v) => setDraft((prev) => ({ ...prev, areaRange: v as [number, number] }))}
               min={0}
               max={HERO_AREA_SQFT_MAX}
               step={50}
               className="touch-manipulation"
-              rangeStyle={{ backgroundColor: NAVY }}
-              thumbStyle={{
-                backgroundColor: NAVY,
-                borderColor: NAVY,
-                borderWidth: 2,
-                width: 18,
-                height: 18,
-              }}
             />
             <div className="mt-2 flex justify-between text-xs text-gray-500">
               <span>{filtersT.areaMinLabel}</span>
@@ -438,42 +441,47 @@ export function HeroMoreFiltersDialog({ open, onOpenChange, values, onApply }: H
             </div>
           </Section>
 
-          <section className="space-y-3 rounded-xl border border-gray-100 bg-gray-50/60 p-4">
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="hero-more-toilet"
-                checked={draft.hasPrivateToilet}
-                onCheckedChange={(checked) =>
-                  setDraft((prev) => ({ ...prev, hasPrivateToilet: checked === true }))
-                }
-              />
-              <Label htmlFor="hero-more-toilet" className="flex cursor-pointer items-center gap-2 text-sm font-medium text-gray-900">
-                <Bath className="h-4 w-4 shrink-0 text-gray-500" strokeWidth={1.75} aria-hidden />
-                {homeT.privateBathroom}
-              </Label>
+          <Section icon={<LayoutGrid className="h-4 w-4" />} title={filtersT.roomConfigSection}>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {ROOM_FEATURES.map(({ name, icon: Icon }) => (
+                <button
+                  key={name}
+                  type="button"
+                  onClick={() => toggleRoomFeature(name)}
+                  className={cn(
+                    'flex items-center gap-2 rounded-lg border px-2.5 py-2 text-left text-xs font-medium transition-colors sm:text-sm',
+                    draft.roomFeatures.includes(name)
+                      ? 'border-[#1a365d] bg-[#1a365d] text-white'
+                      : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50'
+                  )}
+                >
+                  <Icon className="h-4 w-4 shrink-0" strokeWidth={1.75} />
+                  <span className="min-w-0 leading-tight">{filtersT.roomFeature(name)}</span>
+                </button>
+              ))}
             </div>
-            <div>
-              <Label className="mb-2 block text-sm font-semibold text-gray-900">{filtersT.buildingFacilities}</Label>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                {BUILDING_AMENITIES.map(({ name, icon: Icon }) => (
-                  <button
-                    key={name}
-                    type="button"
-                    onClick={() => toggleAmenity(name)}
-                    className={cn(
-                      'flex items-center gap-2 rounded-lg border px-2.5 py-2 text-left text-xs font-medium transition-colors sm:text-sm',
-                      draft.amenities.includes(name)
-                        ? 'border-[#1a365d] bg-[#1a365d] text-white'
-                        : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50'
-                    )}
-                  >
-                    <Icon className="h-4 w-4 shrink-0" strokeWidth={1.75} />
-                    <span className="min-w-0 leading-tight">{filtersT.amenity(name)}</span>
-                  </button>
-                ))}
-              </div>
+          </Section>
+
+          <Section icon={<Building2 className="h-4 w-4" />} title={filtersT.buildingFacilities}>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {BUILDING_AMENITIES.map(({ name, icon: Icon }) => (
+                <button
+                  key={name}
+                  type="button"
+                  onClick={() => toggleAmenity(name)}
+                  className={cn(
+                    'flex items-center gap-2 rounded-lg border px-2.5 py-2 text-left text-xs font-medium transition-colors sm:text-sm',
+                    draft.amenities.includes(name)
+                      ? 'border-[#1a365d] bg-[#1a365d] text-white'
+                      : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50'
+                  )}
+                >
+                  <Icon className="h-4 w-4 shrink-0" strokeWidth={1.75} />
+                  <span className="min-w-0 leading-tight">{filtersT.amenity(name)}</span>
+                </button>
+              ))}
             </div>
-          </section>
+          </Section>
         </div>
 
         <div className="flex shrink-0 gap-2 border-t border-gray-100 bg-white px-5 py-4">

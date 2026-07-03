@@ -4,7 +4,7 @@ import { getDistrictLabel } from './hkDistricts';
 type LabelTriple = Record<AppLocale, string>;
 
 /** Canonical 繁中片語 → 各語顯示（較長片語須優先匹配） */
-const PHRASE_LABELS: Record<string, LabelTriple> = {
+export const PHRASE_LABELS: Record<string, LabelTriple> = {
   // — 物業類型（放盤標題常見尾綴）
   劏房: { 'zh-TW': '劏房', 'zh-CN': '劏房', en: 'Subdivided unit' },
   分間單位: { 'zh-TW': '分間單位', 'zh-CN': '分间单位', en: 'Subdivided unit' },

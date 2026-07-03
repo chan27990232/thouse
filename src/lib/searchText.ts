@@ -1,3 +1,8 @@
+import { PHRASE_LABELS } from './localizePropertyText';
+import { DISTRICT_LABELS, HK_DISTRICTS } from './hkDistricts';
+import { HK_MTR_LINES, getMtrLineLabel, getMtrStationLabel } from './hkMtr';
+import { HK_SCHOOL_NETS, getSchoolNetLabel } from './hkSchoolNets';
+
 /** 簡體詞組 → 繁體（香港租屋搜尋常見） */
 const SC_PHRASES: [string, string][] = [
   ['九龙城', '九龍城'],
@@ -102,14 +107,135 @@ export function normalizeSearchText(input: string): string {
   return convertScToTc(input.toLowerCase().normalize('NFKC').trim());
 }
 
-/** 標題／描述是否匹配搜尋（支援繁、簡、英文） */
+function normalizeAliasKey(input: string): string {
+  return input.toLowerCase().normalize('NFKC').trim().replace(/\s+/g, ' ');
+}
+
+function compactAliasKey(input: string): string {
+  return normalizeAliasKey(input).replace(/[\s\-_'.,/()+&]/g, '');
+}
+
+function addSearchAlias(index: Map<string, Set<string>>, alias: string, ...canonicals: string[]) {
+  const keys = new Set<string>();
+  const normalizedAlias = normalizeAliasKey(alias);
+  const compact = compactAliasKey(alias);
+  if (normalizedAlias.length >= 2) keys.add(normalizedAlias);
+  if (compact.length >= 2) keys.add(compact);
+
+  const values = new Set<string>();
+  for (const canonical of canonicals) {
+    const c = canonical.trim();
+    if (!c) continue;
+    values.add(normalizeSearchText(c));
+    values.add(c);
+    if (c.endsWith('區')) {
+      values.add(normalizeSearchText(c.replace(/區$/, '')));
+    }
+  }
+  if (values.size === 0) return;
+
+  for (const key of keys) {
+    if (!index.has(key)) index.set(key, new Set());
+    for (const v of values) index.get(key)!.add(v);
+  }
+}
+
+function buildSearchAliasIndex(): Map<string, Set<string>> {
+  const index = new Map<string, Set<string>>();
+
+  for (const [zh, labels] of Object.entries(PHRASE_LABELS)) {
+    addSearchAlias(index, zh, zh);
+    addSearchAlias(index, labels.en, zh);
+    addSearchAlias(index, labels['zh-CN'], zh);
+  }
+
+  for (const district of HK_DISTRICTS) {
+    const labels = DISTRICT_LABELS[district];
+    if (!labels) continue;
+    const core = district.replace(/區$/, '');
+    addSearchAlias(index, labels.en, district, core);
+    addSearchAlias(index, labels['zh-CN'], district, core);
+    addSearchAlias(index, district, district, core);
+  }
+
+  for (const [line, stations] of Object.entries(HK_MTR_LINES)) {
+    addSearchAlias(index, line, line);
+    addSearchAlias(index, getMtrLineLabel(line, 'en'), line);
+    for (const station of stations) {
+      addSearchAlias(index, station, station);
+      addSearchAlias(index, getMtrStationLabel(station, 'en'), station);
+    }
+  }
+
+  for (const net of HK_SCHOOL_NETS) {
+    addSearchAlias(index, net, net);
+    addSearchAlias(index, getSchoolNetLabel(net, 'en'), net);
+  }
+
+  addSearchAlias(index, 'mongkok', '旺角');
+  addSearchAlias(index, 'mk', '旺角');
+  addSearchAlias(index, 'tst', '尖沙咀');
+  addSearchAlias(index, 'cwb', '銅鑼灣');
+  addSearchAlias(index, 'kowloon bay', '九龍灣');
+  addSearchAlias(index, 'kowloon', '九龍');
+  addSearchAlias(index, 'hk island', '港島');
+  addSearchAlias(index, 'hong kong island', '港島');
+  addSearchAlias(index, 'studio', '工作室');
+  addSearchAlias(index, 'serviced apartment', '服務式');
+  addSearchAlias(index, 'subdivided', '劏房');
+
+  return index;
+}
+
+const SEARCH_ALIAS_INDEX = buildSearchAliasIndex();
+
+function expandSearchTerms(query: string): string[] {
+  const terms = new Set<string>();
+  const normalized = normalizeSearchText(query);
+  if (normalized) terms.add(normalized);
+
+  const raw = query.toLowerCase().trim();
+  if (raw) terms.add(raw);
+
+  const lookupKeys = new Set<string>([
+    normalizeAliasKey(query),
+    compactAliasKey(query),
+    ...normalizeAliasKey(query).split(/\s+/).filter((w) => w.length >= 2),
+  ]);
+
+  for (const key of lookupKeys) {
+    const mapped = SEARCH_ALIAS_INDEX.get(key);
+    if (mapped) {
+      for (const term of mapped) terms.add(term);
+    }
+  }
+
+  return [...terms].filter((t) => t.length > 0);
+}
+
+/** 標題／描述是否匹配搜尋（支援繁、簡、英文互搜） */
 export function textMatchesQuery(text: string, query: string): boolean {
   const q = query.trim();
   if (!q) return true;
 
   const normalizedHaystack = normalizeSearchText(text);
-  const normalizedQuery = normalizeSearchText(q);
-  if (normalizedHaystack.includes(normalizedQuery)) return true;
+  const rawHaystack = text.toLowerCase();
 
-  return text.toLowerCase().includes(q.toLowerCase());
+  for (const term of expandSearchTerms(q)) {
+    if (normalizedHaystack.includes(term)) return true;
+    if (rawHaystack.includes(term)) return true;
+  }
+
+  return false;
+}
+
+/** 比對放盤標題與地區欄位（關鍵字搜尋用） */
+export function propertyMatchesSearchQuery(
+  property: { title: string; district?: string | null },
+  query: string,
+): boolean {
+  if (!query.trim()) return true;
+  if (textMatchesQuery(property.title, query)) return true;
+  if (property.district && textMatchesQuery(property.district, query)) return true;
+  return false;
 }

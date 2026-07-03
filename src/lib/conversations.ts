@@ -1,6 +1,10 @@
 import { supabase } from './supabase';
 import { archiveConversationLocal, unarchiveConversationLocal } from './chatInbox';
 import { buildChatMessageBody, getChatMessagePreview, type ParsedChatAttachment } from './chatMessageBody';
+import {
+  buildChatPeerLabel,
+  type PublicChatProfile,
+} from './chatDisplayName';
 
 export interface ConversationRow {
   id: string;
@@ -186,6 +190,20 @@ function groupMessagesByConversation(
   return byConv;
 }
 
+async function loadChatProfileMap(ids: string[]): Promise<Map<string, PublicChatProfile>> {
+  const map = new Map<string, PublicChatProfile>();
+  const unique = [...new Set(ids.filter(Boolean))];
+  await Promise.all(
+    unique.map(async (id) => {
+      const { data: rows, error } = await supabase.rpc('get_public_chat_profile', { profile_id: id });
+      if (error) return;
+      const row = (Array.isArray(rows) ? rows[0] : rows) as PublicChatProfile | null;
+      if (row) map.set(id, row);
+    }),
+  );
+  return map;
+}
+
 export async function fetchConversationsForLandlord(landlordId: string): Promise<ConversationWithProperty[]> {
   const { data: convs, error: cErr } = await supabase
     .from('conversations')
@@ -217,6 +235,9 @@ export async function fetchConversationsForLandlord(landlordId: string): Promise
     (props ?? []).map((p) => [p.id, { title: p.title, image: p.image, price: Number(p.price ?? 0) }])
   );
 
+  const tenantIds = [...new Set(convs.map((c) => c.tenant_id))];
+  const tenantProfiles = await loadChatProfileMap(tenantIds);
+
   return convs.map((c) => {
     const list = byConv.get(c.id) ?? [];
     const last = list[list.length - 1];
@@ -232,7 +253,11 @@ export async function fetchConversationsForLandlord(landlordId: string): Promise
       lastMessageBody: last?.body ?? '',
       lastMessageAt: last?.created_at ?? c.updated_at,
       unreadCount,
-      peerLabel: (c.tenant_display_name || '租客').trim() || '租客',
+      peerLabel: buildChatPeerLabel(
+        tenantProfiles.get(c.tenant_id),
+        (c.tenant_display_name || '租客').trim(),
+        '租客',
+      ),
     };
   });
 }
@@ -268,20 +293,7 @@ export async function fetchConversationsForTenant(tenantId: string): Promise<Con
     (props ?? []).map((p) => [p.id, { title: p.title, image: p.image, price: Number(p.price ?? 0) }])
   );
   const landlordIds = [...new Set(convs.map((c) => c.landlord_id))];
-  const landlordLabels = new Map<string, string>();
-  for (const lid of landlordIds) {
-    const { data: rows } = await supabase.rpc('get_public_landlord_profile', { profile_id: lid });
-    const row = Array.isArray(rows) ? rows[0] : rows;
-    if (row && typeof row === 'object' && 'full_name' in row) {
-      const o = row as { full_name: string; salutation: string };
-      const n = o.full_name?.trim() ?? '';
-      const s = o.salutation === '先生' || o.salutation === '女士' ? o.salutation : '';
-      const surname = n.split(/\s+/)[0] || '';
-      landlordLabels.set(lid, s ? `${surname} ${s}` : surname || '業主');
-    } else {
-      landlordLabels.set(lid, '業主');
-    }
-  }
+  const landlordProfiles = await loadChatProfileMap(landlordIds);
 
   return convs.map((c) => {
     const list = byConv.get(c.id) ?? [];
@@ -298,7 +310,7 @@ export async function fetchConversationsForTenant(tenantId: string): Promise<Con
       lastMessageBody: last?.body ?? '',
       lastMessageAt: last?.created_at ?? c.updated_at,
       unreadCount,
-      peerLabel: landlordLabels.get(c.landlord_id) ?? '業主',
+      peerLabel: buildChatPeerLabel(landlordProfiles.get(c.landlord_id), '', '業主'),
     };
   });
 }
@@ -328,6 +340,9 @@ export async function fetchUnreadNoticesForLandlord(landlordId: string): Promise
   const { data: props } = await supabase.from('properties').select('id, title').in('id', propertyIds);
   const titleMap = new Map((props ?? []).map((p) => [p.id, p.title ?? '物業']));
 
+  const tenantIds = [...new Set(convs.map((c) => c.tenant_id))];
+  const tenantProfiles = await loadChatProfileMap(tenantIds);
+
   const items: UnreadNoticeItem[] = [];
 
   for (const c of convs) {
@@ -347,7 +362,11 @@ export async function fetchUnreadNoticesForLandlord(landlordId: string): Promise
         body: m.body,
         preview: getChatMessagePreview(m.body) || '新訊息',
         createdAt: m.created_at,
-        fromLabel: (c.tenant_display_name || '租客').trim() || '租客',
+        fromLabel: buildChatPeerLabel(
+          tenantProfiles.get(c.tenant_id),
+          (c.tenant_display_name || '租客').trim(),
+          '租客',
+        ),
       });
     }
   }
@@ -370,20 +389,7 @@ export async function fetchUnreadNoticesForTenant(tenantId: string): Promise<Unr
   const titleMap = new Map((props ?? []).map((p) => [p.id, p.title ?? '物業']));
 
   const landlordIds = [...new Set(convs.map((c) => c.landlord_id))];
-  const landlordLabels = new Map<string, string>();
-  for (const lid of landlordIds) {
-    const { data: rows } = await supabase.rpc('get_public_landlord_profile', { profile_id: lid });
-    const row = Array.isArray(rows) ? rows[0] : rows;
-    if (row && typeof row === 'object' && 'full_name' in row) {
-      const o = row as { full_name: string; salutation: string };
-      const n = o.full_name?.trim() ?? '';
-      const s = o.salutation === '先生' || o.salutation === '女士' ? o.salutation : '';
-      const surname = n.split(/\s+/)[0] || '';
-      landlordLabels.set(lid, s ? `${surname} ${s}` : surname || '業主');
-    } else {
-      landlordLabels.set(lid, '業主');
-    }
-  }
+  const landlordProfiles = await loadChatProfileMap(landlordIds);
 
   const items: UnreadNoticeItem[] = [];
 
@@ -404,7 +410,7 @@ export async function fetchUnreadNoticesForTenant(tenantId: string): Promise<Unr
         body: m.body,
         preview: getChatMessagePreview(m.body) || '新訊息',
         createdAt: m.created_at,
-        fromLabel: landlordLabels.get(c.landlord_id) ?? '業主',
+        fromLabel: buildChatPeerLabel(landlordProfiles.get(c.landlord_id), '', '業主'),
       });
     }
   }

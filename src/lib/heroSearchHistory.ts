@@ -4,6 +4,8 @@ import type { AppLocale } from './locale';
 import { homeMessages } from '../content/translations/home';
 import { filtersMessages } from '../content/translations/filters';
 import { getDistrictLabel } from './hkDistricts';
+import { getMtrLineLabel, getMtrStationLabel } from './hkMtr';
+import { getSchoolNetLabel } from './hkSchoolNets';
 
 const STORAGE_KEY = 'thouse:hero-search-history';
 const MAX_ENTRIES = 10;
@@ -20,7 +22,9 @@ export interface HeroSearchSnapshot {
   areaRange: [number, number];
   floorLevels: FloorLevel[];
   buildingAges: BuildingAge[];
-  hasToilet: boolean;
+  roomFeatures: string[];
+  /** @deprecated legacy localStorage entries */
+  hasToilet?: boolean;
   amenities: string[];
   roomFilter: string;
   heroUnitType: string;
@@ -45,7 +49,9 @@ function isDefaultSnapshot(snapshot: HeroSearchSnapshot): boolean {
   if (snapshot.areaRange[0] > 0 || snapshot.areaRange[1] < HERO_AREA_SQFT_MAX) return false;
   if (snapshot.floorLevels.length > 0) return false;
   if (snapshot.buildingAges.length > 0) return false;
-  if (snapshot.hasToilet) return false;
+  const roomFeatures =
+    snapshot.roomFeatures?.length ? snapshot.roomFeatures : snapshot.hasToilet ? ['獨立洗手間'] : [];
+  if (roomFeatures.length > 0) return false;
   if (snapshot.amenities.length > 0) return false;
   if (snapshot.roomFilter) return false;
   if (snapshot.heroUnitType !== 'any') return false;
@@ -122,10 +128,10 @@ export function formatHeroSearchHistoryLabel(entry: HeroSearchSnapshot, locale: 
   if (entry.areaType === 'district' && entry.selectedDistrict) {
     parts.push(getDistrictLabel(entry.selectedDistrict, locale));
   } else if (entry.areaType === 'tube') {
-    if (entry.selectedTubeStation) parts.push(entry.selectedTubeStation);
-    else if (entry.selectedTubeLine) parts.push(entry.selectedTubeLine);
+    if (entry.selectedTubeStation) parts.push(getMtrStationLabel(entry.selectedTubeStation, locale));
+    else if (entry.selectedTubeLine) parts.push(getMtrLineLabel(entry.selectedTubeLine, locale));
   } else if (entry.areaType === 'school' && entry.selectedSchoolNet) {
-    parts.push(entry.selectedSchoolNet);
+    parts.push(getSchoolNetLabel(entry.selectedSchoolNet, locale));
   }
 
   const [minP, maxP] = entry.priceRange;
@@ -141,10 +147,12 @@ export function formatHeroSearchHistoryLabel(entry: HeroSearchSnapshot, locale: 
   const unitKey = entry.heroUnitType !== 'any' ? UNIT_KEYS[entry.heroUnitType] : undefined;
   if (unitKey) parts.push(t[unitKey]);
 
+  const roomFeatures =
+    entry.roomFeatures?.length ? entry.roomFeatures : entry.hasToilet ? ['獨立洗手間'] : [];
   const extra =
     (entry.floorLevels.length > 0 ? 1 : 0) +
     (entry.buildingAges.length > 0 ? 1 : 0) +
-    (entry.hasToilet ? 1 : 0) +
+    roomFeatures.length +
     entry.amenities.length +
     (entry.areaRange[0] > 0 || entry.areaRange[1] < HERO_AREA_SQFT_MAX ? 1 : 0);
 

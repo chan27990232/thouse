@@ -8,7 +8,6 @@ import { PaymentDialog } from './PaymentDialog';
 import { ContactLandlordDialog } from './ContactLandlordDialog';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { useLocale } from '../context/LocaleContext';
-import { PROPERTY_AMENITY_KEYS } from '../content/translations/property';
 
 interface PropertyDetailProps {
   property: Property;
@@ -18,13 +17,27 @@ interface PropertyDetailProps {
 }
 
 export function PropertyDetail({ property, onBack, isAuthenticated, onRequireAuth }: PropertyDetailProps) {
-  const { commonT, propertyT, localizePropertyTitle, localizePropertyDistrict, extractPropertyAreaFromTitle } =
+  const { commonT, propertyT, filtersT, localizePropertyTitle, localizePropertyDistrict, extractPropertyAreaFromTitle } =
     useLocale();
   const displayTitle = localizePropertyTitle(property.title);
   const locationLabel =
     localizePropertyDistrict(property.district) ||
     extractPropertyAreaFromTitle(property.title) ||
     propertyT.hongKong;
+  const buildingAgeLabel =
+    property.buildingAge === 'new'
+      ? commonT.buildingAgeNew
+      : property.buildingAge === '5-10'
+        ? commonT.buildingAge5_10
+        : property.buildingAge === '10-20'
+          ? commonT.buildingAge10_20
+          : property.buildingAge === '20+'
+            ? commonT.buildingAge20Plus
+            : null;
+
+  const listedRoomFeatures = property.roomFeatures ?? [];
+  const listedAmenities = property.amenities ?? [];
+  const hasListingFeatures = Boolean(buildingAgeLabel) || listedRoomFeatures.length > 0 || listedAmenities.length > 0;
   const [showRentalApp, setShowRentalApp] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
   const [showContactDialog, setShowContactDialog] = useState(false);
@@ -104,23 +117,38 @@ export function PropertyDetail({ property, onBack, isAuthenticated, onRequireAut
           <p className="text-gray-600 leading-relaxed">{propertyT.descriptionBody}</p>
         </div>
 
-        <div className="border-t py-6">
-          <h2 className="mb-3">{propertyT.amenitiesTitle}</h2>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3">
-            {PROPERTY_AMENITY_KEYS.map((key) => (
-              <div key={key} className="flex items-center gap-2 text-gray-600">
-                <div className="w-2 h-2 bg-black rounded-full" />
-                <span>{propertyT[key]}</span>
-              </div>
-            ))}
+        {hasListingFeatures ? (
+          <div className="border-t py-6">
+            <h2 className="mb-3">{propertyT.amenitiesTitle}</h2>
+            <div className="flex flex-wrap gap-2">
+              {buildingAgeLabel ? (
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-sm text-gray-700">{buildingAgeLabel}</span>
+              ) : null}
+              {listedRoomFeatures.map((name) => (
+                <span key={name} className="rounded-full bg-slate-100 px-3 py-1 text-sm text-gray-700">
+                  {filtersT.roomFeature(name)}
+                </span>
+              ))}
+              {listedAmenities.map((name) => (
+                <span key={name} className="rounded-full bg-slate-100 px-3 py-1 text-sm text-gray-700">
+                  {filtersT.amenity(name)}
+                </span>
+              ))}
+            </div>
           </div>
-        </div>
+        ) : null}
 
         <div className="mt-6 flex min-h-11 flex-col gap-2.5 sm:flex-row sm:gap-3">
           <Button
             variant="outline"
             className="w-full min-h-11 flex-1 sm:min-h-10"
-            onClick={() => setShowContactDialog(true)}
+            onClick={() => {
+              if (!isAuthenticated) {
+                onRequireAuth();
+                return;
+              }
+              setShowContactDialog(true);
+            }}
             type="button"
           >
             {propertyT.contactLandlord}

@@ -1,5 +1,7 @@
 import type { AppLocale } from '../../lib/locale';
 import { formatMessage } from '../../lib/i18nFormat';
+import { getMtrLineLabel, getMtrStationLabel } from '../../lib/hkMtr';
+import { getSchoolNetLabel } from '../../lib/hkSchoolNets';
 
 const filtersZhTW = {
   description: '進階條件會與上方地區、租金、房間數一併套用。',
@@ -18,10 +20,11 @@ const filtersZhTW = {
   areaMinLabel: '0 呎',
   areaMaxLabel: '{max}+ 呎',
   floorSection: '樓層（可多選）',
-  floorLow: '低層 (1–5)',
-  floorMid: '中層 (6–15)',
-  floorHigh: '高層 (16+)',
+  floorLow: '底層 (1–9)',
+  floorMid: '中層 (10–25)',
+  floorHigh: '高層 (26+)',
   ageSection: '樓齡（可多選）',
+  roomConfigSection: '房間配置',
   buildingFacilities: '大廈設施',
   reset: '重設',
   apply: '套用篩選',
@@ -49,10 +52,11 @@ const filtersZhCN: FiltersMessages = {
   areaMinLabel: '0 呎',
   areaMaxLabel: '{max}+ 呎',
   floorSection: '楼层（可多选）',
-  floorLow: '低层 (1–5)',
-  floorMid: '中层 (6–15)',
-  floorHigh: '高层 (16+)',
+  floorLow: '底层 (1–9)',
+  floorMid: '中层 (10–25)',
+  floorHigh: '高层 (26+)',
   ageSection: '楼龄（可多选）',
+  roomConfigSection: '房间配置',
   buildingFacilities: '大厦设施',
   reset: '重设',
   apply: '套用筛选',
@@ -78,10 +82,11 @@ const filtersEn: FiltersMessages = {
   areaMinLabel: '0 sq ft',
   areaMaxLabel: '{max}+ sq ft',
   floorSection: 'Floor (multi-select)',
-  floorLow: 'Low (1–5)',
-  floorMid: 'Mid (6–15)',
-  floorHigh: 'High (16+)',
+  floorLow: 'Lower (1–9)',
+  floorMid: 'Mid (10–25)',
+  floorHigh: 'High (26+)',
   ageSection: 'Building age (multi-select)',
+  roomConfigSection: 'Room features',
   buildingFacilities: 'Building facilities',
   reset: 'Reset',
   apply: 'Apply filters',
@@ -116,8 +121,24 @@ export const AMENITY_LABELS: Record<string, Record<AppLocale, string>> = {
   '24小時保安': { 'zh-TW': '24小時保安', 'zh-CN': '24小时保安', en: '24-hour security' },
 };
 
+/** canonical 繁中房間配置名 → 各語顯示 */
+export const ROOM_FEATURE_LABELS: Record<string, Record<AppLocale, string>> = {
+  獨立洗手間: { 'zh-TW': '獨立洗手間', 'zh-CN': '独立洗手间', en: 'Private bathroom' },
+  冰箱: { 'zh-TW': '冰箱', 'zh-CN': '冰箱', en: 'Refrigerator' },
+  單人床: { 'zh-TW': '單人床', 'zh-CN': '单人床', en: 'Single bed' },
+  雙人床: { 'zh-TW': '雙人床', 'zh-CN': '双人床', en: 'Double bed' },
+  沙發: { 'zh-TW': '沙發', 'zh-CN': '沙发', en: 'Sofa' },
+  洗衣機: { 'zh-TW': '洗衣機', 'zh-CN': '洗衣机', en: 'Washing machine' },
+  冷氣: { 'zh-TW': '冷氣', 'zh-CN': '冷气', en: 'Air conditioning' },
+  電視: { 'zh-TW': '電視', 'zh-CN': '电视', en: 'TV' },
+};
+
 export function getAmenityLabel(name: string, locale: AppLocale): string {
   return AMENITY_LABELS[name]?.[locale] ?? name;
+}
+
+export function getRoomFeatureLabel(name: string, locale: AppLocale): string {
+  return ROOM_FEATURE_LABELS[name]?.[locale] ?? name;
 }
 
 export function buildFiltersT(locale: AppLocale) {
@@ -129,6 +150,18 @@ export function buildFiltersT(locale: AppLocale) {
     },
     amenity(name: string) {
       return getAmenityLabel(name, locale);
+    },
+    roomFeature(name: string) {
+      return getRoomFeatureLabel(name, locale);
+    },
+    mtrLine(line: string) {
+      return getMtrLineLabel(line, locale);
+    },
+    mtrStation(station: string) {
+      return getMtrStationLabel(station, locale);
+    },
+    schoolNet(net: string) {
+      return getSchoolNetLabel(net, locale);
     },
   };
 }

@@ -12,6 +12,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { Button } from './ui/button';
+import { LocalizedFileInput } from './ui/LocalizedFileInput';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
@@ -25,17 +26,21 @@ import {
 import { useLocale } from '../context/LocaleContext';
 import {
   getListingPropertyTypes,
-  LISTING_FEATURE_TAG_KEYS,
-  type ListingFeatureTagKey,
+  type ListingPropertyTypeId,
   type buildListPropertyT,
 } from '../content/translations/listProperty';
 import { HK_DISTRICTS } from '../lib/hkDistricts';
+import { HK_SCHOOL_NETS } from '../lib/hkSchoolNets';
 import {
-  LISTING_ROOM_OPTIONS,
   buildListingDescription,
   buildListingTitle,
-  type ListingPropertyTypeId,
 } from '../lib/listPropertyOptions';
+import {
+  PROPERTY_BUILDING_AMENITY_KEYS,
+  PROPERTY_BUILDING_AGE_VALUES,
+  PROPERTY_ROOM_FEATURE_KEYS,
+  type PropertyBuildingAge,
+} from '../lib/propertyFilterFields';
 import { uploadDeedFiles, uploadListingCoverImage, uploadProofPhotoFiles } from '../lib/propertyMediaUpload';
 import { supabase } from '../lib/supabase';
 import { cn } from './ui/utils';
@@ -166,7 +171,7 @@ export interface ListPropertyWizardProps {
 }
 
 export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListPropertyWizardProps) {
-  const { locale, listPropertyT: t, commonT } = useLocale();
+  const { locale, listPropertyT: t, commonT, filtersT } = useLocale();
 
   const steps = useMemo<WizardStep[]>(
     () => [
@@ -187,6 +192,7 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
 
   const [propertyTypeId, setPropertyTypeId] = useState<ListingPropertyTypeId | ''>('');
   const [district, setDistrict] = useState('');
+  const [schoolNet, setSchoolNet] = useState('');
   const [estateName, setEstateName] = useState('');
   const [buildingName, setBuildingName] = useState('');
   const [blockTower, setBlockTower] = useState('');
@@ -194,9 +200,9 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
   const [floor, setFloor] = useState('');
   const [price, setPrice] = useState('');
   const [area, setArea] = useState('');
-  const [bedrooms, setBedrooms] = useState(1);
-  const [bathrooms, setBathrooms] = useState(1);
-  const [features, setFeatures] = useState<string[]>([]);
+  const [buildingAge, setBuildingAge] = useState<PropertyBuildingAge | ''>('');
+  const [roomFeatures, setRoomFeatures] = useState<string[]>([]);
+  const [amenities, setAmenities] = useState<string[]>([]);
   const [description, setDescription] = useState('');
   const [customTitle, setCustomTitle] = useState('');
   const [useCustomTitle, setUseCustomTitle] = useState(false);
@@ -211,17 +217,24 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
   );
   const displayTitle = useCustomTitle && customTitle.trim() ? customTitle.trim() : autoTitle;
 
-  const previewLayout = bedrooms === 0 ? t.openPlan : t.format('roomCount', { n: bedrooms });
-  const previewBathCount = t.format('bathCount', { n: bathrooms });
   const previewMeta = t.format('previewMeta', {
     area: area || '—',
     floor: floor || '—',
-    layout: previewLayout,
-    bathCount: previewBathCount,
   });
 
-  const toggleFeature = (tag: string) => {
-    setFeatures((prev) => (prev.includes(tag) ? prev.filter((f) => f !== tag) : [...prev, tag]));
+  const ageLabels: Record<PropertyBuildingAge, string> = {
+    new: commonT.buildingAgeNew,
+    '5-10': commonT.buildingAge5_10,
+    '10-20': commonT.buildingAge10_20,
+    '20+': commonT.buildingAge20Plus,
+  };
+
+  const toggleRoomFeature = (name: string) => {
+    setRoomFeatures((prev) => (prev.includes(name) ? prev.filter((f) => f !== name) : [...prev, name]));
+  };
+
+  const toggleAmenity = (name: string) => {
+    setAmenities((prev) => (prev.includes(name) ? prev.filter((a) => a !== name) : [...prev, name]));
   };
 
   const validateStep = (s: number): string | null => {
@@ -288,6 +301,8 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
         `${t.addrUnit}${unit.trim()}`,
       ].filter(Boolean);
 
+      const bathrooms = roomFeatures.includes('獨立洗手間') ? 1 : 0;
+
       const payload: Record<string, unknown> = {
         landlord_id: landlordId,
         title: displayTitle,
@@ -295,13 +310,20 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
         price: Number(price),
         area: Number(area),
         floor: Number(floor),
-        bedrooms,
+        bedrooms: 0,
         bathrooms,
         district,
+        room_features: roomFeatures,
+        amenities,
+        building_age: buildingAge || null,
+        school_net: schoolNet,
         description: [
           buildListingDescription({
             description,
-            features,
+            roomFeatures,
+            amenities,
+            buildingAge,
+            schoolNet,
             propertyTypeId,
             district,
           }),
@@ -371,6 +393,24 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
                 {HK_DISTRICTS.map((d) => (
                   <SelectItem key={d} value={d}>
                     {d}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </SectionCard>
+          <SectionCard title={t.schoolNetTitle} hint={t.schoolNetHint}>
+            <Select
+              value={schoolNet || '__none__'}
+              onValueChange={(v) => setSchoolNet(v === '__none__' ? '' : v)}
+            >
+              <SelectTrigger className="w-full bg-white">
+                <SelectValue placeholder={t.schoolNetPlaceholder} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">{t.schoolNetNone}</SelectItem>
+                {HK_SCHOOL_NETS.map((net) => (
+                  <SelectItem key={net} value={net}>
+                    {filtersT.schoolNet(net)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -487,33 +527,33 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
               />
             </div>
           </SectionCard>
-          <SectionCard title={t.layoutTitle}>
-            <div>
-              <Label className="text-xs text-gray-600">{t.rooms}</Label>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {LISTING_ROOM_OPTIONS.map((n) => (
-                  <Chip key={n} active={bedrooms === n} onClick={() => setBedrooms(n)}>
-                    {n === 0 ? t.openPlan : t.format('roomCount', { n })}
-                  </Chip>
-                ))}
-              </div>
-            </div>
-            <div>
-              <Label className="text-xs text-gray-600">{t.bathrooms}</Label>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {[1, 2, 3].map((n) => (
-                  <Chip key={n} active={bathrooms === n} onClick={() => setBathrooms(n)}>
-                    {t.format('bathCount', { n })}
-                  </Chip>
-                ))}
-              </div>
+          <SectionCard title={t.buildingAgeTitle}>
+            <div className="flex flex-wrap gap-2">
+              {PROPERTY_BUILDING_AGE_VALUES.map((value) => (
+                <Chip
+                  key={value}
+                  active={buildingAge === value}
+                  onClick={() => setBuildingAge((prev) => (prev === value ? '' : value))}
+                >
+                  {ageLabels[value]}
+                </Chip>
+              ))}
             </div>
           </SectionCard>
-          <SectionCard title={t.featuresTitle}>
+          <SectionCard title={t.roomConfigTitle}>
             <div className="flex flex-wrap gap-2">
-              {LISTING_FEATURE_TAG_KEYS.map((tag) => (
-                <Chip key={tag} active={features.includes(tag)} onClick={() => toggleFeature(tag)}>
-                  {t.featureTag(tag)}
+              {PROPERTY_ROOM_FEATURE_KEYS.map((name) => (
+                <Chip key={name} active={roomFeatures.includes(name)} onClick={() => toggleRoomFeature(name)}>
+                  {filtersT.roomFeature(name)}
+                </Chip>
+              ))}
+            </div>
+          </SectionCard>
+          <SectionCard title={t.buildingFacilitiesTitle}>
+            <div className="flex flex-wrap gap-2">
+              {PROPERTY_BUILDING_AMENITY_KEYS.map((name) => (
+                <Chip key={name} active={amenities.includes(name)} onClick={() => toggleAmenity(name)}>
+                  {filtersT.amenity(name)}
                 </Chip>
               ))}
             </div>
@@ -524,16 +564,14 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
       {stepId === 'media' ? (
         <div className="space-y-4">
           <SectionCard title={t.coverTitle} hint={t.coverHint}>
-            <Input
-              type="file"
+            <LocalizedFileInput
               accept="image/jpeg,image/png,image/webp"
-              className="bg-white"
-              onChange={(e) => {
-                const f = e.target.files?.[0] ?? null;
+              onFiles={(files) => {
+                const f = files[0] ?? null;
                 setCoverFile(f);
                 if (f) setCoverUrl('');
-                e.target.value = '';
               }}
+              showEmptyHint={!coverFile}
             />
             {coverFile ? (
               <FilePreviewRow
@@ -552,18 +590,15 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
             />
           </SectionCard>
           <SectionCard title={t.proofTitle} hint={t.proofHint}>
-            <Input
-              type="file"
+            <LocalizedFileInput
               accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm"
               multiple
-              className="bg-white"
-              onChange={(e) => {
-                const picked = e.target.files ? Array.from(e.target.files) : [];
+              onFiles={(picked) => {
                 if (picked.length > 0) {
                   setProofFiles((prev) => [...prev, ...picked]);
                 }
-                e.target.value = '';
               }}
+              showEmptyHint={proofFiles.length === 0}
             />
             <FilePreviewRow
               files={proofFiles}
@@ -572,20 +607,20 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
             />
           </SectionCard>
           <SectionCard title={t.deedTitle} hint={t.deedHint}>
-            <div className="flex items-center gap-2 rounded-lg border border-dashed border-gray-300 bg-white p-3">
-              <FileCheck2 className="h-5 w-5 shrink-0 text-gray-500" />
-              <Input
-                type="file"
+            <div className="rounded-lg border border-dashed border-gray-300 bg-white p-3">
+              <div className="mb-2 flex items-center gap-2 text-gray-500">
+                <FileCheck2 className="h-5 w-5 shrink-0" />
+              </div>
+              <LocalizedFileInput
+                variant="dashed"
                 accept="image/jpeg,image/png,image/webp,application/pdf"
                 multiple
-                className="border-0 bg-transparent p-0 shadow-none"
-                onChange={(e) => {
-                  const picked = e.target.files ? Array.from(e.target.files) : [];
+                onFiles={(picked) => {
                   if (picked.length > 0) {
                     setDeedFiles((prev) => [...prev, ...picked]);
                   }
-                  e.target.value = '';
                 }}
+                showEmptyHint={deedFiles.length === 0}
               />
             </div>
             <FilePreviewRow
@@ -633,17 +668,26 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
             <h4 className="mt-2 text-base font-semibold text-gray-900">{displayTitle || '—'}</h4>
             <p className="mt-1 text-sm text-gray-600">
               {district} · {propertyTypes.find((pt) => pt.id === propertyTypeId)?.label ?? '—'}
+              {schoolNet ? ` · ${filtersT.schoolNet(schoolNet)}` : ''}
             </p>
             <p className="mt-2 text-lg font-bold text-gray-900">
               HK${Number(price || 0).toLocaleString('en-HK')}
               <span className="text-sm font-normal text-gray-500"> {commonT.perMonth}</span>
             </p>
             <p className="mt-1 text-sm text-gray-600">{previewMeta}</p>
-            {features.length > 0 ? (
+            {buildingAge ? (
+              <p className="mt-2 text-xs text-gray-600">{ageLabels[buildingAge]}</p>
+            ) : null}
+            {roomFeatures.length > 0 || amenities.length > 0 ? (
               <div className="mt-3 flex flex-wrap gap-1.5">
-                {features.map((f) => (
-                  <span key={f} className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700">
-                    {t.featureTag(f as ListingFeatureTagKey)}
+                {roomFeatures.map((name) => (
+                  <span key={name} className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700">
+                    {filtersT.roomFeature(name)}
+                  </span>
+                ))}
+                {amenities.map((name) => (
+                  <span key={name} className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700">
+                    {filtersT.amenity(name)}
                   </span>
                 ))}
               </div>

@@ -52,7 +52,10 @@ export function buildListingTitle(input: {
 
 export function buildListingDescription(input: {
   description: string;
-  features: string[];
+  roomFeatures: string[];
+  amenities: string[];
+  buildingAge: string;
+  schoolNet: string;
   propertyTypeId: ListingPropertyTypeId | '';
   district: string;
 }): string {
@@ -60,8 +63,11 @@ export function buildListingDescription(input: {
     LISTING_PROPERTY_TYPES.find((t) => t.id === input.propertyTypeId)?.label ?? '';
   const lines: string[] = [];
   if (input.district) lines.push(`地區：${input.district}`);
+  if (input.schoolNet) lines.push(`校網：${input.schoolNet}`);
   if (typeLabel) lines.push(`類型：${typeLabel}`);
-  if (input.features.length > 0) lines.push(`特色：${input.features.join('、')}`);
+  if (input.buildingAge) lines.push(`樓齡：${input.buildingAge}`);
+  if (input.roomFeatures.length > 0) lines.push(`房間配置：${input.roomFeatures.join('、')}`);
+  if (input.amenities.length > 0) lines.push(`大廈設施：${input.amenities.join('、')}`);
   const body = input.description.trim();
   if (body) lines.push('', body);
   return lines.join('\n').trim();

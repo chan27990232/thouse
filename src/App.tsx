@@ -48,6 +48,10 @@ export interface Property {
   bathrooms: number;
   district?: string;
   isFavorite: boolean;
+  roomFeatures?: string[];
+  amenities?: string[];
+  buildingAge?: 'new' | '5-10' | '10-20' | '20+';
+  schoolCatchment?: string;
 }
 
 export default function App() {
@@ -297,6 +301,7 @@ export default function App() {
           onChatClick={() => navigate('chat')}
           onProfileClick={() => navigate('profile')}
           onMyPropertiesClick={() => navigate('my-properties')}
+          onGoHome={() => navigate('home')}
         />
       )}
       {currentScreen === 'home' && isAuthenticated && userRole === 'landlord' && (
@@ -305,6 +310,7 @@ export default function App() {
           onPropertyClick={handlePropertyClick}
           onChatClick={() => navigate('chat')}
           onProfileClick={() => navigate('profile')}
+          onGoHome={() => navigate('home')}
         />
       )}
       {currentScreen === 'auth-tenant' && (
