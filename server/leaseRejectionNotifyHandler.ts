@@ -1,10 +1,10 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { sendEmail, smtpEnvFromProcess, type SmtpEnv } from './sendEmail';
 
 export type LeaseRejectionNotifyEnv = {
   supabaseUrl: string;
   serviceRoleKey: string;
-  resendApiKey: string;
-  resendFromEmail: string;
+  smtp: SmtpEnv;
   leaseRejectionFromEmail: string;
   notifySecret: string;
   publicAppUrl: string;
@@ -54,45 +54,29 @@ async function sendRejectionEmail(
     previousStatus: string | null;
   },
 ) {
-  if (!env.resendApiKey) {
-    throw new Error('郵件服務未設定（請在 Vercel / .env.local 設定 RESEND_API_KEY）。');
-  }
-
   const from =
-    (env.leaseRejectionFromEmail || env.resendFromEmail || '簡屋 <onboarding@resend.dev>').trim();
+    (env.leaseRejectionFromEmail || env.smtp.from).trim();
   const name = payload.fullName.trim() || '租客';
   const title = payload.propertyTitle.trim() || '物業';
   const detail = rejectionDetail(payload.previousStatus);
   const appLink = env.publicAppUrl.replace(/\/$/, '');
 
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${env.resendApiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      from,
-      to: [payload.to],
-      subject: '簡屋 · 租約申請結果通知',
-      html: `
-        <div style="font-family:sans-serif;line-height:1.6;color:#111;max-width:520px">
-          <h2 style="margin:0 0 12px;color:#1a365d">簡屋 · 租約申請結果</h2>
-          <p>${escapeHtml(name)} 您好，</p>
-          <p>您就「<strong>${escapeHtml(title)}</strong>」提交的租約申請<strong>未能通過</strong>。${escapeHtml(detail)}</p>
-          <p style="margin:20px 0">
-            <a href="${escapeHtml(appLink)}" style="display:inline-block;background:#1a365d;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;font-size:14px">登入簡屋查看申請</a>
-          </p>
-          <p style="color:#555;font-size:14px">如有疑問，可透過站內訊息或聯絡客服查詢。</p>
-        </div>
-      `,
-    }),
+  await sendEmail(env.smtp, {
+    from,
+    to: payload.to,
+    subject: '簡屋 · 租約申請結果通知',
+    html: `
+      <div style="font-family:sans-serif;line-height:1.6;color:#111;max-width:520px">
+        <h2 style="margin:0 0 12px;color:#1a365d">簡屋 · 租約申請結果</h2>
+        <p>${escapeHtml(name)} 您好，</p>
+        <p>您就「<strong>${escapeHtml(title)}</strong>」提交的租約申請<strong>未能通過</strong>。${escapeHtml(detail)}</p>
+        <p style="margin:20px 0">
+          <a href="${escapeHtml(appLink)}" style="display:inline-block;background:#1a365d;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;font-size:14px">登入簡屋查看申請</a>
+        </p>
+        <p style="color:#555;font-size:14px">如有疑問，可透過站內訊息或聯絡客服查詢。</p>
+      </div>
+    `,
   });
-
-  if (!res.ok) {
-    const detailText = await res.text();
-    throw new Error(`無法寄出通知郵件：${detailText.slice(0, 200)}`);
-  }
 }
 
 async function isAuthorized(
@@ -147,8 +131,7 @@ export function leaseRejectionNotifyEnvFromProcess(
   return {
     supabaseUrl: (env.SUPABASE_URL || env.VITE_SUPABASE_URL || '').trim(),
     serviceRoleKey: (env.SUPABASE_SERVICE_ROLE_KEY || '').trim(),
-    resendApiKey: (env.RESEND_API_KEY || '').trim(),
-    resendFromEmail: (env.RESEND_FROM_EMAIL || '').trim(),
+    smtp: smtpEnvFromProcess(env),
     leaseRejectionFromEmail: (env.LEASE_REJECTION_FROM_EMAIL || '').trim(),
     notifySecret: (env.LEASE_REJECTION_NOTIFY_SECRET || '').trim(),
     publicAppUrl:

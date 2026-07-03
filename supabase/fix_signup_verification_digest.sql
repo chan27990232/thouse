@@ -1,26 +1,7 @@
--- 租客註冊：自訂 email 驗證碼（非 Supabase Confirm Signup 連結）
--- 須已執行 validate_signup_email.sql；寄信由 Edge Function signup-verification 處理
+-- 修正 Supabase 上 pgcrypto digest 型別與 schema 問題
+-- 錯誤：function digest(text, unknown) does not exist
 
 create extension if not exists pgcrypto with schema extensions;
-
-create table if not exists public.signup_email_verification_codes (
-  id uuid primary key default gen_random_uuid(),
-  email text not null,
-  code_hash text not null,
-  expires_at timestamptz not null,
-  consumed_at timestamptz,
-  created_at timestamptz not null default now()
-);
-
-create index if not exists signup_email_verification_codes_email_created_idx
-  on public.signup_email_verification_codes (lower(email), created_at desc);
-
-comment on table public.signup_email_verification_codes is '租客註冊 email 驗證碼（僅存 hash；寄信由 Edge Function 負責）';
-
-alter table public.signup_email_verification_codes enable row level security;
-
--- 僅 service role / security definer 函式可寫；一般客戶端不可讀取驗證碼
-revoke all on public.signup_email_verification_codes from anon, authenticated;
 
 create or replace function public._signup_code_hash(p_email text, p_code text)
 returns text
@@ -34,7 +15,6 @@ $$;
 revoke all on function public._signup_code_hash(text, text) from public;
 grant execute on function public._signup_code_hash(text, text) to service_role;
 
--- Edge Function 呼叫：儲存驗證碼 hash
 create or replace function public.store_signup_verification_code(
   p_email text,
   p_code text,
@@ -74,7 +54,6 @@ $$;
 revoke all on function public.store_signup_verification_code(text, text, integer) from public;
 grant execute on function public.store_signup_verification_code(text, text, integer) to service_role;
 
--- 註冊前驗證驗證碼（Edge Function 於建立帳戶前呼叫）
 create or replace function public.verify_signup_verification_code(p_email text, p_code text)
 returns boolean
 language plpgsql

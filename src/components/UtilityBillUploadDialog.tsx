@@ -65,7 +65,7 @@ function localizeValidationError(message: string, t: ReturnType<typeof useLocale
 
 export function UtilityBillUploadDialog({ open, onOpenChange, property }: UtilityBillUploadDialogProps) {
   const { utilityBillT: t, localizePropertyTitle } = useLocale();
-  const displayTitle = localizePropertyTitle(property.title);
+  const displayTitle = property ? localizePropertyTitle(property.title) : '';
   const [billMonth, setBillMonth] = useState(defaultMonthValue);
   const [billType, setBillType] = useState<UtilityBillType>('water');
   const [files, setFiles] = useState<File[]>([]);

@@ -1,5 +1,3 @@
-import { handleSignupVerification } from '../server/signupVerificationHandler';
-
 type Req = { method?: string; body?: unknown };
 type Res = {
   status: (code: number) => Res;
@@ -32,9 +30,22 @@ export default async function handler(req: Req, res: Res) {
     role?: string;
   };
 
-  const result = await handleSignupVerification(body);
-  res.status(result.status ?? (result.ok ? 200 : 500)).json({
-    ok: result.ok,
-    message: result.message,
-  });
+  try {
+    const { handleSignupVerification, signupVerificationEnvFromProcess } = await import(
+      '../server/signupVerificationHandler'
+    );
+    const result = await handleSignupVerification(
+      body,
+      signupVerificationEnvFromProcess(process.env as Record<string, string | undefined>),
+    );
+    res.status(result.status ?? (result.ok ? 200 : 500)).json({
+      ok: result.ok,
+      message: result.message,
+    });
+  } catch (error) {
+    res.status(500).json({
+      ok: false,
+      message: error instanceof Error ? error.message : '伺服器錯誤',
+    });
+  }
 }

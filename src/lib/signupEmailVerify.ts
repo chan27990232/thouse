@@ -33,8 +33,17 @@ function translateAuthMessage(message: string): string {
   if (m.includes('user already registered') || m.includes('already been registered')) {
     return '此電郵已被註冊，請直接登入或使用其他電郵。';
   }
+  if (m.includes('non-2xx') || m.includes('edge function')) {
+    return '驗證碼服務暫時無法使用，請稍後再試。';
+  }
+  if (m.includes('domain is not verified') || m.includes('郵件網域尚未驗證')) {
+    return '郵件服務尚未完成設定，暫時無法寄出驗證碼，請聯絡客服。';
+  }
+  if (m.includes('smtp_user') || m.includes('smtp_pass') || m.includes('郵件服務未設定') || m.includes('郵件登入失敗')) {
+    return '郵件服務尚未完成設定，暫時無法寄出驗證碼，請聯絡客服。';
+  }
   if (m.includes('error sending confirmation email') || m.includes('error sending recovery email')) {
-    return '無法寄出郵件，請確認 Supabase SMTP 或已部署 signup-verification / request-password-reset 並設定 RESEND_API_KEY。';
+    return '無法寄出郵件，請確認 Supabase → Authentication → SMTP 或 Vercel SMTP 設定。';
   }
   if (m.includes('smtp')) {
     return '無法寄出郵件，請檢查 Supabase → Authentication → SMTP 設定。';

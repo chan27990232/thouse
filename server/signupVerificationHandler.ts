@@ -1,11 +1,11 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { archiveDeactivatedAccount } from './archiveDeactivatedAccount';
+import { sendEmail, smtpEnvFromProcess, type SmtpEnv } from './sendEmail';
 
 export type SignupVerificationEnv = {
   supabaseUrl: string;
   serviceRoleKey: string;
-  resendApiKey: string;
-  resendFromEmail: string;
+  smtp: SmtpEnv;
 };
 
 export type SignupVerificationBody = {
@@ -141,38 +141,18 @@ async function validateSignupEmail(
 }
 
 async function sendVerificationEmail(env: SignupVerificationEnv, email: string, code: string) {
-  if (!env.resendApiKey) {
-    throw new Error(
-      '郵件服務未設定（請在 Vercel / Supabase 設定 RESEND_API_KEY 並部署 signup-verification）。',
-    );
-  }
-
-  const from = env.resendFromEmail || 'T-House Limited <onboarding@resend.dev>';
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${env.resendApiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      from,
-      to: [email],
-      subject: '簡屋 · 註冊驗證碼',
-      html: `
-        <div style="font-family:sans-serif;line-height:1.6;color:#111">
-          <h2 style="margin:0 0 12px">簡屋 · 註冊驗證碼</h2>
-          <p>你的驗證碼是：</p>
-          <p style="font-size:28px;font-weight:700;letter-spacing:0.2em;margin:16px 0">${code}</p>
-          <p style="color:#555;font-size:14px">驗證碼 10 分鐘內有效。如非本人操作，請忽略此電郵。</p>
-        </div>
-      `,
-    }),
+  await sendEmail(env.smtp, {
+    to: email,
+    subject: '簡屋 · 註冊驗證碼',
+    html: `
+      <div style="font-family:sans-serif;line-height:1.6;color:#111">
+        <h2 style="margin:0 0 12px">簡屋 · 註冊驗證碼</h2>
+        <p>你的驗證碼是：</p>
+        <p style="font-size:28px;font-weight:700;letter-spacing:0.2em;margin:16px 0">${code}</p>
+        <p style="color:#555;font-size:14px">驗證碼 10 分鐘內有效。如非本人操作，請忽略此電郵。</p>
+      </div>
+    `,
   });
-
-  if (!res.ok) {
-    const detail = await res.text();
-    throw new Error(`無法寄出驗證碼郵件：${detail.slice(0, 200)}`);
-  }
 }
 
 async function sendOtpForEmail(
@@ -228,8 +208,7 @@ export function signupVerificationEnvFromProcess(
   return {
     supabaseUrl: (env.SUPABASE_URL || env.VITE_SUPABASE_URL || '').trim(),
     serviceRoleKey: (env.SUPABASE_SERVICE_ROLE_KEY || '').trim(),
-    resendApiKey: (env.RESEND_API_KEY || '').trim(),
-    resendFromEmail: (env.RESEND_FROM_EMAIL || '').trim(),
+    smtp: smtpEnvFromProcess(env),
   };
 }
 

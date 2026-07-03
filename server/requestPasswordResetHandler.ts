@@ -1,17 +1,24 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
-import { sendEmail, smtpEnvFromDeno } from '../_shared/smtp.ts';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { sendEmail, smtpEnvFromProcess, type SmtpEnv } from './sendEmail';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+export type RequestPasswordResetEnv = {
+  supabaseUrl: string;
+  serviceRoleKey: string;
+  smtp: SmtpEnv;
+  publicAppUrl: string;
 };
 
-function json(body: Record<string, unknown>, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  });
-}
+export type RequestPasswordResetBody = {
+  identifier?: string;
+  email?: string;
+  redirectTo?: string;
+};
+
+export type RequestPasswordResetResult = {
+  ok: boolean;
+  message?: string;
+  status?: number;
+};
 
 function escapeHtml(text: string): string {
   return text
@@ -22,7 +29,7 @@ function escapeHtml(text: string): string {
 }
 
 async function resolveAuthEmail(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient,
   identifier: string,
 ): Promise<string | null> {
   const trimmed = identifier.trim();
@@ -36,8 +43,8 @@ async function resolveAuthEmail(
   return typeof data === 'string' && data.trim() ? data.trim().toLowerCase() : null;
 }
 
-async function sendRecoveryEmail(to: string, actionLink: string) {
-  await sendEmail(smtpEnvFromDeno(), {
+async function sendRecoveryEmail(env: RequestPasswordResetEnv, to: string, actionLink: string) {
+  await sendEmail(env.smtp, {
     to,
     subject: '簡屋 · 重設密碼',
     html: `
@@ -64,41 +71,43 @@ function isUserNotFoundError(message: string): boolean {
   );
 }
 
-Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+export function requestPasswordResetEnvFromProcess(
+  env: Record<string, string | undefined> = process.env as Record<string, string | undefined>,
+): RequestPasswordResetEnv {
+  return {
+    supabaseUrl: (env.SUPABASE_URL || env.VITE_SUPABASE_URL || '').trim(),
+    serviceRoleKey: (env.SUPABASE_SERVICE_ROLE_KEY || '').trim(),
+    smtp: smtpEnvFromProcess(env),
+    publicAppUrl: (env.PUBLIC_APP_URL || env.VITE_PUBLIC_APP_URL || 'https://thousehk.com').trim(),
+  };
+}
+
+export async function handleRequestPasswordReset(
+  body: RequestPasswordResetBody,
+  env: RequestPasswordResetEnv = requestPasswordResetEnvFromProcess(),
+): Promise<RequestPasswordResetResult> {
+  if (!env.supabaseUrl || !env.serviceRoleKey) {
+    return { ok: false, message: '伺服器設定不完整。', status: 500 };
   }
 
-  if (req.method !== 'POST') {
-    return json({ ok: false, message: 'Method not allowed' }, 405);
+  const identifier = String(body.identifier ?? body.email ?? '').trim();
+  const redirectTo =
+    String(body.redirectTo ?? '').trim() ||
+    env.publicAppUrl.replace(/\/$/, '') + '/';
+
+  if (!identifier) {
+    return { ok: false, message: '請輸入電子郵件或用戶名稱。', status: 400 };
   }
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-    if (!supabaseUrl || !serviceRoleKey) {
-      return json({ ok: false, message: '伺服器設定不完整。' }, 500);
-    }
-
-    const body = await req.json();
-    const identifier = String(body.identifier ?? body.email ?? '').trim();
-    const redirectTo =
-      String(body.redirectTo ?? '').trim() ||
-      Deno.env.get('PUBLIC_APP_URL') ||
-      'https://thousehk.com/';
-
-    if (!identifier) {
-      return json({ ok: false, message: '請輸入電子郵件或用戶名稱。' }, 400);
-    }
-
-    const supabase = createClient(supabaseUrl, serviceRoleKey);
+    const supabase = createClient(env.supabaseUrl, env.serviceRoleKey);
     const email = await resolveAuthEmail(supabase, identifier);
 
     if (!email) {
-      return json({
+      return {
         ok: true,
         message: '若該帳戶存在，重設密碼連結已寄至註冊電郵。',
-      });
+      };
     }
 
     const { data, error } = await supabase.auth.admin.generateLink({
@@ -111,27 +120,27 @@ Deno.serve(async (req) => {
 
     if (error) {
       if (isUserNotFoundError(error.message)) {
-        return json({
+        return {
           ok: true,
           message: '若該帳戶存在，重設密碼連結已寄至註冊電郵。',
-        });
+        };
       }
-      return json({ ok: false, message: error.message }, 400);
+      return { ok: false, message: error.message, status: 400 };
     }
 
     const actionLink = data?.properties?.action_link;
     if (!actionLink || typeof actionLink !== 'string') {
-      return json({ ok: false, message: '無法產生重設密碼連結。' }, 500);
+      return { ok: false, message: '無法產生重設密碼連結。', status: 500 };
     }
 
-    await sendRecoveryEmail(email, actionLink);
+    await sendRecoveryEmail(env, email, actionLink);
 
-    return json({
+    return {
       ok: true,
       message: '重設密碼連結已寄出，請到註冊電郵收件匣查看。',
-    });
+    };
   } catch (error) {
     const message = error instanceof Error ? error.message : '伺服器錯誤';
-    return json({ ok: false, message }, 500);
+    return { ok: false, message, status: 500 };
   }
-});
+}

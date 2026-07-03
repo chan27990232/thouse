@@ -46,14 +46,17 @@ const FUNCTION_VERIFY_JWT = {
 
 const FUNCTION_SECRETS = {
   'notify-lease-rejection': [
+    'SMTP_HOST',
+    'SMTP_PORT',
+    'SMTP_USER',
+    'SMTP_PASS',
+    'SMTP_FROM',
     'LEASE_REJECTION_FROM_EMAIL',
-    'RESEND_API_KEY',
-    'RESEND_FROM_EMAIL',
     'LEASE_REJECTION_NOTIFY_SECRET',
     'PUBLIC_APP_URL',
   ],
-  'signup-verification': ['RESEND_API_KEY', 'RESEND_FROM_EMAIL'],
-  'request-password-reset': ['RESEND_API_KEY', 'RESEND_FROM_EMAIL', 'PUBLIC_APP_URL'],
+  'signup-verification': ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM'],
+  'request-password-reset': ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM', 'PUBLIC_APP_URL'],
 };
 
 function projectRefFromUrl(url) {

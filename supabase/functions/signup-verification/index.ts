@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
+import { sendEmail, smtpEnvFromDeno } from '../_shared/smtp.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -37,37 +38,18 @@ async function validateSignupEmail(
 }
 
 async function sendVerificationEmail(email: string, code: string) {
-  const resendKey = Deno.env.get('RESEND_API_KEY');
-  if (!resendKey) {
-    throw new Error('郵件服務未設定（請在 Supabase 設定 RESEND_API_KEY 並部署 signup-verification Edge Function）。');
-  }
-
-  const from = Deno.env.get('RESEND_FROM_EMAIL') || '簡屋 <onboarding@resend.dev>';
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${resendKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      from,
-      to: [email],
-      subject: '簡屋註冊驗證碼',
-      html: `
-        <div style="font-family:sans-serif;line-height:1.6;color:#111">
-          <h2 style="margin:0 0 12px">簡屋 · 註冊驗證碼</h2>
-          <p>你的驗證碼是：</p>
-          <p style="font-size:28px;font-weight:700;letter-spacing:0.2em;margin:16px 0">${code}</p>
-          <p style="color:#555;font-size:14px">驗證碼 10 分鐘內有效。如非本人操作，請忽略此電郵。</p>
-        </div>
-      `,
-    }),
+  await sendEmail(smtpEnvFromDeno(), {
+    to: email,
+    subject: '簡屋註冊驗證碼',
+    html: `
+      <div style="font-family:sans-serif;line-height:1.6;color:#111">
+        <h2 style="margin:0 0 12px">簡屋 · 註冊驗證碼</h2>
+        <p>你的驗證碼是：</p>
+        <p style="font-size:28px;font-weight:700;letter-spacing:0.2em;margin:16px 0">${code}</p>
+        <p style="color:#555;font-size:14px">驗證碼 10 分鐘內有效。如非本人操作，請忽略此電郵。</p>
+      </div>
+    `,
   });
-
-  if (!res.ok) {
-    const detail = await res.text();
-    throw new Error(`無法寄出驗證碼郵件：${detail.slice(0, 200)}`);
-  }
 }
 
 Deno.serve(async (req) => {

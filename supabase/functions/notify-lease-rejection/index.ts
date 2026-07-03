@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
+import { sendEmail, smtpEnvFromDeno } from '../_shared/smtp.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -41,46 +42,29 @@ async function sendRejectionEmail(payload: {
   previousStatus: string | null;
   appUrl: string;
 }) {
-  const resendKey = Deno.env.get('RESEND_API_KEY');
-  if (!resendKey) {
-    throw new Error('郵件服務未設定（請在 Supabase 設定 RESEND_API_KEY）。');
-  }
-
-  const from =
-    Deno.env.get('LEASE_REJECTION_FROM_EMAIL') || 'T-House <onboarding@resend.dev>';
+  const smtp = smtpEnvFromDeno();
+  const from = (Deno.env.get('LEASE_REJECTION_FROM_EMAIL') || smtp.from).trim();
   const name = payload.fullName.trim() || '租客';
   const title = payload.propertyTitle.trim() || '物業';
   const detail = rejectionDetail(payload.previousStatus);
   const appLink = payload.appUrl.replace(/\/$/, '');
 
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${resendKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      from,
-      to: [payload.to],
-      subject: '簡屋 · 租約申請結果通知',
-      html: `
-        <div style="font-family:sans-serif;line-height:1.6;color:#111;max-width:520px">
-          <h2 style="margin:0 0 12px;color:#1a365d">簡屋 · 租約申請結果</h2>
-          <p>${escapeHtml(name)} 您好，</p>
-          <p>您就「<strong>${escapeHtml(title)}</strong>」提交的租約申請<strong>未能通過</strong>。${escapeHtml(detail)}</p>
-          <p style="margin:20px 0">
-            <a href="${escapeHtml(appLink)}" style="display:inline-block;background:#1a365d;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;font-size:14px">登入簡屋查看申請</a>
-          </p>
-          <p style="color:#555;font-size:14px">如有疑問，可透過站內訊息或聯絡客服查詢。</p>
-        </div>
-      `,
-    }),
+  await sendEmail(smtp, {
+    from,
+    to: payload.to,
+    subject: '簡屋 · 租約申請結果通知',
+    html: `
+      <div style="font-family:sans-serif;line-height:1.6;color:#111;max-width:520px">
+        <h2 style="margin:0 0 12px;color:#1a365d">簡屋 · 租約申請結果</h2>
+        <p>${escapeHtml(name)} 您好，</p>
+        <p>您就「<strong>${escapeHtml(title)}</strong>」提交的租約申請<strong>未能通過</strong>。${escapeHtml(detail)}</p>
+        <p style="margin:20px 0">
+          <a href="${escapeHtml(appLink)}" style="display:inline-block;background:#1a365d;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;font-size:14px">登入簡屋查看申請</a>
+        </p>
+        <p style="color:#555;font-size:14px">如有疑問，可透過站內訊息或聯絡客服查詢。</p>
+      </div>
+    `,
   });
-
-  if (!res.ok) {
-    const detail = await res.text();
-    throw new Error(`無法寄出通知郵件：${detail.slice(0, 200)}`);
-  }
 }
 
 async function isAuthorized(

@@ -24,35 +24,8 @@ async function invokeSignupVerificationApi(body: Record<string, unknown>): Promi
   return payload;
 }
 
-async function invokeSignupVerificationEdge(body: Record<string, unknown>): Promise<FnResponse> {
-  const { data, error } = await supabase.functions.invoke('signup-verification', { body });
-
-  if (error) {
-    const hint =
-      error.message?.includes('Failed to send a request to the Edge Function') ||
-      error.message?.includes('FunctionsRelayError')
-        ? '驗證碼郵件服務尚未部署。請部署 signup-verification 並在 Supabase 設定 RESEND_API_KEY。'
-        : error.message;
-    throw new Error(hint);
-  }
-
-  const payload = (data ?? {}) as FnResponse;
-  if (!payload.ok) {
-    throw new Error(payload.message || '操作失敗');
-  }
-  return payload;
-}
-
 async function invokeSignupVerification(body: Record<string, unknown>): Promise<FnResponse> {
-  if (import.meta.env.PROD) {
-    return invokeSignupVerificationApi(body);
-  }
-
-  try {
-    return await invokeSignupVerificationApi(body);
-  } catch {
-    return invokeSignupVerificationEdge(body);
-  }
+  return invokeSignupVerificationApi(body);
 }
 
 export async function sendSignupVerificationOtp(

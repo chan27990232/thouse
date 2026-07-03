@@ -90,6 +90,13 @@ function StepHeader({ step, t, steps }: { step: number; t: ListPropertyT; steps:
   );
 }
 
+function parsePositiveInt(value: string): number | null {
+  const trimmed = value.trim();
+  if (!trimmed || !/^\d+$/.test(trimmed)) return null;
+  const n = Number(trimmed);
+  return Number.isFinite(n) && n >= 1 ? n : null;
+}
+
 function SectionCard({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
   return (
     <section className="rounded-xl border border-gray-100 bg-gray-50/70 p-4">
@@ -223,9 +230,8 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
       if (!district) return t.errSelectDistrict;
       if (!estateName.trim()) return t.errEstateName;
       if (!buildingName.trim()) return t.errBuildingName;
-      const f = Number(floor);
-      if (!Number.isFinite(f) || f < 0) return t.errFloor;
-      if (!unit.trim()) return t.errUnit;
+      if (!parsePositiveInt(floor)) return t.errFloor;
+      if (!parsePositiveInt(unit)) return t.errUnit;
     }
     if (s === 2) {
       const p = Number(price);
@@ -328,6 +334,8 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
   };
 
   const stepId = steps[step].id;
+  const floorInvalid = floor !== '' && !parsePositiveInt(floor);
+  const unitInvalid = unit !== '' && !parsePositiveInt(unit);
 
   return (
     <div className="flex flex-col">
@@ -396,21 +404,43 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
                   id="floor"
                   type="text"
                   inputMode="numeric"
-                  className="mt-1.5 bg-white"
+                  className={cn('mt-1.5 bg-white', floorInvalid && 'border-red-500 focus-visible:ring-red-500')}
                   placeholder="12"
                   value={floor}
-                  onChange={(e) => setFloor(e.target.value.replace(/\D/g, ''))}
+                  onChange={(e) => {
+                    setFloor(e.target.value.replace(/\D/g, ''));
+                    if (saveError === t.errFloor) setSaveError('');
+                  }}
+                  required
+                  aria-invalid={floorInvalid}
                 />
+                {floorInvalid ? (
+                  <p className="mt-1 text-xs text-red-600" role="alert">
+                    {t.errFloor}
+                  </p>
+                ) : null}
               </div>
               <div>
                 <Label htmlFor="unit">{t.unit}</Label>
                 <Input
                   id="unit"
-                  className="mt-1.5 bg-white"
+                  type="text"
+                  inputMode="numeric"
+                  className={cn('mt-1.5 bg-white', unitInvalid && 'border-red-500 focus-visible:ring-red-500')}
                   placeholder={t.unitPlaceholder}
                   value={unit}
-                  onChange={(e) => setUnit(e.target.value)}
+                  onChange={(e) => {
+                    setUnit(e.target.value.replace(/\D/g, ''));
+                    if (saveError === t.errUnit) setSaveError('');
+                  }}
+                  required
+                  aria-invalid={unitInvalid}
                 />
+                {unitInvalid ? (
+                  <p className="mt-1 text-xs text-red-600" role="alert">
+                    {t.errUnit}
+                  </p>
+                ) : null}
               </div>
             </div>
             <div>

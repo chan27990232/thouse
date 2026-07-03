@@ -4,8 +4,8 @@
 --   1. npm run deploy:notify-lease-rejection（Windows 建議；需 SUPABASE_ACCESS_TOKEN）
 --      或 npx supabase@2.20.12 functions deploy notify-lease-rejection --project-ref <ref> --use-api
 --   2. Supabase → Edge Functions → Secrets：
---        RESEND_API_KEY
---        LEASE_REJECTION_FROM_EMAIL（例：T-House Limited <noreply@thousehk.com>，需先在 Resend 驗證 thousehk.com）
+--        SMTP_HOST、SMTP_PORT、SMTP_USER、SMTP_PASS、SMTP_FROM
+--        LEASE_REJECTION_FROM_EMAIL（例：T-House Limited <noreply@thousehk.com>）
 --        LEASE_REJECTION_NOTIFY_SECRET=<隨機長字串>
 --        PUBLIC_APP_URL=https://你的正式網域
 --   3. node scripts/configure-lease-notify.mjs  （或手動 UPDATE lease_notify_settings）

@@ -10,6 +10,10 @@ import {
   handleSignupVerification,
   signupVerificationEnvFromProcess,
 } from './signupVerificationHandler';
+import {
+  handleRequestPasswordReset,
+  requestPasswordResetEnvFromProcess,
+} from './requestPasswordResetHandler';
 
 function readJsonBody(req: import('http').IncomingMessage): Promise<unknown> {
   return new Promise((resolve, reject) => {
@@ -111,39 +115,6 @@ async function proxyToRegisterFunction(
     ok: Boolean(payload.ok),
     message: payload.message,
     email: payload.email,
-    status: upstream.status,
-  };
-}
-
-async function proxyToRequestPasswordReset(
-  env: Record<string, string>,
-  body: { identifier?: string; email?: string; redirectTo?: string },
-) {
-  const supabaseUrl = (env.VITE_SUPABASE_URL || env.SUPABASE_URL || '').trim();
-  const anonKey = (env.VITE_SUPABASE_ANON_KEY || env.SUPABASE_ANON_KEY || '').trim();
-  if (!supabaseUrl || !anonKey) return null;
-
-  const upstream = await fetch(`${supabaseUrl}/functions/v1/request-password-reset`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${anonKey}`,
-      apikey: anonKey,
-    },
-    body: JSON.stringify({
-      identifier: String(body.identifier ?? body.email ?? ''),
-      redirectTo: String(body.redirectTo ?? ''),
-    }),
-  });
-
-  const payload = (await upstream.json().catch(() => ({}))) as {
-    ok?: boolean;
-    message?: string;
-  };
-
-  return {
-    ok: Boolean(payload.ok),
-    message: payload.message,
     status: upstream.status,
   };
 }
@@ -250,16 +221,17 @@ export function registerTenantDevApi(): Plugin {
           }
 
           if (isRequestPasswordReset) {
-            const proxied = await proxyToRequestPasswordReset(env, body);
-            if (proxied) {
-              res.statusCode = proxied.ok ? 200 : (proxied.status ?? 400);
-              res.setHeader('Content-Type', 'application/json');
-              res.end(JSON.stringify(proxied));
-              return;
-            }
-            res.statusCode = 500;
+            const result = await handleRequestPasswordReset(
+              {
+                identifier: body.identifier,
+                email: body.email,
+                redirectTo: body.redirectTo,
+              },
+              requestPasswordResetEnvFromProcess(env),
+            );
+            res.statusCode = result.status ?? (result.ok ? 200 : 400);
             res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ ok: false, message: '重設密碼服務未設定。' }));
+            res.end(JSON.stringify({ ok: result.ok, message: result.message }));
             return;
           }
 
