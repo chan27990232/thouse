@@ -1,3 +1,8 @@
+import {
+  handleSignupVerification,
+  signupVerificationEnvFromProcess,
+} from '../server/signupVerificationHandler.js';
+
 type Req = { method?: string; body?: unknown };
 type Res = {
   status: (code: number) => Res;
@@ -31,9 +36,6 @@ export default async function handler(req: Req, res: Res) {
   };
 
   try {
-    const { handleSignupVerification, signupVerificationEnvFromProcess } = await import(
-      '../server/signupVerificationHandler'
-    );
     const result = await handleSignupVerification(
       body,
       signupVerificationEnvFromProcess(process.env as Record<string, string | undefined>),

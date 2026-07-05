@@ -1,3 +1,8 @@
+import {
+  handleRequestPasswordReset,
+  requestPasswordResetEnvFromProcess,
+} from '../server/requestPasswordResetHandler.js';
+
 type Req = { method?: string; body?: unknown };
 type Res = {
   status: (code: number) => Res;
@@ -27,9 +32,6 @@ export default async function handler(req: Req, res: Res) {
   };
 
   try {
-    const { handleRequestPasswordReset, requestPasswordResetEnvFromProcess } = await import(
-      '../server/requestPasswordResetHandler'
-    );
     const result = await handleRequestPasswordReset(
       body,
       requestPasswordResetEnvFromProcess(process.env as Record<string, string | undefined>),

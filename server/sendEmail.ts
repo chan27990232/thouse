@@ -62,7 +62,25 @@ export async function sendEmail(env: SmtpEnv, input: SendEmailInput): Promise<vo
     });
   } catch (error) {
     const detail = error instanceof Error ? error.message : '未知錯誤';
-    if (/invalid login|authentication|auth/i.test(detail)) {
+    if (/security defaults|locked by your organization/i.test(detail)) {
+      throw new Error(
+        '郵件登入失敗：Microsoft 365 已封鎖此信箱的 SMTP 登入（Security Defaults）。請在 M365 管理員中心為寄件信箱啟用 SMTP AUTH，或改用應用程式密碼。',
+      );
+    }
+    if (/password has expired|password expired/i.test(detail)) {
+      throw new Error(
+        '郵件登入失敗：noreply@thousehk.com 密碼已過期。請在 M365 重設密碼並更新 .env.local 的 SMTP_PASS。',
+      );
+    }
+    if (/credentials were incorrect|5\.7\.3/i.test(detail)) {
+      throw new Error(
+        '郵件登入失敗：SMTP 帳號或密碼不正確。請確認 SMTP_USER / SMTP_PASS（若帳戶有 MFA，需使用應用程式密碼）。',
+      );
+    }
+    if (/smtpclientauthentication|smtp_auth_disabled/i.test(detail)) {
+      throw new Error('郵件登入失敗：此信箱尚未啟用 SMTP AUTH，請在 M365 為寄件信箱勾選「已驗證的 SMTP」。');
+    }
+    if (/invalid login|authentication|auth|5\.7\.139/i.test(detail)) {
       throw new Error('郵件登入失敗，請檢查 SMTP_USER / SMTP_PASS（Office 365 需啟用 SMTP AUTH 或使用應用程式密碼）。');
     }
     throw new Error(`無法寄出郵件：${detail.slice(0, 200)}`);

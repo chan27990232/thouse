@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
-import { archiveDeactivatedAccount } from './archiveDeactivatedAccount';
-import { resendSignupOtpEmail } from './resendSignupOtp';
+import { archiveDeactivatedAccount } from './archiveDeactivatedAccount.js';
+import { resendSignupOtpEmail } from './resendSignupOtp.js';
 
 export type SignupAccountInput = {
   email: string;

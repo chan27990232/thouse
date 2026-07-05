@@ -30,6 +30,7 @@ import { buildLandlordWalletT, type LandlordWalletMessages } from '../content/tr
 import { buildUtilityBillT, type UtilityBillMessages } from '../content/translations/utilityBill';
 import { buildListPropertyT, type ListPropertyMessages } from '../content/translations/listProperty';
 import { buildPropertyManagementT, type PropertyManagementMessages } from '../content/translations/propertyManagement';
+import { buildTenantMyPropertiesT, type TenantMyPropertiesMessages } from '../content/translations/tenantMyProperties';
 import { formatMessage } from '../lib/i18nFormat';
 import {
   extractPropertyAreaFromTitle,
@@ -84,6 +85,7 @@ type LocaleContextValue = {
   utilityBillT: UtilityBillMessages & ReturnType<typeof buildUtilityBillT>;
   listPropertyT: ListPropertyMessages & ReturnType<typeof buildListPropertyT>;
   propertyManagementT: PropertyManagementMessages & ReturnType<typeof buildPropertyManagementT>;
+  tenantMyPropertiesT: TenantMyPropertiesMessages & ReturnType<typeof buildTenantMyPropertiesT>;
   localizePropertyTitle: (title: string) => string;
   localizePropertyText: (text: string) => string;
   localizePropertyDistrict: (district?: string | null) => string;
@@ -139,6 +141,7 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
   const utilityBillT = useMemo(() => buildUtilityBillT(locale), [locale]);
   const listPropertyT = useMemo(() => buildListPropertyT(locale), [locale]);
   const propertyManagementT = useMemo(() => buildPropertyManagementT(locale), [locale]);
+  const tenantMyPropertiesT = useMemo(() => buildTenantMyPropertiesT(locale), [locale]);
 
   const localizePropertyTitleFn = useCallback(
     (title: string) => localizePropertyTitle(title, locale),
@@ -178,6 +181,7 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
       utilityBillT,
       listPropertyT,
       propertyManagementT,
+      tenantMyPropertiesT,
       localizePropertyTitle: localizePropertyTitleFn,
       localizePropertyText: localizePropertyTextFn,
       localizePropertyDistrict: localizePropertyDistrictFn,
@@ -203,6 +207,7 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
       utilityBillT,
       listPropertyT,
       propertyManagementT,
+      tenantMyPropertiesT,
       localizePropertyTitleFn,
       localizePropertyTextFn,
       localizePropertyDistrictFn,

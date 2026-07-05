@@ -1,7 +1,7 @@
 import {
   handleLeaseRejectionNotify,
   leaseRejectionNotifyEnvFromProcess,
-} from '../server/leaseRejectionNotifyHandler';
+} from '../server/leaseRejectionNotifyHandler.js';
 
 type Req = {
   method?: string;

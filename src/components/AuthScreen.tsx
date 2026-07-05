@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { UserRole } from '../App';
 import { Input } from './ui/input';
@@ -47,6 +47,7 @@ export function AuthScreen({ role, onBack, onAuthSuccess }: AuthScreenProps) {
   const [authError, setAuthError] = useState('');
   const [authInfo, setAuthInfo] = useState('');
   const [resendCooldown, setResendCooldown] = useState(0);
+  const autoSendOtpRef = useRef(false);
 
   useEffect(() => {
     if (resendCooldown <= 0) return;
@@ -59,6 +60,7 @@ export function AuthScreen({ role, onBack, onAuthSuccess }: AuthScreenProps) {
   const startResendCooldown = () => setResendCooldown(SIGNUP_RESEND_COOLDOWN_SEC);
 
   const resetSignupFlow = () => {
+    autoSendOtpRef.current = false;
     setSignupPhase('form');
     setPendingSignup(null);
     setPendingSignupEmail('');
@@ -111,6 +113,13 @@ export function AuthScreen({ role, onBack, onAuthSuccess }: AuthScreenProps) {
       setEmailLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (mode !== 'signup' || signupPhase !== 'verify-otp') return;
+    if (!pendingSignupEmail || signupEmailSent || autoSendOtpRef.current) return;
+    autoSendOtpRef.current = true;
+    void handleResendOtp();
+  }, [mode, signupPhase, pendingSignupEmail, signupEmailSent]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

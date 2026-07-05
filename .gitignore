@@ -11,3 +11,4 @@ admin-portal/dist/
 *.local
 .DS_Store
 *backup*.code-workspace
+.vercel

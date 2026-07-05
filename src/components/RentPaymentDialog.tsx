@@ -146,8 +146,8 @@ export function RentPaymentDialog({
             <div className="text-3xl font-bold">HK${payment.amount.toLocaleString()}</div>
           </div>
 
-          <div className="flex items-start gap-3 rounded-lg border border-green-200 bg-green-50 p-3">
-            <Shield className="mt-0.5 h-5 w-5 shrink-0 text-green-600" />
+          <div className="flex items-center gap-3 rounded-lg border border-green-200 bg-green-50 p-3">
+            <Shield className="h-5 w-5 shrink-0 text-green-600" />
             <p className="text-xs text-green-800">
               支援轉數快 (FPS) 或銀行轉賬，請上傳轉賬截圖或收據以便核對。
             </p>

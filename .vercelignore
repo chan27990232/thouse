@@ -1,0 +1,34 @@
+# 管理後台（Electron / 獨立 Vite 專案，非 Vercel 主站）
+admin-portal/
+
+# 專案內重複副本，勿上傳
+thouseapp/
+
+# 依賴與建置產物（Vercel 會自行 install / build）
+node_modules/
+dist/
+build/
+admin-portal/node_modules/
+admin-portal/dist/
+admin-portal/release/
+
+# Git 與本機工具
+.git/
+.github/
+.cursor/
+.vscode/
+*.code-workspace
+
+# 環境變數與密鑰（應在 Vercel Dashboard 設定）
+.env
+.env.*
+!.env.example
+
+# Supabase 本機 CLI 暫存（SQL 已由 db:apply 套用，不必上傳）
+supabase/.temp/
+
+# 開發／測試腳本（非 runtime 需要）
+scripts/test-*.mjs
+
+# 大型或僅開發用文件
+src/guidelines/

@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { archiveDeactivatedAccount } from './archiveDeactivatedAccount';
-import { sendEmail, smtpEnvFromProcess, type SmtpEnv } from './sendEmail';
+import { archiveDeactivatedAccount } from './archiveDeactivatedAccount.js';
+import { sendEmail, smtpEnvFromProcess, type SmtpEnv } from './sendEmail.js';
 
 export type SignupVerificationEnv = {
   supabaseUrl: string;
@@ -163,7 +163,7 @@ async function sendOtpForEmail(
 ): Promise<SignupVerificationResult> {
   if (options.requireNewSignup) {
     const check = await validateSignupEmail(supabase, email);
-    if (!check.ok) {
+    if (check.ok === false) {
       return { ok: false, message: check.message, status: 400 };
     }
   } else {

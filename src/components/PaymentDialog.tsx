@@ -240,8 +240,8 @@ export function PaymentDialog({
             </div>
           </div>
 
-          <div className="flex items-start gap-3 p-3 bg-green-50 border border-green-200 rounded-lg">
-            <Shield className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+          <div className="flex items-center gap-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+            <Shield className="w-5 h-5 text-green-600 flex-shrink-0" />
             <div className="text-sm text-green-800">
               <p className="font-medium">{t.paymentMethodsTitle}</p>
               <p className="text-xs mt-1">{t.paymentMethodsHint}</p>

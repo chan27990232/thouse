@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { archiveDeactivatedAccount } from './archiveDeactivatedAccount';
+import { archiveDeactivatedAccount } from './archiveDeactivatedAccount.js';
 
 export type RegisterTenantInput = {
   username: string;

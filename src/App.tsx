@@ -274,12 +274,20 @@ export default function App() {
     navigate('home');
   };
 
-  const showBlockingLoader =
-    authBootstrapping &&
-    currentScreen !== 'reset-password' &&
-    (currentScreen === 'home' || propertyResolving);
+  const showBlockingLoader = authBootstrapping && currentScreen !== 'reset-password';
 
   if (showBlockingLoader) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gray-50 text-sm text-gray-500">
+        載入中…
+      </div>
+    );
+  }
+
+  const showPropertyResolving =
+    currentScreen === 'property' && !selectedProperty && propertyResolving;
+
+  if (showPropertyResolving) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-50 text-sm text-gray-500">
         載入中…
@@ -318,6 +326,18 @@ export default function App() {
       )}
       {currentScreen === 'auth-landlord' && (
         <AuthScreen role="landlord" onAuthSuccess={handleAuthSuccess} onBack={() => goBack('home')} />
+      )}
+      {currentScreen === 'property' && !selectedProperty && (
+        <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-gray-50 px-4 text-center text-sm text-gray-600">
+          <p>找不到此租盤，可能已下架或連結無效。</p>
+          <button
+            type="button"
+            className="rounded-lg bg-black px-4 py-2 text-white hover:bg-gray-800"
+            onClick={() => navigate('home')}
+          >
+            返回首頁
+          </button>
+        </div>
       )}
       {currentScreen === 'property' && selectedProperty && (
         <PropertyDetail

@@ -1,19 +1,19 @@
 import type { Plugin } from 'vite';
 import { loadEnv } from 'vite';
-import { handleRegisterTenant } from './registerTenantHandler';
-import { handleSignupAccount, handleResendSignupOtp } from './signupAccountHandler';
+import { handleRegisterTenant } from './registerTenantHandler.js';
+import { handleSignupAccount, handleResendSignupOtp } from './signupAccountHandler.js';
 import {
   handleLeaseRejectionNotify,
   leaseRejectionNotifyEnvFromProcess,
-} from './leaseRejectionNotifyHandler';
+} from './leaseRejectionNotifyHandler.js';
 import {
   handleSignupVerification,
   signupVerificationEnvFromProcess,
-} from './signupVerificationHandler';
+} from './signupVerificationHandler.js';
 import {
   handleRequestPasswordReset,
   requestPasswordResetEnvFromProcess,
-} from './requestPasswordResetHandler';
+} from './requestPasswordResetHandler.js';
 
 function readJsonBody(req: import('http').IncomingMessage): Promise<unknown> {
   return new Promise((resolve, reject) => {

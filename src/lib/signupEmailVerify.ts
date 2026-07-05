@@ -39,6 +39,18 @@ function translateAuthMessage(message: string): string {
   if (m.includes('domain is not verified') || m.includes('郵件網域尚未驗證')) {
     return '郵件服務尚未完成設定，暫時無法寄出驗證碼，請聯絡客服。';
   }
+  if (m.includes('security defaults')) {
+    return '無法寄出驗證碼：Microsoft 365 已封鎖 SMTP 登入。請聯絡管理員在 M365 為寄件信箱啟用 SMTP AUTH。';
+  }
+  if (m.includes('密碼已過期') || m.includes('password has expired')) {
+    return '無法寄出驗證碼：寄件信箱密碼已過期。請在 M365 重設 noreply@thousehk.com 密碼，更新 .env.local 的 SMTP_PASS 後重啟開發伺服器。';
+  }
+  if (m.includes('帳號或密碼不正確') || m.includes('credentials were incorrect')) {
+    return '無法寄出驗證碼：SMTP 密碼不正確。請更新 .env.local 的 SMTP_PASS 後重啟開發伺服器。';
+  }
+  if (m.includes('尚未啟用 smtp auth')) {
+    return '無法寄出驗證碼：寄件信箱尚未啟用 SMTP AUTH，請在 M365 勾選「已驗證的 SMTP」。';
+  }
   if (m.includes('smtp_user') || m.includes('smtp_pass') || m.includes('郵件服務未設定') || m.includes('郵件登入失敗')) {
     return '郵件服務尚未完成設定，暫時無法寄出驗證碼，請聯絡客服。';
   }

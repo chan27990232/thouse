@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { sendEmail, smtpEnvFromProcess, type SmtpEnv } from './sendEmail';
+import { sendEmail, smtpEnvFromProcess, type SmtpEnv } from './sendEmail.js';
 
 export type LeaseRejectionNotifyEnv = {
   supabaseUrl: string;

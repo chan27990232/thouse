@@ -11,26 +11,20 @@ import {
   fetchLeaseApplicationsForTenant,
   type TenantLeaseApplicationSummary,
 } from '../lib/leaseApplications';
-import { formatDeadlineLabel } from '../lib/paymentDeadlines';
 import {
   fetchRentPaymentsForLease,
-  getRentPaymentStatusLabel,
   isRentPaymentActionable,
   type RentPaymentSummary,
 } from '../lib/rentPayments';
 import {
   fetchUtilityPaymentsForProperty,
   findPrimaryUtilityPayMonth,
-  formatUtilityDueLabel,
-  getUtilityPaymentStatusLabel,
   groupUtilityPaymentsByMonth,
   isUtilityPaymentActionable,
-  utilityBillTypeLabel,
   type UtilityPaymentSummary,
 } from '../lib/utilityPayments';
 import {
   fetchTenantUtilityBillsForProperty,
-  getUtilityBillReviewStatusLabel,
   groupUtilityBillsByMonth,
   resolveUtilityMonthReviewStatus,
   sumMonthUtilityPayable,
@@ -44,6 +38,7 @@ import {
   type TenantRenewInviteSummary,
 } from '../lib/tenantLeaseManagement';
 import { toast } from 'sonner';
+import { LOCALE_DATE_LOCALE } from '../lib/locale';
 
 interface TenantMyPropertiesPageProps {
   onBack: () => void;
@@ -63,7 +58,8 @@ function ActiveLeaseCard({
   onPayRent: (p: RentPaymentSummary) => void;
   onPayUtility: (payments: UtilityPaymentSummary[]) => void;
 }) {
-  const { localizePropertyTitle, localizePropertyDistrict } = useLocale();
+  const { localizePropertyTitle, localizePropertyDistrict, locale, tenantMyPropertiesT, leaseWorkflowT, utilityBillT, commonT } =
+    useLocale();
   const displayTitle = localizePropertyTitle(lease.propertyTitle);
   const displayDistrict = localizePropertyDistrict(lease.propertyDistrict);
   const [rents, setRents] = useState<RentPaymentSummary[]>([]);
@@ -111,14 +107,14 @@ function ActiveLeaseCard({
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
             <h2 className="text-base font-semibold leading-snug">{displayTitle}</h2>
-            <Badge className="bg-green-600 hover:bg-green-600 shrink-0">租用中</Badge>
+            <Badge className="bg-green-600 hover:bg-green-600 shrink-0">{tenantMyPropertiesT.activeBadge}</Badge>
           </div>
           {lease.propertyDistrict ? (
             <p className="mt-1 text-sm text-gray-600">{displayDistrict}</p>
           ) : null}
           <p className="mt-2 text-lg font-bold">
             HK${lease.monthlyRent.toLocaleString()}
-            <span className="ml-1 text-xs font-normal text-gray-500">/月</span>
+            <span className="ml-1 text-xs font-normal text-gray-500">{commonT.perMonth}</span>
           </p>
         </div>
       </div>
@@ -129,12 +125,18 @@ function ActiveLeaseCard({
             <div className="flex items-start gap-2">
               <RefreshCw className="mt-0.5 h-4 w-4 shrink-0 text-sky-700" />
               <div className="min-w-0 flex-1">
-                <p className="font-medium">業主邀請你續約</p>
-                <p className="mt-1 text-xs leading-relaxed text-sky-900/90">
-                  延長 <strong>{renewInvite.renewalMonths ?? '—'}</strong> 個月。
-                  {renewInvite.notes.trim() ? ` 備註：${renewInvite.notes.trim()}` : ''}
-                  請確認是否同意續租；同意後平台才會審核。
-                </p>
+                <p className="font-medium">{tenantMyPropertiesT.renewInviteTitle}</p>
+                <p
+                  className="mt-1 text-xs leading-relaxed text-sky-900/90"
+                  dangerouslySetInnerHTML={{
+                    __html: tenantMyPropertiesT.format('renewInviteBody', {
+                      months: renewInvite.renewalMonths ?? '—',
+                      notes: renewInvite.notes.trim()
+                        ? tenantMyPropertiesT.format('renewNotesPrefix', { notes: renewInvite.notes.trim() })
+                        : '',
+                    }),
+                  }}
+                />
                 <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                   <Button
                     type="button"
@@ -146,10 +148,10 @@ function ActiveLeaseCard({
                         try {
                           setRenewLoading(true);
                           await respondTenantRenewInvite(renewInvite.id, true);
-                          toast.success('已確認續約，等候平台審核');
+                          toast.success(tenantMyPropertiesT.renewSuccess);
                           onRenewResponded();
                         } catch (e) {
-                          toast.error(e instanceof Error ? e.message : '操作失敗');
+                          toast.error(e instanceof Error ? e.message : tenantMyPropertiesT.actionFailed);
                         } finally {
                           setRenewLoading(false);
                         }
@@ -157,7 +159,7 @@ function ActiveLeaseCard({
                     }}
                   >
                     {renewLoading ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
-                    確認續約
+                    {tenantMyPropertiesT.renewConfirm}
                   </Button>
                   <Button
                     type="button"
@@ -170,17 +172,17 @@ function ActiveLeaseCard({
                         try {
                           setRenewLoading(true);
                           await respondTenantRenewInvite(renewInvite.id, false);
-                          toast.success('已拒絕續約邀請');
+                          toast.success(tenantMyPropertiesT.renewDeclined);
                           onRenewResponded();
                         } catch (e) {
-                          toast.error(e instanceof Error ? e.message : '操作失敗');
+                          toast.error(e instanceof Error ? e.message : tenantMyPropertiesT.actionFailed);
                         } finally {
                           setRenewLoading(false);
                         }
                       })();
                     }}
                   >
-                    拒絕
+                    {tenantMyPropertiesT.renewDecline}
                   </Button>
                 </div>
               </div>
@@ -190,56 +192,59 @@ function ActiveLeaseCard({
 
         <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
           <div>
-            <dt className="text-xs text-gray-500">面積 / 樓層</dt>
-            <dd>
-              {lease.propertyArea} 呎 · {lease.propertyFloor} 樓
-            </dd>
+            <dt className="text-xs text-gray-500">{tenantMyPropertiesT.areaFloor}</dt>
+            <dd>{tenantMyPropertiesT.formatAreaFloor(lease.propertyArea, lease.propertyFloor)}</dd>
           </div>
           <div>
-            <dt className="text-xs text-gray-500">間隔</dt>
-            <dd>
-              {lease.propertyBedrooms} 房 · {lease.propertyBathrooms} 廁
-            </dd>
+            <dt className="text-xs text-gray-500">{tenantMyPropertiesT.layout}</dt>
+            <dd>{tenantMyPropertiesT.formatLayout(lease.propertyBedrooms, lease.propertyBathrooms)}</dd>
           </div>
           <div>
-            <dt className="text-xs text-gray-500">入住日</dt>
+            <dt className="text-xs text-gray-500">{tenantMyPropertiesT.moveIn}</dt>
             <dd>
               {lease.moveInDate
-                ? new Date(lease.moveInDate + 'T12:00:00').toLocaleDateString('zh-HK')
+                ? new Date(lease.moveInDate + 'T12:00:00').toLocaleDateString(LOCALE_DATE_LOCALE[locale])
                 : '—'}
             </dd>
           </div>
           <div>
-            <dt className="text-xs text-gray-500">租期</dt>
-            <dd>{lease.leaseMonths} 個月</dd>
+            <dt className="text-xs text-gray-500">{tenantMyPropertiesT.leaseTerm}</dt>
+            <dd>{tenantMyPropertiesT.formatLeaseMonths(lease.leaseMonths)}</dd>
           </div>
         </dl>
 
         {loading ? (
-          <p className="text-xs text-gray-500">載入繳費資訊…</p>
+          <p className="text-xs text-gray-500">{tenantMyPropertiesT.loadingPayments}</p>
         ) : (
           <>
             {rentTarget ? (
               <div
                 className={`rounded-lg px-3 py-2 text-xs ${
                   rentTarget.status === 'overdue'
-                    ? 'border border-red-200 bg-red-50/80 text-red-900'
-                    : 'border border-blue-100 bg-blue-50/80 text-blue-900'
+                    ? 'border border-red-300 bg-red-100/90 text-red-950'
+                    : 'border border-red-200 bg-red-50/80 text-red-900'
                 }`}
               >
                 <p className="font-medium">
-                  第 {rentTarget.periodIndex} 期租金 · HK${rentTarget.amount.toLocaleString()}
+                  {tenantMyPropertiesT.format('rentPeriod', {
+                    index: rentTarget.periodIndex,
+                    amount: rentTarget.amount.toLocaleString(),
+                  })}
                 </p>
                 <p className="mt-0.5">
-                  須於 {formatDeadlineLabel(rentTarget.dueDate)}繳付
-                  <span className={rentTarget.status === 'overdue' ? 'text-red-700/80' : 'text-blue-700/80'}>
+                  {tenantMyPropertiesT.format('rentDue', {
+                    deadline: tenantMyPropertiesT.formatDeadline(rentTarget.dueDate),
+                  })}
+                  <span className={rentTarget.status === 'overdue' ? 'text-red-800/90' : 'text-red-700/80'}>
                     {rentTarget.status === 'overdue'
-                      ? '（已逾期，仍可繳付）'
-                      : '（每月租金須於下月 7 日 23:59 前交付）'}
+                      ? tenantMyPropertiesT.rentDueHintOverdue
+                      : tenantMyPropertiesT.rentDueHintPending}
                   </span>
                 </p>
-                <p className={`mt-0.5 ${rentTarget.status === 'overdue' ? 'text-red-800/80' : 'text-blue-800/80'}`}>
-                  狀態：{getRentPaymentStatusLabel(rentTarget.status)}
+                <p className={`mt-0.5 ${rentTarget.status === 'overdue' ? 'text-red-900/90' : 'text-red-800/80'}`}>
+                  {tenantMyPropertiesT.format('statusLabel', {
+                    status: leaseWorkflowT.rentPaymentStatus(rentTarget.status),
+                  })}
                 </p>
               </div>
             ) : null}
@@ -251,38 +256,40 @@ function ActiveLeaseCard({
                     : 'border border-teal-100 bg-teal-50/80 text-teal-900'
                 }`}
               >
-                <p className="font-medium">{utilityPayMonth} 水電煤</p>
+                <p className="font-medium">
+                  {tenantMyPropertiesT.format('utilitiesMonth', { month: utilityPayMonth })}
+                </p>
                 <ul className="mt-1 space-y-0.5">
                   {utilityMonthPayments.map((p) => (
                     <li key={p.id}>
-                      {p.billType && p.billType !== 'legacy'
-                        ? utilityBillTypeLabel(p.billType)
-                        : '水電煤'}
+                      {tenantMyPropertiesT.billTypeLabel(p.billType, utilityBillT)}
                       {' · HK$'}
                       {p.amount.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                       {' · '}
-                      {getUtilityPaymentStatusLabel(p.status)}
+                      {tenantMyPropertiesT.utilityPaymentStatus(p.status)}
                     </li>
                   ))}
                 </ul>
                 {utilityMonthPayments[0] ? (
                   <p className="mt-1">
-                    須於 {formatUtilityDueLabel(utilityMonthPayments[0].dueDate)}
+                    {tenantMyPropertiesT.format('utilityDue', {
+                      deadline: tenantMyPropertiesT.formatDeadline(utilityMonthPayments[0].dueDate),
+                    })}
                     {utilityMonthPayments.some((p) => p.status === 'overdue') ? (
-                      <span className="text-red-700/80">（已逾期，仍可繳付）</span>
+                      <span className="text-red-700/80">{tenantMyPropertiesT.utilityOverdueHint}</span>
                     ) : null}
                   </p>
                 ) : null}
               </div>
             ) : utilityBillGroups.some(([, files]) => resolveUtilityMonthReviewStatus(files) === 'pending_review') ? (
               <div className="rounded-lg border border-amber-100 bg-amber-50/80 px-3 py-2 text-xs text-amber-900">
-                <p className="font-medium">水電煤帳單待平台審核</p>
-                <p className="mt-0.5">審核通過後即可查看帳單並繳付。</p>
+                <p className="font-medium">{tenantMyPropertiesT.billsPendingReviewTitle}</p>
+                <p className="mt-0.5">{tenantMyPropertiesT.billsPendingReviewHint}</p>
               </div>
             ) : null}
             {utilityBillGroups.length > 0 ? (
               <div className="rounded-lg border border-gray-200 bg-gray-50/80 px-3 py-2 text-xs">
-                <p className="mb-2 font-medium text-gray-800">業主上傳水電煤帳單</p>
+                <p className="mb-2 font-medium text-gray-800">{tenantMyPropertiesT.landlordBillsTitle}</p>
                 <div className="space-y-2">
                   {utilityBillGroups.map(([month, files]) => {
                     const reviewStatus = resolveUtilityMonthReviewStatus(files);
@@ -300,11 +307,15 @@ function ActiveLeaseCard({
                                   : 'text-amber-700'
                             }
                           >
-                            {getUtilityBillReviewStatusLabel(reviewStatus)}
+                            {tenantMyPropertiesT.billReviewStatus(reviewStatus)}
                           </span>
                         </div>
                         {payable != null ? (
-                          <p className="mt-0.5 text-gray-600">應付 HK${payable.toLocaleString()}</p>
+                          <p className="mt-0.5 text-gray-600">
+                            {tenantMyPropertiesT.format('payableAmount', {
+                              amount: payable.toLocaleString(),
+                            })}
+                          </p>
                         ) : null}
                         <ul className="mt-1.5 space-y-1">
                           {files.map((file) => (
@@ -313,10 +324,10 @@ function ActiveLeaseCard({
                               <span className="min-w-0 flex-1 truncate">
                                 {file.billType ? (
                                   <span className="mr-1 rounded bg-gray-100 px-1 py-0.5 text-[10px] font-medium text-gray-600">
-                                    {utilityBillTypeLabel(file.billType)}
+                                    {tenantMyPropertiesT.billTypeLabel(file.billType, utilityBillT)}
                                   </span>
                                 ) : null}
-                                {file.originalFilename ?? '帳單檔案'}
+                                {file.originalFilename ?? tenantMyPropertiesT.billFileDefault}
                               </span>
                               {file.viewUrl ? (
                                 <a
@@ -325,11 +336,11 @@ function ActiveLeaseCard({
                                   rel="noopener noreferrer"
                                   className="inline-flex shrink-0 items-center gap-0.5 text-teal-700 hover:underline"
                                 >
-                                  查看
+                                  {tenantMyPropertiesT.view}
                                   <ExternalLink className="h-3 w-3" />
                                 </a>
                               ) : reviewStatus === 'pending_review' ? (
-                                <span className="shrink-0 text-amber-600">審核中</span>
+                                <span className="shrink-0 text-amber-600">{tenantMyPropertiesT.reviewing}</span>
                               ) : null}
                             </li>
                           ))}
@@ -350,7 +361,7 @@ function ActiveLeaseCard({
             disabled={!rentTarget || !isRentPaymentActionable(rentTarget)}
             onClick={() => rentTarget && onPayRent(rentTarget)}
           >
-            繳付租金
+            {tenantMyPropertiesT.payRent}
           </Button>
           <Button
             type="button"
@@ -360,7 +371,7 @@ function ActiveLeaseCard({
             onClick={() => hasUtilityPayable && onPayUtility(utilityMonthPayments)}
           >
             <Droplets className="mr-1.5 h-4 w-4" />
-            繳付水電煤
+            {tenantMyPropertiesT.payUtilities}
           </Button>
         </div>
       </div>
@@ -369,6 +380,7 @@ function ActiveLeaseCard({
 }
 
 export function TenantMyPropertiesPage({ onBack, onApplicationsClick }: TenantMyPropertiesPageProps) {
+  const { tenantMyPropertiesT, commonT } = useLocale();
   const [leases, setLeases] = useState<TenantLeaseApplicationSummary[]>([]);
   const [renewInvites, setRenewInvites] = useState<TenantRenewInviteSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -391,7 +403,7 @@ export function TenantMyPropertiesPage({ onBack, onApplicationsClick }: TenantMy
           setRenewInvites(invites);
         }
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : '無法載入');
+        if (!cancelled) setError(e instanceof Error ? e.message : tenantMyPropertiesT.loadError);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -399,49 +411,49 @@ export function TenantMyPropertiesPage({ onBack, onApplicationsClick }: TenantMy
     return () => {
       cancelled = true;
     };
-  }, [reloadKey]);
+  }, [reloadKey, tenantMyPropertiesT.loadError]);
 
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="sticky top-0 z-10 border-b bg-white px-4 py-3">
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-3">
-            <Button type="button" variant="ghost" size="icon" onClick={onBack} aria-label="返回">
+            <Button type="button" variant="ghost" size="icon" onClick={onBack} aria-label={commonT.back}>
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div className="flex min-w-0 items-center gap-2">
               <House className="h-5 w-5 shrink-0 text-gray-700" />
-              <h1 className="truncate text-lg font-semibold">我的租盤</h1>
+              <h1 className="truncate text-lg font-semibold">{tenantMyPropertiesT.title}</h1>
             </div>
           </div>
           <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={onApplicationsClick}>
             <ClipboardList className="mr-1.5 h-4 w-4" />
-            我的租盤申請
+            {tenantMyPropertiesT.myApplications}
           </Button>
         </div>
       </header>
 
       <main className="mx-auto max-w-3xl space-y-4 px-4 py-6">
         <div className="rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-xs text-gray-600 leading-relaxed">
-          <p>· 每月租金須於<strong>下月 7 日 23:59 前</strong>繳付（遇週末或公眾假期提前至上一個工作日）。</p>
-          <p className="mt-1">· 平台將於每月 <strong>15 日 23:59 前</strong>把租金轉交業主。</p>
-          <p className="mt-1">· 水電煤須於業主上傳帳單後 <strong>21 日內 23:59 前</strong>繳付（遇假期同樣提前）。</p>
+          <p dangerouslySetInnerHTML={{ __html: tenantMyPropertiesT.deadlineRent }} />
+          <p className="mt-1" dangerouslySetInnerHTML={{ __html: tenantMyPropertiesT.deadlinePlatformTransfer }} />
+          <p className="mt-1" dangerouslySetInnerHTML={{ __html: tenantMyPropertiesT.deadlineUtility }} />
         </div>
 
         {loading ? (
           <div className="flex items-center justify-center gap-2 py-16 text-sm text-gray-500">
             <Loader2 className="h-5 w-5 animate-spin" />
-            載入中…
+            {commonT.loading}
           </div>
         ) : error ? (
           <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</div>
         ) : leases.length === 0 ? (
           <div className="rounded-xl border border-dashed border-gray-300 bg-white px-6 py-14 text-center">
             <House className="mx-auto mb-3 h-10 w-10 text-gray-300" />
-            <p className="text-sm font-medium text-gray-800">暫無正在租用的租盤</p>
-            <p className="mt-1 text-xs text-gray-500">簽約完成後會顯示於此；申請進度請查看「我的租盤申請」。</p>
+            <p className="text-sm font-medium text-gray-800">{tenantMyPropertiesT.emptyTitle}</p>
+            <p className="mt-1 text-xs text-gray-500">{tenantMyPropertiesT.emptyHint}</p>
             <Button type="button" variant="outline" className="mt-4" onClick={onApplicationsClick}>
-              我的租盤申請
+              {tenantMyPropertiesT.myApplications}
             </Button>
           </div>
         ) : (

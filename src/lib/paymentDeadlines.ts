@@ -1,5 +1,7 @@
 import { supabase } from './supabase';
 import { appTodayIso, parseDateOnly } from './appClock';
+import type { AppLocale } from './locale';
+import { LOCALE_DATE_LOCALE } from './locale';
 
 let holidayCache: Set<string> | null = null;
 
@@ -72,8 +74,12 @@ export async function getHolidaySet(): Promise<Set<string>> {
   return loadHolidaySet();
 }
 
-export function formatDeadlineLabel(deadlineIso: string): string {
-  return `${parseDateOnly(deadlineIso).toLocaleDateString('zh-HK')} 23:59 前`;
+export function formatDeadlineLabel(deadlineIso: string, locale: AppLocale = 'zh-TW'): string {
+  const date = parseDateOnly(deadlineIso).toLocaleDateString(LOCALE_DATE_LOCALE[locale]);
+  if (locale === 'en') {
+    return `before ${date} 23:59`;
+  }
+  return `${date} 23:59 前`;
 }
 
 export function isOnOrBeforeDeadline(deadlineIso: string): boolean {

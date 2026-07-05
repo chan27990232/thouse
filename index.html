@@ -9,6 +9,32 @@
 
     <body>
       <div id="root"></div>
+      <script>
+        window.addEventListener('error', function (event) {
+          var root = document.getElementById('root');
+          if (!root || root.childElementCount > 0) return;
+          var detail = event.error && event.error.stack ? event.error.stack : event.message;
+          root.innerHTML =
+            '<div style="padding:24px;font-family:system-ui,sans-serif;background:#fff7ed;color:#1c1917;min-height:100vh">' +
+            '<h1 style="font-size:1.1rem;margin:0 0 8px">頁面載入失敗</h1>' +
+            '<p style="color:#57534e;margin:0 0 12px">請把以下訊息貼給開發人員，或按 F12 查看 Console。</p>' +
+            '<pre style="white-space:pre-wrap;word-break:break-word;background:#fff;border:1px solid #e7e5e4;border-radius:8px;padding:12px;font-size:13px;margin:0">' +
+            detail +
+            '</pre></div>';
+        });
+        window.addEventListener('unhandledrejection', function (event) {
+          var root = document.getElementById('root');
+          if (!root || root.childElementCount > 0) return;
+          var reason = event.reason;
+          var detail = reason && reason.stack ? reason.stack : String(reason);
+          root.innerHTML =
+            '<div style="padding:24px;font-family:system-ui,sans-serif;background:#fff7ed;color:#1c1917;min-height:100vh">' +
+            '<h1 style="font-size:1.1rem;margin:0 0 8px">頁面載入失敗</h1>' +
+            '<pre style="white-space:pre-wrap;word-break:break-word;background:#fff;border:1px solid #e7e5e4;border-radius:8px;padding:12px;font-size:13px;margin:0">' +
+            detail +
+            '</pre></div>';
+        });
+      </script>
       <script type="module" src="/src/main.tsx"></script>
     </body>
   </html>
