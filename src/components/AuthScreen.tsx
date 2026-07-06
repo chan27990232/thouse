@@ -328,7 +328,8 @@ export function AuthScreen({ role, onBack, onAuthSuccess }: AuthScreenProps) {
     <div className="mx-auto min-h-screen w-full min-w-0 max-w-xl overflow-x-hidden bg-white">
       {/* Header */}
       <div className="border-b p-4">
-        <button 
+        <button
+          type="button"
           onClick={onBack}
           className="flex items-center gap-2 text-gray-600 hover:text-black"
         >
@@ -372,7 +373,7 @@ export function AuthScreen({ role, onBack, onAuthSuccess }: AuthScreenProps) {
 
           {mode === 'signup' ? (
             <div>
-              <label className="block mb-2 text-sm text-gray-700">{authT.username}</label>
+              <label className="block mb-2 text-sm text-gray-700">{authT.usernameSignup}</label>
               <Input
                 type="text"
                 placeholder={role === 'tenant' ? authT.usernamePlaceholderTenant : authT.usernamePlaceholderLandlord}

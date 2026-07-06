@@ -77,22 +77,22 @@ const utilityBillZhCN: UtilityBillMessages = {
 };
 
 const utilityBillEn: UtilityBillMessages = {
-  title: 'Upload monthly utility bills',
+  title: 'Upload Monthly Utility Bills',
   propertyLabel: 'Listing: ',
   description:
     'Choose bill type and upload files for this month (multiple PDFs or clear photos, up to {max} per month).',
-  billMonth: 'Bill month',
-  billType: 'Bill type',
-  tenantPayable: 'Tenant payable amount',
+  billMonth: 'Bill Month',
+  billType: 'Bill Type',
+  tenantPayable: 'Tenant Payable Amount',
   tenantPayablePlaceholder: 'e.g. 350.50',
   tenantPayableHint:
     'Amount the tenant should pay for this bill type. After upload, platform review is required before the tenant can pay.',
   filesLabel: 'Files (max {max})',
   filesHint: 'PDF or common image formats, up to {max} files and 500MB total.',
   fileSummary: '{count} file(s) · {size} / {maxSize}',
-  removeFile: 'Remove file',
+  removeFile: 'Remove File',
   uploading: 'Uploading…',
-  confirmUpload: 'Confirm upload ({count})',
+  confirmUpload: 'Confirm Upload ({count})',
   cancel: 'Cancel',
   water: 'Water',
   waterHint: 'Waterworks or management office bill',
@@ -104,7 +104,7 @@ const utilityBillEn: UtilityBillMessages = {
   errMonthFormat: 'Invalid month format.',
   errLogin: 'Please sign in first.',
   errPayableRequired: 'Please enter the tenant payable amount',
-  errPayablePositive: 'Tenant payable amount must be greater than 0',
+  errPayablePositive: 'Tenant Payable Amount must be greater than 0',
   uploadSuccess:
     'Uploaded {count} utility bill file(s). Tenants can pay after platform review.',
   uploadFailed: 'Upload failed. Please try again later.',

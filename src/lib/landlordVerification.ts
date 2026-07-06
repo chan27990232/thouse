@@ -1,5 +1,3 @@
-import { supabase } from './supabase';
-
 /** 把 PostgREST / 缺欄位錯誤轉成可讀說明（業主或租客實名欄位） */
 export function formatIdentityVerificationSchemaError(message: string): string {
   const m = message.toLowerCase();
@@ -15,36 +13,12 @@ export function formatIdentityVerificationSchemaError(message: string): string {
 /** @deprecated 使用 formatIdentityVerificationSchemaError */
 export const formatLandlordVerificationSchemaError = formatIdentityVerificationSchemaError;
 
-/** 業主提交實名驗證申請（RLS + trigger：僅 none/rejected → pending） */
-export async function submitLandlordVerificationRequest(userId: string): Promise<void> {
-  const { data, error } = await supabase
-    .from('profiles')
-    .update({ landlord_verification_status: 'pending' })
-    .eq('id', userId)
-    .eq('role', 'landlord')
-    .select('id');
-
-  if (error) {
-    throw new Error(formatIdentityVerificationSchemaError(error.message || '無法提交驗證申請'));
-  }
-  if (!data?.length) {
-    throw new Error('無法提交：請確認帳戶為業主，或目前狀態不允許再次申請。');
-  }
+/** @deprecated 請使用 submitIdentityVerification（identityVerification.ts） */
+export async function submitLandlordVerificationRequest(_userId: string): Promise<void> {
+  throw new Error('請透過實名驗證表單提交身份證與銀行月結單。');
 }
 
-/** 租客提交實名驗證申請 */
-export async function submitTenantVerificationRequest(userId: string): Promise<void> {
-  const { data, error } = await supabase
-    .from('profiles')
-    .update({ tenant_verification_status: 'pending' })
-    .eq('id', userId)
-    .eq('role', 'tenant')
-    .select('id');
-
-  if (error) {
-    throw new Error(formatIdentityVerificationSchemaError(error.message || '無法提交驗證申請'));
-  }
-  if (!data?.length) {
-    throw new Error('無法提交：請確認帳戶為租客，或目前狀態不允許再次申請。');
-  }
+/** @deprecated 請使用 submitIdentityVerification（identityVerification.ts） */
+export async function submitTenantVerificationRequest(_userId: string): Promise<void> {
+  throw new Error('請透過實名驗證表單提交身份證與銀行月結單。');
 }

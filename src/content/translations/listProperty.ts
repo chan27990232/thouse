@@ -236,7 +236,7 @@ const listPropertyEn: ListPropertyMessages = {
   cancel: 'Cancel',
   back: 'Back',
   next: 'Next',
-  submitReview: 'Submit for review',
+  submitReview: 'Submit for Review',
   submitting: 'Submitting…',
 
   errSelectType: 'Please select a property type',
@@ -254,23 +254,23 @@ const listPropertyEn: ListPropertyMessages = {
 
   purposeTitle: 'Listing purpose',
   purposeHint: 'Thouse currently supports residential rentals only.',
-  rentOut: 'For rent',
+  rentOut: 'For Rent',
   propertyType: 'Property type',
 
   districtTitle: 'District',
   districtHint: 'Select the Hong Kong district where the property is located.',
   districtPlaceholder: 'Select district (18 districts)',
-  schoolNetTitle: 'School net (optional)',
+  schoolNetTitle: 'School Net (Optional)',
   schoolNetHint: 'Matches tenant search school-net filters.',
-  schoolNetPlaceholder: 'Select school net',
-  schoolNetNone: 'No school net',
+  schoolNetPlaceholder: 'Select School Net',
+  schoolNetNone: 'No School Net',
 
-  addressTitle: 'Address details',
+  addressTitle: 'Address Details',
   addressHint:
     'Estate, building, floor and unit are required; block/tower is optional. Contact the platform to change these after submission.',
-  estateName: 'Estate name',
+  estateName: 'Estate Name',
   estatePlaceholder: 'e.g. Riviera Gardens, Taikoo Shing',
-  buildingName: 'Building name',
+  buildingName: 'Building Name',
   buildingPlaceholder: 'e.g. Apex Building, Block A',
   floor: 'Floor',
   unit: 'Unit',
@@ -282,23 +282,23 @@ const listPropertyEn: ListPropertyMessages = {
   rentHint: 'Enter the monthly rent in HKD.',
   areaTitle: 'Area',
   areaLabel: 'Saleable area (sq ft)',
-  buildingAgeTitle: 'Building age (optional)',
-  roomConfigTitle: 'Room features (optional)',
-  buildingFacilitiesTitle: 'Building facilities (optional)',
+  buildingAgeTitle: 'Building Age (Optional)',
+  roomConfigTitle: 'Room Features (Optional)',
+  buildingFacilitiesTitle: 'Building Facilities (Optional)',
 
-  coverTitle: 'Cover image',
+  coverTitle: 'Cover Image',
   coverHint: 'Shown in search results; a well-lit landscape photo is recommended.',
-  orImageUrl: 'Or enter an image URL',
-  proofTitle: 'Interior photos',
+  orImageUrl: 'Or Enter an Image URL',
+  proofTitle: 'Interior Photos',
   proofHint:
     'At least one photo for platform verification. Include enough images of the interior and fixtures; videos are also accepted.',
-  deedTitle: 'Property deed',
+  deedTitle: 'Property Deed',
   deedHint: 'Upload multiple images or PDFs for review only; not shown publicly.',
 
-  listingTitle: 'Listing title',
+  listingTitle: 'Listing Title',
   titlePlaceholder: '(Complete location and type first)',
-  customTitle: 'Edit title manually',
-  descriptionTitle: 'Description (optional)',
+  customTitle: 'Edit Title Manually',
+  descriptionTitle: 'Description (Optional)',
   descriptionPlaceholder: 'Transport, nearby amenities, lease requirements, etc.',
   preview: 'Preview',
   previewPerMonth: '/mo',
@@ -319,9 +319,9 @@ const listPropertyEn: ListPropertyMessages = {
 
   typeEstate: 'Estate',
   typeTenement: 'Tenement',
-  typeVillage: 'Village house',
-  typeSubdivided: 'Subdivided unit',
-  typeHouse: 'Detached house',
+  typeVillage: 'Village House',
+  typeSubdivided: 'Subdivided Unit',
+  typeHouse: 'Detached House',
   typeStudio: 'Studio',
 };
 
@@ -349,13 +349,13 @@ const featureTagLabelsZhCN: Record<ListingFeatureTagKey, string> = {
 
 const featureTagLabelsEn: Record<ListingFeatureTagKey, string> = {
   近地鐵: 'Near MTR',
-  傢俬電器齊全: 'Furnished with appliances',
-  獨立廁所: 'Private toilet',
-  可煮食: 'Cooking allowed',
-  可養寵: 'Pets allowed',
-  連天台: 'With rooftop',
-  有升降機: 'With lift',
-  新裝修: 'Newly renovated',
+  傢俬電器齊全: 'Furnished With Appliances',
+  獨立廁所: 'Private Toilet',
+  可煮食: 'Cooking Allowed',
+  可養寵: 'Pets Allowed',
+  連天台: 'With Rooftop',
+  有升降機: 'With Lift',
+  新裝修: 'Newly Renovated',
 };
 
 export const listPropertyMessages: Record<AppLocale, ListPropertyMessages> = {

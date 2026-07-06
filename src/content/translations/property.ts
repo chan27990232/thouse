@@ -46,14 +46,14 @@ const propertyEn: PropertyMessages = {
   descriptionBody:
     'Well-located subdivided unit with essential fittings, suitable for individuals or small households. Close to public transport, shopping and dining.',
   amenitiesTitle: 'Amenities',
-  amenityAc: 'Air conditioning',
+  amenityAc: 'Air Conditioning',
   amenityHeating: 'Heating',
   amenityWifi: 'WiFi',
   amenityParking: 'Parking',
   amenityLift: 'Lift',
   amenitySecurity: 'Security',
-  contactLandlord: 'Contact landlord',
-  signNow: 'Apply now',
+  contactLandlord: 'Contact Landlord',
+  signNow: 'Apply Now',
   missingLandlordError: 'Landlord information is missing. Please open this listing again from the list.',
 };
 

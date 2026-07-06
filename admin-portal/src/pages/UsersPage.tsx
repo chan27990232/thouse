@@ -1,6 +1,22 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
 
+type IdentitySubmission = {
+  legal_name: string;
+  id_number: string;
+  date_of_birth: string | null;
+  id_card_path: string;
+  bank_statement_paths: string[];
+  bank_statement_months: string[];
+  created_at: string;
+};
+
+type SubmissionLinks = {
+  idCardUrl: string | null;
+  bankUrls: (string | null)[];
+  submission: IdentitySubmission;
+};
+
 type Row = {
   id: string;
   email: string;
@@ -82,6 +98,8 @@ export function UsersPage() {
   const [saving, setSaving] = useState(false);
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
   const [confirmText, setConfirmText] = useState('');
+  const [identitySubmission, setIdentitySubmission] = useState<SubmissionLinks | null>(null);
+  const [identityLoading, setIdentityLoading] = useState(false);
 
   const loadRows = useCallback(async () => {
     setLoading(true);
@@ -128,11 +146,13 @@ export function UsersPage() {
     resetConfirm();
     setEditing(row);
     setDraft(rowToDraft(row));
+    setIdentitySubmission(null);
   };
 
   const closeEdit = () => {
     setEditing(null);
     setDraft(null);
+    setIdentitySubmission(null);
     resetConfirm();
   };
 
@@ -301,6 +321,62 @@ export function UsersPage() {
     }
   };
 
+  useEffect(() => {
+    if (!editing) return;
+    const pending =
+      (editing.role === 'tenant' && (editing.tenant_verification_status ?? 'none') === 'pending') ||
+      (editing.role === 'landlord' && (editing.landlord_verification_status ?? 'none') === 'pending');
+    if (!pending) {
+      setIdentitySubmission(null);
+      return;
+    }
+
+    let cancelled = false;
+    const load = async () => {
+      setIdentityLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('identity_verification_submissions')
+          .select(
+            'legal_name, id_number, date_of_birth, id_card_path, bank_statement_paths, bank_statement_months, created_at',
+          )
+          .eq('user_id', editing.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (cancelled || error || !data) {
+          if (!cancelled) setIdentitySubmission(null);
+          return;
+        }
+        const submission = data as IdentitySubmission;
+        const idRes = await supabase.storage
+          .from('identity-verification')
+          .createSignedUrl(submission.id_card_path, 3600);
+        const bankUrls = await Promise.all(
+          (submission.bank_statement_paths ?? []).map(async (path) => {
+            const { data: signed } = await supabase.storage
+              .from('identity-verification')
+              .createSignedUrl(path, 3600);
+            return signed?.signedUrl ?? null;
+          }),
+        );
+        if (!cancelled) {
+          setIdentitySubmission({
+            submission,
+            idCardUrl: idRes.data?.signedUrl ?? null,
+            bankUrls,
+          });
+        }
+      } finally {
+        if (!cancelled) setIdentityLoading(false);
+      }
+    };
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [editing]);
+
   const filtered = rows.filter((r) => {
     if (!q.trim()) return true;
     const t = q.toLowerCase();
@@ -402,6 +478,53 @@ export function UsersPage() {
               <span style={{ fontSize: '0.85rem' }}>已認證 (is_verified)</span>
             </label>
           </div>
+
+          {identityLoading ? (
+            <p className="muted" style={{ fontSize: '0.85rem', marginBottom: '0.75rem' }}>
+              載入實名驗證資料…
+            </p>
+          ) : identitySubmission ? (
+            <div
+              className="card"
+              style={{
+                marginBottom: '0.75rem',
+                padding: '0.75rem',
+                background: '#1a2332',
+                border: '1px solid #334155',
+              }}
+            >
+              <p style={{ margin: '0 0 0.5rem', fontWeight: 600, fontSize: '0.9rem' }}>實名驗證提交資料</p>
+              <p className="muted" style={{ margin: '0 0 0.5rem', fontSize: '0.82rem' }}>
+                證件姓名：{identitySubmission.submission.legal_name} · 身份證：{identitySubmission.submission.id_number}
+                {identitySubmission.submission.date_of_birth
+                  ? ` · 出生：${identitySubmission.submission.date_of_birth}`
+                  : ''}
+              </p>
+              <p style={{ margin: '0 0 0.5rem', fontSize: '0.82rem' }}>
+                {identitySubmission.idCardUrl ? (
+                  <a href={identitySubmission.idCardUrl} target="_blank" rel="noreferrer">
+                    查看身份證
+                  </a>
+                ) : (
+                  <span className="muted">身份證連結無法產生</span>
+                )}
+              </p>
+              <ul style={{ margin: 0, paddingLeft: '1.1rem', fontSize: '0.82rem' }}>
+                {identitySubmission.submission.bank_statement_paths.map((_, i) => (
+                  <li key={i}>
+                    {(identitySubmission.submission.bank_statement_months[i]?.trim() || '銀行月結單')}：
+                    {identitySubmission.bankUrls[i] ? (
+                      <a href={identitySubmission.bankUrls[i]!} target="_blank" rel="noreferrer">
+                        查看
+                      </a>
+                    ) : (
+                      <span className="muted"> 無法產生連結</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
 
           {confirmAction ? (
             <div

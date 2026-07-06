@@ -24,6 +24,7 @@ export const PERSISTABLE_SCREENS = new Set<AppScreen>([
 ]);
 
 const NAV_STORAGE_KEY = 'thouse_app_nav';
+const BACK_GUARD_SESSION_KEY = 'thouse_back_guard_installed';
 
 export type StoredNav = {
   screen: AppScreen;
@@ -162,15 +163,38 @@ function readStorage(): StoredNav | null {
   return null;
 }
 
-export function readAppNav(): StoredNav {
+export type ReadAppNavOptions = {
+  /** 僅用於冷啟動：URL 為首頁但 storage 有更深層畫面時，優先還原 storage（常見於行動端分頁還原遺失 hash） */
+  preferStorageOverGenericHome?: boolean;
+};
+
+export function readAppNav(options?: ReadAppNavOptions): StoredNav {
   if (shouldShowPasswordRecoveryScreen()) {
     return { screen: 'reset-password', propertyId: null, property: null };
   }
 
+  if (isAuthCallbackHash(window.location.hash)) {
+    const fromStorage = readStorage();
+    return fromStorage ?? { screen: 'home', propertyId: null, property: null };
+  }
+
   const fromHash = parseAppHash();
+  const fromStorage = readStorage();
+
+  if (fromHash && fromHash.screen !== 'home') {
+    return fromHash;
+  }
+
+  if (
+    options?.preferStorageOverGenericHome &&
+    fromStorage &&
+    fromStorage.screen !== 'home'
+  ) {
+    return fromStorage;
+  }
+
   if (fromHash) return fromHash;
 
-  const fromStorage = readStorage();
   if (fromStorage) return fromStorage;
 
   return { screen: 'home', propertyId: null, property: null };
@@ -235,12 +259,70 @@ export function replaceAppNavHistory(screen: AppScreen, property: Property | nul
   }
 }
 
+/** 同步目前畫面到 history.state（URL 相同時仍會更新，供登入頁返回首頁） */
+export function syncHistoryState(screen: AppScreen, property: Property | null = null) {
+  if (isAuthCallbackHash(window.location.hash)) return;
+
+  const propertyId = screen === 'property' ? property?.id ?? null : null;
+  if (PERSISTABLE_SCREENS.has(screen)) {
+    persistAppNav(screen, property);
+  }
+
+  window.history.replaceState(
+    { thouseScreen: screen, thousePropertyId: propertyId },
+    '',
+    navUrl(screen, propertyId),
+  );
+}
+
+/** 進入登入／註冊頁：push history，讓瀏覽器返回與站內返回皆能回到上一畫面 */
+export function pushAuthNavHistory(screen: 'auth-tenant' | 'auth-landlord') {
+  if (isAuthCallbackHash(window.location.hash)) return;
+
+  const url = `${window.location.pathname || '/'}${window.location.hash || '#/'}`
+  window.history.pushState({ thouseScreen: screen, thousePropertyId: null }, '', url);
+}
+
+function navFromHistoryState(state: unknown): StoredNav | null {
+  if (!state || typeof state !== 'object' || !('thouseScreen' in state)) return null;
+  const screen = (state as { thouseScreen?: unknown }).thouseScreen;
+  if (screen === 'auth-tenant' || screen === 'auth-landlord') {
+    return { screen, propertyId: null, property: null };
+  }
+  return null;
+}
+
 export function goBackInHistory(fallback?: () => void) {
   if (window.history.length > 1) {
     window.history.back();
     return;
   }
   fallback?.();
+}
+
+/**
+ * 首次進站時補一層 history，避免手機第一次按返回就直接離開網站。
+ * 若使用者是從其他頁面點進來（history.length > 1），則不插入。
+ */
+export function installBackExitGuardIfNeeded(): void {
+  if (shouldShowPasswordRecoveryScreen()) return;
+  if (isAuthCallbackHash(window.location.hash)) return;
+
+  try {
+    if (sessionStorage.getItem(BACK_GUARD_SESSION_KEY)) return;
+  } catch {
+    // ignore private mode
+  }
+
+  if (window.history.length > 1) return;
+
+  window.history.pushState({ thouseExitGuard: true }, '', window.location.href);
+
+  try {
+    sessionStorage.setItem(BACK_GUARD_SESSION_KEY, '1');
+  } catch {
+    // ignore private mode
+  }
 }
 
 export function syncNavFromUrl(onRestore: (nav: StoredNav) => void): () => void {
@@ -250,27 +332,26 @@ export function syncNavFromUrl(onRestore: (nav: StoredNav) => void): () => void 
     onRestore(nav);
   };
 
-  const onVisibilityChange = () => {
-    if (document.visibilityState === 'hidden') {
-      return;
-    }
-    restore();
-  };
-
   const onPageShow = (event: PageTransitionEvent) => {
     if (event.persisted) restore();
   };
 
   const onHashChange = () => restore();
-  const onPopState = () => restore();
+  const onPopState = (event: PopStateEvent) => {
+    if (shouldShowPasswordRecoveryScreen() || isAuthCallbackHash(window.location.hash)) return;
+    const fromState = navFromHistoryState(event.state);
+    if (fromState) {
+      onRestore(fromState);
+      return;
+    }
+    restore();
+  };
 
-  document.addEventListener('visibilitychange', onVisibilityChange);
   window.addEventListener('pageshow', onPageShow);
   window.addEventListener('hashchange', onHashChange);
   window.addEventListener('popstate', onPopState);
 
   return () => {
-    document.removeEventListener('visibilitychange', onVisibilityChange);
     window.removeEventListener('pageshow', onPageShow);
     window.removeEventListener('hashchange', onHashChange);
     window.removeEventListener('popstate', onPopState);

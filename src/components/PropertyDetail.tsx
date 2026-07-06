@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowLeft, MapPin, Bed, Bath, Building2, Maximize2 } from 'lucide-react';
+import { ArrowLeft, MapPin, Bed, Building2, Maximize2, ShowerHead } from 'lucide-react';
 import { Property } from '../App';
 import { submitLeaseApplication } from '../lib/leaseApplications';
 import { Button } from './ui/button';
@@ -101,7 +101,7 @@ export function PropertyDetail({ property, onBack, isAuthenticated, onRequireAut
             <div className="text-sm text-gray-500">{commonT.bedrooms}</div>
           </div>
           <div className="text-center">
-            <Bath className="mx-auto mb-2 h-6 w-6 text-gray-600" strokeWidth={1.75} />
+            <ShowerHead className="mx-auto mb-2 h-6 w-6 text-gray-600" strokeWidth={1.75} />
             <div>{property.bathrooms}</div>
             <div className="text-sm text-gray-500">{commonT.bathrooms}</div>
           </div>

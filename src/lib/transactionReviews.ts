@@ -5,17 +5,7 @@ export interface StarSummary {
   reviewCount: number;
 }
 
-export async function getProfileStarSummary(profileId: string): Promise<StarSummary> {
-  const { data, error } = await supabase.rpc('get_profile_star_summary', {
-    p_profile_id: profileId,
-  });
-  if (error) {
-    const msg = (error.message || '').toLowerCase();
-    if (msg.includes('function') && msg.includes('does not exist')) {
-      throw new Error('尚未套用資料庫交易評價相關 SQL（supabase/transaction_reviews.sql）。');
-    }
-    throw new Error(error.message || '無法讀取評分摘要');
-  }
+function parseStarSummaryRow(data: unknown): StarSummary {
   const row = Array.isArray(data) ? data[0] : data;
   if (!row || typeof row !== 'object') {
     return { avgStars: 0, reviewCount: 0 };
@@ -27,10 +17,55 @@ export async function getProfileStarSummary(profileId: string): Promise<StarSumm
   };
 }
 
+export async function getProfileStarSummary(profileId: string): Promise<StarSummary> {
+  const { data, error } = await supabase.rpc('get_profile_star_summary', {
+    p_profile_id: profileId,
+  });
+  if (error) {
+    const msg = (error.message || '').toLowerCase();
+    if (msg.includes('function') && msg.includes('does not exist')) {
+      throw new Error('尚未套用資料庫交易評價相關 SQL（supabase/transaction_reviews.sql）。');
+    }
+    throw new Error(error.message || '無法讀取評分摘要');
+  }
+  return parseStarSummaryRow(data);
+}
+
+/** 租客對租盤的評分 */
+export async function getPropertyStarSummary(propertyId: string): Promise<StarSummary> {
+  const { data, error } = await supabase.rpc('get_property_star_summary', {
+    p_property_id: propertyId,
+  });
+  if (error) {
+    const msg = (error.message || '').toLowerCase();
+    if (msg.includes('function') && msg.includes('does not exist')) {
+      throw new Error('尚未套用資料庫租盤評分 SQL（supabase/property_transaction_reviews.sql）。');
+    }
+    throw new Error(error.message || '無法讀取租盤評分');
+  }
+  return parseStarSummaryRow(data);
+}
+
+/** 業主綜合評分 = 旗下各租盤平均分的平均 */
+export async function getLandlordCompositeStarSummary(landlordId: string): Promise<StarSummary> {
+  const { data, error } = await supabase.rpc('get_landlord_composite_star_summary', {
+    p_landlord_id: landlordId,
+  });
+  if (error) {
+    const msg = (error.message || '').toLowerCase();
+    if (msg.includes('function') && msg.includes('does not exist')) {
+      throw new Error('尚未套用資料庫租盤評分 SQL（supabase/property_transaction_reviews.sql）。');
+    }
+    throw new Error(error.message || '無法讀取業主綜合評分');
+  }
+  return parseStarSummaryRow(data);
+}
+
 type LeaseWithProperty = {
   id: string;
   tenant_id: string;
   landlord_id: string;
+  property_id: string;
   full_name: string;
   created_at: string;
   /** Supabase 嵌套欄位 */
@@ -45,15 +80,17 @@ function propertyTitle(row: LeaseWithProperty) {
 
 export interface PendingLeaseForReview {
   leaseApplicationId: string;
+  propertyId: string;
   propertyTitle: string;
-  otherRoleLabel: '租客' | '業主';
+  otherRoleLabel: '租客' | '業主' | '租盤';
   otherPartyName: string;
   toUserId: string;
   createdAt: string;
+  reviewTarget: 'property' | 'tenant';
 }
 
 /**
- * 已核准、且本人尚未留評的簽約（租客／業主皆可）。
+ * 已核准、且本人尚未留評的簽約（租客評租盤／業主評租客）。
  */
 export async function fetchPendingLeasesToReview(): Promise<PendingLeaseForReview[]> {
   const {
@@ -63,7 +100,7 @@ export async function fetchPendingLeasesToReview(): Promise<PendingLeaseForRevie
 
   const { data: leases, error: e1 } = await supabase
     .from('lease_applications')
-    .select('id, tenant_id, landlord_id, full_name, created_at, properties ( title )')
+    .select('id, tenant_id, landlord_id, property_id, full_name, created_at, properties ( title )')
     .or(`tenant_id.eq.${user.id},landlord_id.eq.${user.id}`)
     .eq('status', 'approved')
     .order('created_at', { ascending: false });
@@ -89,15 +126,30 @@ export async function fetchPendingLeasesToReview(): Promise<PendingLeaseForRevie
   for (const raw of leases as LeaseWithProperty[]) {
     if (already.has(raw.id)) continue;
     const imTenant = raw.tenant_id === user.id;
-    const toUserId = imTenant ? raw.landlord_id : raw.tenant_id;
-    out.push({
-      leaseApplicationId: raw.id,
-      propertyTitle: propertyTitle(raw),
-      otherRoleLabel: imTenant ? '業主' : '租客',
-      otherPartyName: imTenant ? '此租約的業主' : (raw.full_name || '租客').trim() || '租客',
-      toUserId,
-      createdAt: raw.created_at,
-    });
+    const title = propertyTitle(raw);
+    if (imTenant) {
+      out.push({
+        leaseApplicationId: raw.id,
+        propertyId: raw.property_id,
+        propertyTitle: title,
+        otherRoleLabel: '租盤',
+        otherPartyName: title,
+        toUserId: raw.landlord_id,
+        createdAt: raw.created_at,
+        reviewTarget: 'property',
+      });
+    } else {
+      out.push({
+        leaseApplicationId: raw.id,
+        propertyId: raw.property_id,
+        propertyTitle: title,
+        otherRoleLabel: '租客',
+        otherPartyName: (raw.full_name || '租客').trim() || '租客',
+        toUserId: raw.tenant_id,
+        createdAt: raw.created_at,
+        reviewTarget: 'tenant',
+      });
+    }
   }
   return out;
 }
@@ -123,7 +175,7 @@ export async function fetchReviewsReceivedByMe(): Promise<ReceivedReview[]> {
 
   const { data: reviews, error } = await supabase
     .from('transaction_reviews')
-    .select('id, stars, comment, created_at, from_user_id, lease_application_id')
+    .select('id, stars, comment, created_at, from_user_id, lease_application_id, property_id')
     .eq('to_user_id', user.id)
     .order('created_at', { ascending: false });
 
@@ -156,7 +208,7 @@ export async function fetchReviewsReceivedByMe(): Promise<ReceivedReview[]> {
     const p = la?.properties;
     const ptitle = Array.isArray(p) ? p[0]?.title : p?.title;
     const title = ptitle ?? '物業';
-    const isFromTenant = la ? r.from_user_id === la.tenant_id : false;
+    const isFromTenant = la ? r.from_user_id === la.tenant_id : Boolean(r.property_id);
     const fromNameHint = isFromTenant
       ? ((la?.full_name || '租客').trim() || '租客')
       : '此租約的業主';
@@ -175,6 +227,7 @@ export async function fetchReviewsReceivedByMe(): Promise<ReceivedReview[]> {
 export async function submitTransactionReview(input: {
   leaseApplicationId: string;
   toUserId: string;
+  propertyId?: string | null;
   stars: number;
   comment: string;
 }): Promise<void> {
@@ -190,6 +243,7 @@ export async function submitTransactionReview(input: {
     lease_application_id: input.leaseApplicationId,
     from_user_id: user.id,
     to_user_id: input.toUserId,
+    property_id: input.propertyId ?? null,
     stars: input.stars,
     comment: (input.comment ?? '').trim(),
   });
@@ -199,4 +253,14 @@ export async function submitTransactionReview(input: {
     }
     throw new Error(error.message || '提交失敗');
   }
+}
+
+export async function getMyRatingSummary(
+  userId: string,
+  role: 'tenant' | 'landlord',
+): Promise<StarSummary> {
+  if (role === 'landlord') {
+    return getLandlordCompositeStarSummary(userId);
+  }
+  return getProfileStarSummary(userId);
 }

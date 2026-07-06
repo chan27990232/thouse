@@ -11,7 +11,7 @@ import { getPublicLandlordProfile } from '../lib/profiles';
 import { supabase } from '../lib/supabase';
 import { sendTenantInquiryMessage } from '../lib/conversations';
 import { computeLandlordResponseTimeLabel } from '../lib/landlordResponseTime';
-import { getProfileStarSummary, type StarSummary } from '../lib/transactionReviews';
+import { getPropertyStarSummary, type StarSummary } from '../lib/transactionReviews';
 import { useLocale } from '../context/LocaleContext';
 
 interface ContactLandlordDialogProps {
@@ -81,7 +81,7 @@ export function ContactLandlordDialog({ open, onOpenChange, property, isAuthenti
 
       let summary: StarSummary = { avgStars: 0, reviewCount: 0 };
       try {
-        summary = await getProfileStarSummary(property.landlordId);
+        summary = await getPropertyStarSummary(property.id);
       } catch {
         summary = { avgStars: 0, reviewCount: 0 };
       }

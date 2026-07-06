@@ -6,12 +6,13 @@ import { Label } from './ui/label';
 import {
   fetchPendingLeasesToReview,
   fetchReviewsReceivedByMe,
-  getProfileStarSummary,
+  getMyRatingSummary,
   submitTransactionReview,
   type PendingLeaseForReview,
   type ReceivedReview,
 } from '../lib/transactionReviews';
 import { supabase } from '../lib/supabase';
+import { getRoleFromMetadata, getStoredAuthRole } from '../lib/auth';
 import { useLocale } from '../context/LocaleContext';
 import { formatLocaleDateTimeLong } from '../lib/i18nDate';
 
@@ -62,7 +63,12 @@ function PendingCard({
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
 
-  const roleLabel = item.otherRoleLabel === '業主' ? chatT.landlord : chatT.tenant;
+  const roleLabel =
+    item.otherRoleLabel === '業主'
+      ? chatT.landlord
+      : item.otherRoleLabel === '租盤'
+        ? profileT.propertyReviewRole
+        : chatT.tenant;
 
   const handleSubmit = async () => {
     if (stars < 1) {
@@ -75,6 +81,7 @@ function PendingCard({
       await submitTransactionReview({
         leaseApplicationId: item.leaseApplicationId,
         toUserId: item.toUserId,
+        propertyId: item.reviewTarget === 'property' ? item.propertyId : null,
         stars,
         comment,
       });
@@ -130,17 +137,18 @@ function PendingCard({
 export function TransactionReviewPanel() {
   const { locale, profileT, chatT, localizePropertyTitle } = useLocale();
   const [userId, setUserId] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<'tenant' | 'landlord'>('tenant');
   const [summary, setSummary] = useState<{ avg: number; count: number } | null>(null);
   const [pending, setPending] = useState<PendingLeaseForReview[]>([]);
   const [received, setReceived] = useState<ReceivedReview[]>([]);
   const [loadErr, setLoadErr] = useState('');
   const [loading, setLoading] = useState(true);
 
-  const refresh = useCallback(async (uid: string) => {
+  const refresh = useCallback(async (uid: string, role: 'tenant' | 'landlord') => {
     setLoadErr('');
     try {
       const [s, p, r] = await Promise.all([
-        getProfileStarSummary(uid).catch((e) => {
+        getMyRatingSummary(uid, role).catch((e) => {
           if (e instanceof Error && e.message.includes('尚未套用')) throw e;
           return { avgStars: 0, reviewCount: 0 };
         }),
@@ -172,7 +180,9 @@ export function TransactionReviewPanel() {
         return;
       }
       setUserId(user.id);
-      await refresh(user.id);
+      const role = getRoleFromMetadata(user.user_metadata) ?? getStoredAuthRole();
+      setUserRole(role);
+      await refresh(user.id, role);
       setLoading(false);
     };
     void run();
@@ -203,12 +213,20 @@ export function TransactionReviewPanel() {
       {summary && (
         <div className="rounded-lg border p-4 flex items-center justify-between">
           <div>
-            <p className="text-sm text-gray-500">{profileT.myAvgRating}</p>
+            <p className="text-sm text-gray-500">
+              {userRole === 'landlord' ? profileT.myAvgRatingLandlord : profileT.myAvgRating}
+            </p>
             <p className="text-2xl font-semibold mt-1">
               {summary.count === 0 ? '—' : summary.avg.toFixed(2)}
               <span className="text-sm font-normal text-gray-500 ml-2">/ 5</span>
             </p>
             <p className="text-xs text-gray-500 mt-1">
+              {userRole === 'landlord' ? (
+                <>
+                  {profileT.myAvgRatingLandlordHint}
+                  <br />
+                </>
+              ) : null}
               {profileT.format('reviewCount', { count: summary.count })}
             </p>
           </div>
@@ -231,7 +249,7 @@ export function TransactionReviewPanel() {
               key={item.leaseApplicationId}
               item={item}
               onDone={() => {
-                if (userId) void refresh(userId);
+                if (userId) void refresh(userId, userRole);
               }}
             />
           ))}

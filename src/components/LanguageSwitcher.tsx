@@ -15,9 +15,11 @@ const LOCALES: AppLocale[] = ['zh-TW', 'zh-CN', 'en'];
 type LanguageSwitcherProps = {
   variant?: 'hero' | 'default';
   className?: string;
+  /** 用於全螢幕子頁（如資訊頁 overlay），避免選單被較高 z-index 遮住 */
+  menuClassName?: string;
 };
 
-export function LanguageSwitcher({ variant = 'hero', className }: LanguageSwitcherProps) {
+export function LanguageSwitcher({ variant = 'hero', className, menuClassName }: LanguageSwitcherProps) {
   const { locale, setLocale, commonT } = useLocale();
 
   return (
@@ -27,17 +29,17 @@ export function LanguageSwitcher({ variant = 'hero', className }: LanguageSwitch
           type="button"
           aria-label={commonT.languageAria}
           className={cn(
-            'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-base leading-none transition-colors sm:h-10 sm:w-10',
+            'inline-flex h-9 w-9 shrink-0 items-center justify-center text-base leading-none transition-colors sm:h-10 sm:w-10',
             variant === 'hero'
-              ? 'border border-white/80 bg-white text-gray-800 shadow-sm hover:bg-gray-50'
-              : 'border border-gray-200 bg-gray-100 text-gray-800 hover:bg-gray-200/80',
+              ? 'rounded-full border border-white/80 bg-white text-gray-800 shadow-sm hover:bg-gray-50'
+              : 'rounded-full border border-gray-200 bg-white p-2 text-gray-700 shadow-sm hover:bg-gray-50 sm:p-2.5',
             className,
           )}
         >
           <Languages className="h-4 w-4 sm:h-5 sm:w-5" strokeWidth={1.75} aria-hidden />
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-[9rem]">
+      <DropdownMenuContent align="end" className={cn('min-w-[9rem]', menuClassName)}>
         <DropdownMenuRadioGroup value={locale} onValueChange={(v) => setLocale(v as AppLocale)}>
           {LOCALES.map((loc) => (
             <DropdownMenuRadioItem key={loc} value={loc} className="cursor-pointer">

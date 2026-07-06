@@ -8,14 +8,30 @@ import { cn } from './ui/utils';
 const FOOTER_BG = '#3b3b3b' as const;
 const LINE = '1px solid rgba(255, 255, 255, 0.14)';
 
-function SocialIcon({ children, label, href }: { children: ReactNode; label: string; href: string }) {
+function SocialIcon({
+  children,
+  label,
+  href,
+  className,
+}: {
+  children: ReactNode;
+  label: string;
+  href: string;
+  className?: string;
+}) {
   return (
     <a
       href={href}
       target="_blank"
       rel="noopener noreferrer"
       aria-label={label}
-      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-gray-300 text-white transition-colors bg-black/50 hover:border-white hover:bg-black"
+      className={cn(
+        'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-gray-300 text-white bg-black/50',
+        'transition-colors transition-transform duration-150 ease-out',
+        'hover:border-white hover:bg-black hover:-translate-y-0.5 hover:shadow-lg',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#3b3b3b]',
+        className,
+      )}
     >
       {children}
     </a>
@@ -95,6 +111,43 @@ export function ThouseHomeFooter({ className }: ThouseHomeFooterProps) {
               >
                 <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
                   <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" />
+                </svg>
+              </SocialIcon>
+              <SocialIcon
+                label={commonT.facebookAria}
+                href="https://www.facebook.com/share/187LXqY1Yd/?mibextid=wwXIfr"
+              >
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                  <path d="M13.5 22v-8h2.7l.4-3.1h-3.1V8.9c0-.9.3-1.5 1.6-1.5H17V4.6c-.3 0-1.3-.1-2.5-.1-2.5 0-4.1 1.5-4.1 4.3v2.1H7.8V14h2.6v8h3.1Z" />
+                </svg>
+              </SocialIcon>
+              <SocialIcon
+                label={commonT.douyinAria}
+                href="https://v.douyin.com/dnLab1O070U/"
+              >
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                  <path d="M14.2 3.2c.6 2.2 1.9 3.9 4 4.9v3.2c-1.5-.1-2.8-.5-4-1.3v6.3a6.2 6.2 0 1 1-6.2-6.2c.4 0 .8 0 1.2.1v3.2a3.5 3.5 0 1 0 1.8 3v-13h3.2Z" />
+                </svg>
+              </SocialIcon>
+              <SocialIcon
+                label={commonT.xiaohongshuAria}
+                href="https://xhslink.com/m/P63kWZDhqw"
+                className="overflow-hidden p-0"
+              >
+                <img
+                  src="/xiaohongshu-logo.png"
+                  alt=""
+                  className="h-full w-full object-cover"
+                  aria-hidden
+                  style={{ filter: 'grayscale(1) contrast(10) brightness(1.1)' }}
+                />
+              </SocialIcon>
+              <SocialIcon
+                label={commonT.wechatAria}
+                href="https://u.wechat.com/IAt7G2Q1pvX_K0RRdOGcPWQ?s=2"
+              >
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                  <path d="M9.5 4C6.46 4 4 6.13 4 8.75c0 1.57.88 2.97 2.25 3.85-.14.52-.58 1.95-.58 1.95s2.02-.64 3.08-.98c.56.1 1.14.18 1.75.18 3.04 0 5.5-2.13 5.5-4.75S12.54 4 9.5 4zM16 11.5c-2.76 0-5 1.79-5 4s2.24 4 5 4c.55 0 1.08-.08 1.58-.23l1.94.62-.47-1.48c.99-.8 1.6-1.9 1.6-3.11 0-2.21-2.24-4-5-4z" />
                 </svg>
               </SocialIcon>
             </div>

@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { Bed, Bath, Building2, Heart, Maximize2 } from 'lucide-react';
+import { Bed, Building2, Heart, Maximize2, ShowerHead } from 'lucide-react';
 import { Property } from '../App';
 import { useLocale } from '../context/LocaleContext';
 import { ImageWithFallback } from './figma/ImageWithFallback';
@@ -84,7 +84,7 @@ export function PropertyCard({ property, onToggleFavorite, onClick }: PropertyCa
             </span>
           </div>
           <div className="flex items-center gap-1">
-            <Bath className="h-4 w-4 shrink-0" strokeWidth={1.75} />
+            <ShowerHead className="h-4 w-4 shrink-0" strokeWidth={1.75} />
             <span>
               {property.bathrooms} {commonT.bathrooms}
             </span>

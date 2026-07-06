@@ -4,13 +4,10 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { supabase } from '../lib/supabase';
-import { getRoleFromMetadata, getSalutationFromMetadata, getStoredAuthRole } from '../lib/auth';
-import {
-  submitLandlordVerificationRequest,
-  submitTenantVerificationRequest,
-} from '../lib/landlordVerification';
+import { getRoleFromMetadata, getSalutationFromMetadata, getStoredAuthRole, getUsernameFromMetadata } from '../lib/auth';
 import { computeLandlordResponseTimeLabel } from '../lib/landlordResponseTime';
 import { TransactionReviewPanel } from './TransactionReviewPanel';
+import { IdentityVerificationDialog } from './IdentityVerificationDialog';
 import { useLocale } from '../context/LocaleContext';
 import { responseTimeMessages } from '../content/translations/responseTime';
 import { formatLocaleDateTimeLong } from '../lib/i18nDate';
@@ -24,6 +21,9 @@ export function ProfilePage({ onBack, onSignOut }: ProfilePageProps) {
   const { locale, profileT } = useLocale();
   const [salutation, setSalutation] = useState<'' | '先生' | '女士'>('');
   const [fullName, setFullName] = useState('');
+  const [originalFullName, setOriginalFullName] = useState('');
+  const [loginAccountId, setLoginAccountId] = useState('');
+  const [nameChangesInWindow, setNameChangesInWindow] = useState(0);
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [responseTime, setResponseTime] = useState('');
@@ -38,7 +38,7 @@ export function ProfilePage({ onBack, onSignOut }: ProfilePageProps) {
   const [role, setRole] = useState<'tenant' | 'landlord' | ''>('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [verifySubmitting, setVerifySubmitting] = useState(false);
+  const [verificationDialogOpen, setVerificationDialogOpen] = useState(false);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
 
@@ -62,7 +62,7 @@ export function ProfilePage({ onBack, onSignOut }: ProfilePageProps) {
         const profileRes = await supabase
           .from('profiles')
           .select(
-            'full_name,email,salutation,phone,response_time,is_verified,role,landlord_verification_status,landlord_verification_rejection_reason,landlord_verification_submitted_at,tenant_verification_status,tenant_verification_rejection_reason,tenant_verification_submitted_at',
+            'full_name,username,email,salutation,phone,response_time,is_verified,role,landlord_verification_status,landlord_verification_rejection_reason,landlord_verification_submitted_at,tenant_verification_status,tenant_verification_rejection_reason,tenant_verification_submitted_at',
           )
           .eq('id', user.id)
           .maybeSingle();
@@ -76,7 +76,7 @@ export function ProfilePage({ onBack, onSignOut }: ProfilePageProps) {
           ) {
             const { data: legacy } = await supabase
               .from('profiles')
-              .select('full_name,email,salutation,phone,response_time,is_verified,role')
+              .select('full_name,username,email,salutation,phone,response_time,is_verified,role')
               .eq('id', user.id)
               .maybeSingle();
             profile = legacy as typeof profile;
@@ -92,7 +92,13 @@ export function ProfilePage({ onBack, onSignOut }: ProfilePageProps) {
             ? profile.salutation
             : getSalutationFromMetadata(user.user_metadata)
         );
-        setFullName(profile?.full_name ?? (typeof user.user_metadata?.full_name === 'string' ? user.user_metadata.full_name : ''));
+        const loadedFullName =
+          profile?.full_name ?? (typeof user.user_metadata?.full_name === 'string' ? user.user_metadata.full_name : '');
+        setFullName(loadedFullName);
+        setOriginalFullName(loadedFullName.trim());
+        setLoginAccountId(
+          (typeof profile?.username === 'string' ? profile.username : '') || getUsernameFromMetadata(user.user_metadata),
+        );
         setPhone(profile?.phone ?? (typeof user.user_metadata?.phone === 'string' ? user.user_metadata.phone : ''));
         setEmail(profile?.email ?? user.email ?? '');
         setResponseTime('');
@@ -134,6 +140,12 @@ export function ProfilePage({ onBack, onSignOut }: ProfilePageProps) {
         const roleResolved: 'tenant' | 'landlord' =
           roleFromRow ?? getRoleFromMetadata(user.user_metadata) ?? getStoredAuthRole() ?? 'tenant';
         setRole(roleResolved);
+
+        const { data: quotaData, error: quotaError } = await supabase.rpc('get_display_name_change_quota');
+        if (!quotaError && quotaData && typeof quotaData === 'object' && 'changes_in_window' in quotaData) {
+          const count = (quotaData as { changes_in_window?: unknown }).changes_in_window;
+          setNameChangesInWindow(typeof count === 'number' ? count : Number(count) || 0);
+        }
       } catch (e) {
         if (isMounted) {
           setError(e instanceof Error ? e.message : profileT.loadError);
@@ -182,34 +194,17 @@ export function ProfilePage({ onBack, onSignOut }: ProfilePageProps) {
     };
   }, [role, locale]);
 
-  const handleSubmitVerification = async () => {
-    setVerifySubmitting(true);
+  const handleVerificationSubmitted = () => {
+    setInfo(profileT.verificationSubmitted);
     setError('');
-    setInfo('');
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error(profileT.notSignedIn);
-      if (role === 'landlord') {
-        await submitLandlordVerificationRequest(user.id);
-        setInfo(profileT.verificationSubmitted);
-        setLandlordVerificationStatus('pending');
-        setLandlordVerificationRejectionReason('');
-        setLandlordVerificationSubmittedAt(new Date().toISOString());
-      } else if (role === 'tenant') {
-        await submitTenantVerificationRequest(user.id);
-        setInfo(profileT.verificationSubmitted);
-        setTenantVerificationStatus('pending');
-        setTenantVerificationRejectionReason('');
-        setTenantVerificationSubmittedAt(new Date().toISOString());
-      } else {
-        throw new Error(profileT.roleOnlyError);
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : profileT.submitFailed);
-    } finally {
-      setVerifySubmitting(false);
+    if (role === 'landlord') {
+      setLandlordVerificationStatus('pending');
+      setLandlordVerificationRejectionReason('');
+      setLandlordVerificationSubmittedAt(new Date().toISOString());
+    } else if (role === 'tenant') {
+      setTenantVerificationStatus('pending');
+      setTenantVerificationRejectionReason('');
+      setTenantVerificationSubmittedAt(new Date().toISOString());
     }
   };
 
@@ -227,11 +222,17 @@ export function ProfilePage({ onBack, onSignOut }: ProfilePageProps) {
         throw new Error(profileT.notSignedInUpdate);
       }
 
+      const trimmedName = fullName.trim();
+      const nameChanged = trimmedName !== originalFullName;
+      if (nameChanged && nameChangesInWindow >= 2) {
+        throw new Error(profileT.displayNameChangeLimit);
+      }
+
       const { error } = await supabase.auth.updateUser({
         data: {
           ...user.user_metadata,
           salutation,
-          full_name: fullName.trim(),
+          full_name: trimmedName,
           phone: phone.trim(),
         },
       });
@@ -242,13 +243,24 @@ export function ProfilePage({ onBack, onSignOut }: ProfilePageProps) {
         .from('profiles')
         .update({
           salutation,
-          full_name: fullName.trim(),
+          full_name: trimmedName,
           phone: phone.trim(),
           updated_at: new Date().toISOString(),
         })
         .eq('id', user.id);
 
-      if (profileError) throw profileError;
+      if (profileError) {
+        const msg = (profileError.message || '').toLowerCase();
+        if (msg.includes('display_name_change_limit')) {
+          throw new Error(profileT.displayNameChangeLimit);
+        }
+        throw profileError;
+      }
+
+      if (nameChanged) {
+        setOriginalFullName(trimmedName);
+        setNameChangesInWindow((count) => count + 1);
+      }
 
       setInfo(profileT.profileUpdated);
     } catch (error) {
@@ -264,6 +276,8 @@ export function ProfilePage({ onBack, onSignOut }: ProfilePageProps) {
     role === 'landlord' ? landlordVerificationSubmittedAt : tenantVerificationSubmittedAt;
   const verificationRejectionReason =
     role === 'landlord' ? landlordVerificationRejectionReason : tenantVerificationRejectionReason;
+  const nameChangesRemaining = Math.max(0, 2 - nameChangesInWindow);
+  const displayNameLocked = nameChangesRemaining <= 0;
 
   return (
     <div className="mx-auto min-h-screen w-full min-w-0 max-w-3xl overflow-x-hidden bg-white">
@@ -313,13 +327,23 @@ export function ProfilePage({ onBack, onSignOut }: ProfilePageProps) {
             </div>
 
             <div>
+              <Label>{profileT.loginAccountId}</Label>
+              <Input className="mt-2 h-12 bg-gray-50" value={loginAccountId || '—'} readOnly />
+              <p className="mt-1.5 text-xs text-gray-500">{profileT.loginAccountIdHint}</p>
+            </div>
+
+            <div>
               <Label>{profileT.fullName}</Label>
               <Input
                 className="mt-2 h-12"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 placeholder={profileT.fullNamePlaceholder}
+                readOnly={displayNameLocked}
               />
+              <p className="mt-1.5 text-xs text-gray-500">
+                {profileT.format('displayNameChangeHint', { remaining: nameChangesRemaining })}
+              </p>
             </div>
 
             <div>
@@ -392,11 +416,10 @@ export function ProfilePage({ onBack, onSignOut }: ProfilePageProps) {
                       </div>
                       <button
                         type="button"
-                        className="inline-flex h-12 w-full items-center justify-center rounded-md border border-zinc-300 bg-white text-sm font-medium text-zinc-900 shadow-sm hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
-                        onClick={() => void handleSubmitVerification()}
-                        disabled={verifySubmitting}
+                        className="inline-flex h-12 w-full items-center justify-center rounded-md border border-zinc-300 bg-white text-sm font-medium text-zinc-900 shadow-sm hover:bg-zinc-50"
+                        onClick={() => setVerificationDialogOpen(true)}
                       >
-                        {verifySubmitting ? profileT.submitting : profileT.resubmitVerification}
+                        {profileT.resubmitVerification}
                       </button>
                     </div>
                   ) : (
@@ -412,11 +435,10 @@ export function ProfilePage({ onBack, onSignOut }: ProfilePageProps) {
                       </p>
                       <button
                         type="button"
-                        className="inline-flex h-12 w-full items-center justify-center rounded-md bg-zinc-900 text-sm font-medium !text-white shadow-sm transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
-                        onClick={() => void handleSubmitVerification()}
-                        disabled={verifySubmitting}
+                        className="inline-flex h-12 w-full items-center justify-center rounded-md bg-zinc-900 text-sm font-medium !text-white shadow-sm transition hover:bg-zinc-800"
+                        onClick={() => setVerificationDialogOpen(true)}
                       >
-                        {verifySubmitting ? profileT.submitting : profileT.submitVerification}
+                        {profileT.openVerificationForm}
                       </button>
                     </div>
                   )}
@@ -438,6 +460,16 @@ export function ProfilePage({ onBack, onSignOut }: ProfilePageProps) {
           </div>
         )}
       </div>
+
+      {(role === 'landlord' || role === 'tenant') && (
+        <IdentityVerificationDialog
+          open={verificationDialogOpen}
+          onOpenChange={setVerificationDialogOpen}
+          role={role}
+          defaultLegalName={fullName}
+          onSubmitted={handleVerificationSubmitted}
+        />
+      )}
     </div>
   );
 }

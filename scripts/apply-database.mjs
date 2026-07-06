@@ -93,6 +93,7 @@ if (connectionString) {
 /** 依賴順序；失敗時中斷並印出錯誤（多為 idempotent，可重跑） */
 const SQL_FILES = [
   'profiles.sql',
+  'profile_display_name_changes.sql',
   'properties.sql',
   'resolve_password_login_email.sql',
   'conversations.sql',
@@ -110,9 +111,11 @@ const SQL_FILES = [
   'lease_management_request_files.sql',
   'landlord_verification.sql',
   'tenant_verification.sql',
+  'identity_verification_submissions.sql',
   'ensure_property_storage_buckets.sql',
   'property_listing_verification.sql',
   'transaction_reviews.sql',
+  'property_transaction_reviews.sql',
   'admin_properties_write.sql',
   'admin_property_photos_storage.sql',
   'calendar_days.sql',

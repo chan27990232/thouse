@@ -9,7 +9,7 @@ const infoPagesZhTW: Record<InfoPageId, InfoPageContent> = {
     title: '關於我們',
     paragraphs: [
       '簡屋（THOUSE）為香港租屋配對平台，協助租客與業主更有效率地發布與瀏覽租盤資訊。',
-      '我們重視交易透明與使用者體驗，持續優化搜尋、溝通與實名審核相關功能。若您有任何建議，歡迎透過「聯絡我們」與我們聯繫。',
+      '本公司重視交易透明與使用者體驗，持續優化搜尋、溝通與實名審核相關功能。若您有任何建議，歡迎透過「聯絡本公司」與本公司聯繫。',
     ],
   },
   contact: {
@@ -30,8 +30,8 @@ const infoPagesZhTW: Record<InfoPageId, InfoPageContent> = {
   privacy: {
     title: '私隱政策',
     paragraphs: [
-      '我們可能收集您於註冊、使用服務及客戶支援時提供的資料（例如聯絡方式、帳戶識別資訊），以提供、維持及改善服務。',
-      '我們不會在無合法依據下出售您的個人資料。Cookie 及第三方服務之使用，將在正式版本另行說明。使用本服務即表示您知悉本政策之內容（本頁為概要說明，正式文本以上線版本為準）。',
+      '本公司可能收集您於註冊、使用服務及客戶支援時提供的資料（例如聯絡方式、帳戶識別資訊），以提供、維持及改善服務。',
+      '本公司不會在無合法依據下出售您的個人資料。Cookie 及第三方服務之使用，將在正式版本另行說明。使用本服務即表示您知悉本政策之內容（本頁為概要說明，正式文本以上線版本為準）。',
     ],
   },
 };
@@ -41,7 +41,7 @@ const infoPagesZhCN: Record<InfoPageId, InfoPageContent> = {
     title: '关于我们',
     paragraphs: [
       '简屋（THOUSE）为香港租屋配对平台，协助租客与业主更有效率地发布与浏览租盘信息。',
-      '我们重视交易透明与用户体验，持续优化搜索、沟通与实名审核相关功能。若您有任何建议，欢迎通过「联系我们」与我们联系。',
+      '本公司重视交易透明与用户体验，持续优化搜索、沟通与实名审核相关功能。若您有任何建议，欢迎通过「联系本公司」与本公司联系。',
     ],
   },
   contact: {
@@ -62,22 +62,22 @@ const infoPagesZhCN: Record<InfoPageId, InfoPageContent> = {
   privacy: {
     title: '隐私政策',
     paragraphs: [
-      '我们可能收集您于注册、使用服务及客户支援时提供的资料（例如联系方式、账户识别信息），以提供、维持及改善服务。',
-      '我们不会在无合法依据下出售您的个人资料。Cookie 及第三方服务之使用，将在正式版本另行说明。使用本服务即表示您知悉本政策之内容（本页为概要说明，正式文本以上线版本为准）。',
+      '本公司可能收集您于注册、使用服务及客户支援时提供的资料（例如联系方式、账户识别信息），以提供、维持及改善服务。',
+      '本公司不会在无合法依据下出售您的个人资料。Cookie 及第三方服务之使用，将在正式版本另行说明。使用本服务即表示您知悉本政策之内容（本页为概要说明，正式文本以上线版本为准）。',
     ],
   },
 };
 
 const infoPagesEn: Record<InfoPageId, InfoPageContent> = {
   about: {
-    title: 'About us',
+    title: 'About Us',
     paragraphs: [
       'Thouse is a Hong Kong rental matching platform helping tenants and landlords publish and browse listings more efficiently.',
-      'We focus on transparency and user experience, and keep improving search, messaging, and identity verification. For feedback, please use Contact us.',
+      'Our company values transparency and user experience, and keeps improving search, messaging, and identity verification. For feedback, please use Contact us.',
     ],
   },
   contact: {
-    title: 'Contact us',
+    title: 'Contact Us',
     paragraphs: [
       'For enquiries, partnerships, or technical support, email:',
       'abbie@thousehk.com',
@@ -85,17 +85,17 @@ const infoPagesEn: Record<InfoPageId, InfoPageContent> = {
     ],
   },
   terms: {
-    title: 'Terms of service',
+    title: 'Terms of Service',
     paragraphs: [
       'By using this service you agree to platform rules: provide accurate information, respect other users, and do not use the service unlawfully.',
       'Lease terms, deposits, and legal relationships are between tenant and landlord. This platform provides matching only and is not legal or agency advice. The full terms will be published separately; this page is a summary draft.',
     ],
   },
   privacy: {
-    title: 'Privacy policy',
+    title: 'Privacy Policy',
     paragraphs: [
-      'We may collect information you provide when registering, using the service, or contacting support (e.g. contact details, account identifiers) to operate and improve the service.',
-      'We do not sell personal data without lawful basis. Cookie and third-party use will be described in the formal policy. By using the service you acknowledge this summary; the published version prevails.',
+      'Our company may collect information you provide when registering, using the service, or contacting support (e.g. contact details, account identifiers) to operate and improve the service.',
+      'Our company does not sell personal data without lawful basis. Cookie and third-party use will be described in the formal policy. By using the service you acknowledge this summary; the published version prevails.',
     ],
   },
 };

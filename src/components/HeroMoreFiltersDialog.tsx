@@ -6,7 +6,7 @@ import {
   Maximize2,
   SlidersHorizontal,
   Car,
-  Bath,
+  ShowerHead,
   Shield,
   LayoutGrid,
   Refrigerator,
@@ -44,7 +44,7 @@ export const BUILDING_AMENITIES: { name: string; icon: LucideIcon }[] = [
 ];
 
 export const ROOM_FEATURES: { name: string; icon: LucideIcon }[] = [
-  { name: '獨立洗手間', icon: Bath },
+  { name: '獨立洗手間', icon: ShowerHead },
   { name: '冰箱', icon: Refrigerator },
   { name: '單人床', icon: BedSingle },
   { name: '雙人床', icon: BedDouble },

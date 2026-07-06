@@ -17,7 +17,7 @@ export function StaticInfoPage({ id, onClose }: StaticInfoPageProps) {
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: 0 });
-  }, [id]);
+  }, [id, locale]);
 
   return (
     <div

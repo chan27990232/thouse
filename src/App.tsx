@@ -26,15 +26,29 @@ import {
   type AppScreen,
   type StoredNav,
   goBackInHistory,
+  installBackExitGuardIfNeeded,
   persistAppNav,
   pushAppNavHistory,
+  pushAuthNavHistory,
   readAppNav,
   replaceAppNavHistory,
+  syncHistoryState,
   syncNavFromUrl,
 } from './lib/appNav';
 import { loadPropertyById } from './lib/properties';
 
 export type UserRole = 'tenant' | 'landlord' | null;
+
+/** 離開首頁到子頁時仍保留首頁掛載，避免返回時捲動／篩選被重置 */
+const SCREENS_KEEPING_HOME_MOUNTED = new Set<AppScreen>([
+  'home',
+  'property',
+  'chat',
+  'profile',
+  'my-properties',
+  'lease-applications',
+  'landlord-dashboard',
+]);
 
 export interface Property {
   id: string;
@@ -55,7 +69,7 @@ export interface Property {
 }
 
 export default function App() {
-  const [initialNav] = useState(() => readAppNav());
+  const [initialNav] = useState(() => readAppNav({ preferStorageOverGenericHome: true }));
   const [authBootstrapping, setAuthBootstrapping] = useState(true);
   const [currentScreen, setCurrentScreen] = useState<AppScreen>(initialNav.screen);
   const [userRole, setUserRole] = useState<UserRole>(null);
@@ -93,6 +107,12 @@ export default function App() {
       try {
         if (nav.screen === 'reset-password') {
           setNavState('reset-password', null);
+          return;
+        }
+
+        if (nav.screen === 'auth-tenant' || nav.screen === 'auth-landlord') {
+          setPropertyResolving(false);
+          setNavState(nav.screen, null);
           return;
         }
 
@@ -139,9 +159,27 @@ export default function App() {
     [navigate],
   );
 
+  const openAuth = useCallback(
+    (role: 'tenant' | 'landlord') => {
+      const screen = role === 'tenant' ? 'auth-tenant' : 'auth-landlord';
+      setPropertyResolving(false);
+      setNavState(screen, null);
+      pushAuthNavHistory(screen);
+    },
+    [setNavState],
+  );
+
+  const closeAuth = useCallback(() => {
+    setPropertyResolving(false);
+    setNavState('home', null);
+    persistAppNav('home', null);
+    syncHistoryState('home', null);
+  }, [setNavState]);
+
   useEffect(() => {
     if (shouldShowPasswordRecoveryScreen()) return;
     replaceAppNavHistory(initialNav.screen, initialNav.property);
+    installBackExitGuardIfNeeded();
   }, [initialNav]);
 
   useEffect(() => {
@@ -287,6 +325,10 @@ export default function App() {
   const showPropertyResolving =
     currentScreen === 'property' && !selectedProperty && propertyResolving;
 
+  const keepHomeMounted = SCREENS_KEEPING_HOME_MOUNTED.has(currentScreen);
+  const showTenantHome = keepHomeMounted && (!isAuthenticated || userRole !== 'landlord');
+  const showLandlordHome = keepHomeMounted && isAuthenticated && userRole === 'landlord';
+
   if (showPropertyResolving) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-50 text-sm text-gray-500">
@@ -298,34 +340,38 @@ export default function App() {
   return (
     <div className="min-h-screen min-w-0 overflow-x-hidden bg-gray-50">
       <MockDateDevBanner />
-      {currentScreen === 'home' && (!isAuthenticated || userRole !== 'landlord') && (
-        <Home
-          onAuthClick={(role) => setCurrentScreen(role === 'tenant' ? 'auth-tenant' : 'auth-landlord')}
-          isAuthenticated={isAuthenticated}
-          userRole={userRole}
-          onSignOut={handleSignOut}
-          onPropertyClick={handlePropertyClick}
-          onLandlordDashboard={() => navigate('landlord-dashboard')}
-          onChatClick={() => navigate('chat')}
-          onProfileClick={() => navigate('profile')}
-          onMyPropertiesClick={() => navigate('my-properties')}
-          onGoHome={() => navigate('home')}
-        />
+      {showTenantHome && (
+        <div className={currentScreen !== 'home' ? 'hidden' : undefined} aria-hidden={currentScreen !== 'home'}>
+          <Home
+            onAuthClick={openAuth}
+            isAuthenticated={isAuthenticated}
+            userRole={userRole}
+            onSignOut={handleSignOut}
+            onPropertyClick={handlePropertyClick}
+            onLandlordDashboard={() => navigate('landlord-dashboard')}
+            onChatClick={() => navigate('chat')}
+            onProfileClick={() => navigate('profile')}
+            onMyPropertiesClick={() => navigate('my-properties')}
+            onGoHome={() => navigate('home')}
+          />
+        </div>
       )}
-      {currentScreen === 'home' && isAuthenticated && userRole === 'landlord' && (
-        <LandlordHome
-          onSignOut={handleSignOut}
-          onPropertyClick={handlePropertyClick}
-          onChatClick={() => navigate('chat')}
-          onProfileClick={() => navigate('profile')}
-          onGoHome={() => navigate('home')}
-        />
+      {showLandlordHome && (
+        <div className={currentScreen !== 'home' ? 'hidden' : undefined} aria-hidden={currentScreen !== 'home'}>
+          <LandlordHome
+            onSignOut={handleSignOut}
+            onPropertyClick={handlePropertyClick}
+            onChatClick={() => navigate('chat')}
+            onProfileClick={() => navigate('profile')}
+            onGoHome={() => navigate('home')}
+          />
+        </div>
       )}
       {currentScreen === 'auth-tenant' && (
-        <AuthScreen role="tenant" onAuthSuccess={handleAuthSuccess} onBack={() => goBack('home')} />
+        <AuthScreen role="tenant" onAuthSuccess={handleAuthSuccess} onBack={closeAuth} />
       )}
       {currentScreen === 'auth-landlord' && (
-        <AuthScreen role="landlord" onAuthSuccess={handleAuthSuccess} onBack={() => goBack('home')} />
+        <AuthScreen role="landlord" onAuthSuccess={handleAuthSuccess} onBack={closeAuth} />
       )}
       {currentScreen === 'property' && !selectedProperty && (
         <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-gray-50 px-4 text-center text-sm text-gray-600">
@@ -344,7 +390,7 @@ export default function App() {
           property={selectedProperty}
           onBack={() => goBack('home')}
           isAuthenticated={isAuthenticated}
-          onRequireAuth={() => setCurrentScreen('auth-tenant')}
+          onRequireAuth={() => openAuth('tenant')}
         />
       )}
       {currentScreen === 'landlord-dashboard' && (

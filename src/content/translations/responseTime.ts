@@ -20,7 +20,7 @@ const responseTimeZhCN: ResponseTimeMessages = {
 };
 
 const responseTimeEn: ResponseTimeMessages = {
-  noData: 'No data yet',
+  noData: 'No Data Yet',
   withinHour: 'Within 1 hour',
   withinHours: 'Within {hours} hours',
   withinDay: 'Within 1 day',
