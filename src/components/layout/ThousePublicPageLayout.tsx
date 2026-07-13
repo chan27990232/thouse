@@ -18,33 +18,30 @@ export function ThousePublicPageLayout({
   onBack,
   children,
 }: ThousePublicPageLayoutProps) {
-  const { homeT } = useLocale();
+  const { commonT, homeT } = useLocale();
 
   return (
     <div className="flex min-h-screen min-w-0 flex-col overflow-x-hidden bg-white">
       <header className="sticky top-0 z-50 shrink-0 border-b border-gray-200/80 bg-white/95 pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] pt-[max(0.5rem,env(safe-area-inset-top))] backdrop-blur-sm sm:px-4 md:px-8 lg:px-10">
         <div className="flex min-h-14 items-center justify-between gap-2 py-2">
-          <button
-            type="button"
-            onClick={onBack}
-            className="flex min-w-0 shrink-0 items-center gap-2 rounded-lg border border-gray-200 bg-white px-1.5 py-1 pr-2.5 text-gray-900 shadow-sm transition-colors hover:bg-gray-50 sm:px-2 sm:py-1.5 sm:pr-3"
-            aria-label={homeT.home}
-          >
-            <img src={thouseLogo} alt={homeT.brandName} className="h-9 w-9 shrink-0 sm:h-10 sm:w-10" />
-            <span className="hidden text-sm font-medium sm:inline md:text-base">{homeT.brandName}</span>
-          </button>
-
-          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-            <LanguageSwitcher variant="default" menuClassName="z-[100001]" />
+          <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
             <button
               type="button"
               onClick={onBack}
-              className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-900 shadow-sm transition-colors hover:bg-gray-50 sm:px-3 sm:text-sm"
+              className="inline-flex shrink-0 items-center gap-1 rounded-full border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-900 shadow-sm transition-colors hover:bg-gray-50 sm:px-3 sm:text-sm"
+              aria-label={commonT.back}
             >
               <ArrowLeft className="h-4 w-4" />
-              <span>返回</span>
+              <span>{commonT.back}</span>
             </button>
+
+            <div className="flex min-w-0 items-center gap-2 rounded-lg border border-gray-200 bg-white px-1.5 py-1 pr-2.5 shadow-sm sm:px-2 sm:py-1.5 sm:pr-3">
+              <img src={thouseLogo} alt={homeT.brandName} className="h-9 w-9 shrink-0 sm:h-10 sm:w-10" />
+              <span className="hidden text-sm font-medium text-gray-900 sm:inline md:text-base">{homeT.brandName}</span>
+            </div>
           </div>
+
+          <LanguageSwitcher variant="default" menuClassName="z-[100001]" />
         </div>
       </header>
 

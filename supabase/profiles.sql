@@ -3,7 +3,7 @@ create table if not exists public.profiles (
   email text not null unique,
   full_name text not null default '',
   username text not null unique,
-  salutation text not null default '' check (salutation in ('', '先生', '女士')),
+  salutation text not null default '' check (salutation in ('', '先生', '女士', '不便透露')),
   phone text not null default '',
   response_time text not null default '',
   is_verified boolean not null default false,

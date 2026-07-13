@@ -1,4 +1,5 @@
-import type { UserRole } from '../App';
+import type { AppSalutation } from './salutation';
+import { normalizeSalutation } from './salutation';
 
 export const AUTH_ROLE_STORAGE_KEY = 'thouse-auth-role';
 
@@ -23,10 +24,9 @@ export function getUsernameFromMetadata(metadata: unknown): string {
   return '';
 }
 
-export function getSalutationFromMetadata(metadata: unknown): '' | '先生' | '女士' {
+export function getSalutationFromMetadata(metadata: unknown): AppSalutation {
   if (metadata && typeof metadata === 'object' && 'salutation' in metadata) {
-    const salutation = (metadata as { salutation?: unknown }).salutation;
-    return salutation === '先生' || salutation === '女士' ? salutation : '';
+    return normalizeSalutation((metadata as { salutation?: unknown }).salutation);
   }
   return '';
 }

@@ -11,6 +11,10 @@ import {
   signupVerificationEnvFromProcess,
 } from './signupVerificationHandler.js';
 import {
+  handleProfileUpdate,
+  profileUpdateEnvFromProcess,
+} from './profileUpdateHandler.js';
+import {
   handleRequestPasswordReset,
   requestPasswordResetEnvFromProcess,
 } from './requestPasswordResetHandler.js';
@@ -129,12 +133,14 @@ export function registerTenantDevApi(): Plugin {
         const isRequestPasswordReset = req.url?.startsWith('/api/request-password-reset');
         const isLeaseRejectionNotify = req.url?.startsWith('/api/notify-lease-rejection');
         const isSignupVerification = req.url?.startsWith('/api/signup-verification');
+        const isProfileUpdate = req.url?.startsWith('/api/profile-update');
         if (
           !isRegisterTenant &&
           !isSignupAccount &&
           !isRequestPasswordReset &&
           !isLeaseRejectionNotify &&
-          !isSignupVerification
+          !isSignupVerification &&
+          !isProfileUpdate
         ) {
           next();
           return;
@@ -164,19 +170,49 @@ export function registerTenantDevApi(): Plugin {
           const body = (await readJsonBody(req)) as {
             action?: string;
             email?: string;
+            newEmail?: string;
+            salutation?: string;
             identifier?: string;
             redirectTo?: string;
             username?: string;
             password?: string;
             fullName?: string;
+            phone?: string;
+            newEmail?: string;
+            emailCode?: string;
             role?: string;
             code?: string;
-            code?: string;
-            username?: string;
-            role?: string;
             application_id?: string;
             previous_status?: string | null;
           };
+
+          if (isProfileUpdate) {
+            const profileEnv = profileUpdateEnvFromProcess(env);
+            if (!profileEnv) {
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ ok: false, message: '伺服器設定不完整。' }));
+              return;
+            }
+
+            const result = await handleProfileUpdate(
+              {
+                action: body.action,
+                newEmail: body.newEmail ?? body.email,
+                salutation: body.salutation,
+                fullName: body.fullName,
+                phone: body.phone,
+                email: body.email,
+                emailCode: body.emailCode ?? body.code,
+              },
+              profileEnv,
+              req.headers.authorization ?? null,
+            );
+            res.statusCode = result.status ?? (result.ok ? 200 : 400);
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ ok: result.ok, message: result.message }));
+            return;
+          }
 
           if (isSignupVerification) {
             const result = await handleSignupVerification(

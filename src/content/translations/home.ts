@@ -129,7 +129,7 @@ const homeEn: HomeMessages = {
   manageCenter: 'Dashboard',
   heroTitle: 'THOUSE · Find Your Home',
   search: 'Search',
-  searchPlaceholder: 'Area, estate or keyword',
+  searchPlaceholder: 'Area, Estate or Keyword',
   district: 'District',
   anyDistrict: 'Any District',
   rentRange: 'Rent (HK$ / month)',

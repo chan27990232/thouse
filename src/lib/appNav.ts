@@ -10,6 +10,7 @@ export type AppScreen =
   | 'chat'
   | 'reset-password'
   | 'profile'
+  | 'profile-edit'
   | 'my-properties'
   | 'lease-applications';
 
@@ -42,6 +43,7 @@ function isAppScreen(value: string): value is AppScreen {
     value === 'chat' ||
     value === 'reset-password' ||
     value === 'profile' ||
+    value === 'profile-edit' ||
     value === 'my-properties' ||
     value === 'lease-applications'
   );

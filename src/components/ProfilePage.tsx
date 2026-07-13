@@ -5,25 +5,26 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { supabase } from '../lib/supabase';
 import { getRoleFromMetadata, getSalutationFromMetadata, getStoredAuthRole, getUsernameFromMetadata } from '../lib/auth';
+import { normalizeSalutation, type AppSalutation } from '../lib/salutation';
 import { computeLandlordResponseTimeLabel } from '../lib/landlordResponseTime';
 import { TransactionReviewPanel } from './TransactionReviewPanel';
 import { IdentityVerificationDialog } from './IdentityVerificationDialog';
 import { useLocale } from '../context/LocaleContext';
+import { salutationLabel } from '../content/translations/profile';
 import { responseTimeMessages } from '../content/translations/responseTime';
 import { formatLocaleDateTimeLong } from '../lib/i18nDate';
 
 interface ProfilePageProps {
   onBack: () => void;
   onSignOut: () => void;
+  onEditProfile: () => void;
 }
 
-export function ProfilePage({ onBack, onSignOut }: ProfilePageProps) {
+export function ProfilePage({ onBack, onSignOut, onEditProfile }: ProfilePageProps) {
   const { locale, profileT } = useLocale();
-  const [salutation, setSalutation] = useState<'' | '先生' | '女士'>('');
+  const [salutation, setSalutation] = useState<AppSalutation>('');
   const [fullName, setFullName] = useState('');
-  const [originalFullName, setOriginalFullName] = useState('');
   const [loginAccountId, setLoginAccountId] = useState('');
-  const [nameChangesInWindow, setNameChangesInWindow] = useState(0);
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [responseTime, setResponseTime] = useState('');
@@ -37,7 +38,6 @@ export function ProfilePage({ onBack, onSignOut }: ProfilePageProps) {
   const [tenantVerificationSubmittedAt, setTenantVerificationSubmittedAt] = useState<string | null>(null);
   const [role, setRole] = useState<'tenant' | 'landlord' | ''>('');
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [verificationDialogOpen, setVerificationDialogOpen] = useState(false);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
@@ -87,15 +87,10 @@ export function ProfilePage({ onBack, onSignOut }: ProfilePageProps) {
 
         if (!isMounted) return;
 
-        setSalutation(
-          profile?.salutation === '先生' || profile?.salutation === '女士'
-            ? profile.salutation
-            : getSalutationFromMetadata(user.user_metadata)
-        );
+        setSalutation(normalizeSalutation(profile?.salutation ?? getSalutationFromMetadata(user.user_metadata)));
         const loadedFullName =
           profile?.full_name ?? (typeof user.user_metadata?.full_name === 'string' ? user.user_metadata.full_name : '');
         setFullName(loadedFullName);
-        setOriginalFullName(loadedFullName.trim());
         setLoginAccountId(
           (typeof profile?.username === 'string' ? profile.username : '') || getUsernameFromMetadata(user.user_metadata),
         );
@@ -140,12 +135,6 @@ export function ProfilePage({ onBack, onSignOut }: ProfilePageProps) {
         const roleResolved: 'tenant' | 'landlord' =
           roleFromRow ?? getRoleFromMetadata(user.user_metadata) ?? getStoredAuthRole() ?? 'tenant';
         setRole(roleResolved);
-
-        const { data: quotaData, error: quotaError } = await supabase.rpc('get_display_name_change_quota');
-        if (!quotaError && quotaData && typeof quotaData === 'object' && 'changes_in_window' in quotaData) {
-          const count = (quotaData as { changes_in_window?: unknown }).changes_in_window;
-          setNameChangesInWindow(typeof count === 'number' ? count : Number(count) || 0);
-        }
       } catch (e) {
         if (isMounted) {
           setError(e instanceof Error ? e.message : profileT.loadError);
@@ -208,76 +197,12 @@ export function ProfilePage({ onBack, onSignOut }: ProfilePageProps) {
     }
   };
 
-  const handleSave = async () => {
-    try {
-      setSaving(true);
-      setError('');
-      setInfo('');
-
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        throw new Error(profileT.notSignedInUpdate);
-      }
-
-      const trimmedName = fullName.trim();
-      const nameChanged = trimmedName !== originalFullName;
-      if (nameChanged && nameChangesInWindow >= 2) {
-        throw new Error(profileT.displayNameChangeLimit);
-      }
-
-      const { error } = await supabase.auth.updateUser({
-        data: {
-          ...user.user_metadata,
-          salutation,
-          full_name: trimmedName,
-          phone: phone.trim(),
-        },
-      });
-
-      if (error) throw error;
-
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({
-          salutation,
-          full_name: trimmedName,
-          phone: phone.trim(),
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', user.id);
-
-      if (profileError) {
-        const msg = (profileError.message || '').toLowerCase();
-        if (msg.includes('display_name_change_limit')) {
-          throw new Error(profileT.displayNameChangeLimit);
-        }
-        throw profileError;
-      }
-
-      if (nameChanged) {
-        setOriginalFullName(trimmedName);
-        setNameChangesInWindow((count) => count + 1);
-      }
-
-      setInfo(profileT.profileUpdated);
-    } catch (error) {
-      setError(error instanceof Error ? error.message : profileT.updateFailed);
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const verificationStatus =
     role === 'landlord' ? landlordVerificationStatus : tenantVerificationStatus;
   const verificationSubmittedAt =
     role === 'landlord' ? landlordVerificationSubmittedAt : tenantVerificationSubmittedAt;
   const verificationRejectionReason =
     role === 'landlord' ? landlordVerificationRejectionReason : tenantVerificationRejectionReason;
-  const nameChangesRemaining = Math.max(0, 2 - nameChangesInWindow);
-  const displayNameLocked = nameChangesRemaining <= 0;
 
   return (
     <div className="mx-auto min-h-screen w-full min-w-0 max-w-3xl overflow-x-hidden bg-white">
@@ -306,24 +231,11 @@ export function ProfilePage({ onBack, onSignOut }: ProfilePageProps) {
           <div className="space-y-5">
             <div>
               <Label>{profileT.salutation}</Label>
-              <div className="mt-2 flex gap-3">
-                <Button
-                  type="button"
-                  variant={salutation === '先生' ? 'default' : 'outline'}
-                  className={salutation === '先生' ? 'bg-black text-white hover:bg-gray-800' : ''}
-                  onClick={() => setSalutation('先生')}
-                >
-                  {profileT.salutationMr}
-                </Button>
-                <Button
-                  type="button"
-                  variant={salutation === '女士' ? 'default' : 'outline'}
-                  className={salutation === '女士' ? 'bg-black text-white hover:bg-gray-800' : ''}
-                  onClick={() => setSalutation('女士')}
-                >
-                  {profileT.salutationMs}
-                </Button>
-              </div>
+              <Input
+                className="mt-2 h-12 bg-gray-50"
+                value={salutation ? salutationLabel(salutation, locale) : '—'}
+                readOnly
+              />
             </div>
 
             <div>
@@ -334,31 +246,17 @@ export function ProfilePage({ onBack, onSignOut }: ProfilePageProps) {
 
             <div>
               <Label>{profileT.fullName}</Label>
-              <Input
-                className="mt-2 h-12"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                placeholder={profileT.fullNamePlaceholder}
-                readOnly={displayNameLocked}
-              />
-              <p className="mt-1.5 text-xs text-gray-500">
-                {profileT.format('displayNameChangeHint', { remaining: nameChangesRemaining })}
-              </p>
+              <Input className="mt-2 h-12 bg-gray-50" value={fullName || '—'} readOnly />
             </div>
 
             <div>
               <Label>{profileT.phone}</Label>
-              <Input
-                className="mt-2 h-12"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder={profileT.phonePlaceholder}
-              />
+              <Input className="mt-2 h-12 bg-gray-50" value={phone || '—'} readOnly />
             </div>
 
             <div>
               <Label>{profileT.email}</Label>
-              <Input className="mt-2 h-12 bg-gray-50" value={email} readOnly />
+              <Input className="mt-2 h-12 bg-gray-50" value={email || '—'} readOnly />
             </div>
 
             {role === 'landlord' ? (
@@ -450,8 +348,8 @@ export function ProfilePage({ onBack, onSignOut }: ProfilePageProps) {
             {error ? <p className="text-sm text-red-500">{error}</p> : null}
             {info ? <p className="text-sm text-green-600">{info}</p> : null}
 
-            <Button className="w-full h-12 bg-black text-white hover:bg-gray-800" onClick={handleSave} disabled={saving}>
-              {saving ? profileT.saving : profileT.saveProfile}
+            <Button className="w-full h-12 bg-black text-white hover:bg-gray-800" onClick={onEditProfile}>
+              {profileT.saveProfile}
             </Button>
 
             <div className="pt-10 border-t">

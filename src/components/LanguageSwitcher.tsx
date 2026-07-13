@@ -1,4 +1,4 @@
-import { Languages } from 'lucide-react';
+import { Globe } from 'lucide-react';
 import { LOCALE_LABELS, LOCALE_MENU_LABELS, type AppLocale } from '../lib/locale';
 import { useLocale } from '../context/LocaleContext';
 import { cn } from './ui/utils';
@@ -36,7 +36,7 @@ export function LanguageSwitcher({ variant = 'hero', className, menuClassName }:
             className,
           )}
         >
-          <Languages className="h-4 w-4 sm:h-5 sm:w-5" strokeWidth={1.75} aria-hidden />
+          <Globe className="h-4 w-4 sm:h-5 sm:w-5" strokeWidth={1.75} aria-hidden />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className={cn('min-w-[9rem]', menuClassName)}>

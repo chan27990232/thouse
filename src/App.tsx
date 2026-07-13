@@ -8,6 +8,7 @@ import { LandlordDashboard } from './components/LandlordDashboard';
 import { ChatPage } from './components/ChatPage';
 import { ResetPasswordScreen } from './components/ResetPasswordScreen';
 import { ProfilePage } from './components/ProfilePage';
+import { EditProfilePage } from './components/EditProfilePage';
 import { TenantMyPropertiesPage } from './components/TenantMyPropertiesPage';
 import { TenantLeaseApplicationsPage } from './components/TenantLeaseApplicationsPage';
 import { MockDateDevBanner } from './components/MockDateDevBanner';
@@ -45,6 +46,7 @@ const SCREENS_KEEPING_HOME_MOUNTED = new Set<AppScreen>([
   'property',
   'chat',
   'profile',
+  'profile-edit',
   'my-properties',
   'lease-applications',
   'landlord-dashboard',
@@ -412,7 +414,17 @@ export default function App() {
         />
       )}
       {currentScreen === 'profile' && (
-        <ProfilePage onBack={() => goBack('home')} onSignOut={handleSignOut} />
+        <ProfilePage
+          onBack={() => goBack('home')}
+          onSignOut={handleSignOut}
+          onEditProfile={() => navigate('profile-edit')}
+        />
+      )}
+      {currentScreen === 'profile-edit' && (
+        <EditProfilePage
+          onBack={() => goBack('profile')}
+          onSaved={() => navigate('profile')}
+        />
       )}
       {currentScreen === 'my-properties' && (
         <TenantMyPropertiesPage

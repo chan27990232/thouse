@@ -1,4 +1,4 @@
-import type { User } from '@supabase/supabase-js';
+import type { AppSalutation } from './salutation';
 import type { UserRole } from '../App';
 import { supabase } from './supabase';
 import { getPhoneFromMetadata, getRoleFromMetadata, getSalutationFromMetadata, getUsernameFromMetadata } from './auth';
@@ -64,7 +64,7 @@ export async function findEmailByUsername(username: string) {
 
 export interface PublicLandlordProfile {
   full_name: string;
-  salutation: '' | '先生' | '女士';
+  salutation: AppSalutation;
   response_time: string;
   is_verified: boolean;
 }

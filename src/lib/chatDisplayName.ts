@@ -1,4 +1,4 @@
-/** 聊天顯示：displayName(username)，例如 MrChan(Ken) */
+import { salutationForDisplayName } from './salutation';
 export function formatChatUserLabel(displayName: string, username?: string | null): string {
   const name = displayName.trim();
   const uid = (username ?? '').trim();
@@ -12,7 +12,7 @@ export function formatChatUserLabel(displayName: string, username?: string | nul
 
 export function buildLandlordChatDisplayName(fullName: string, salutation: string): string {
   const n = fullName.trim();
-  const s = salutation === '先生' || salutation === '女士' ? salutation : '';
+  const s = salutationForDisplayName(salutation);
   const surname = n.split(/\s+/)[0] || '';
   return s ? `${surname} ${s}` : surname || n;
 }

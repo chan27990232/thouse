@@ -8,6 +8,7 @@ import { Textarea } from './ui/textarea';
 import { Property } from '../App';
 import { toast } from 'sonner';
 import { getPublicLandlordProfile } from '../lib/profiles';
+import { salutationForDisplayName } from '../lib/salutation';
 import { supabase } from '../lib/supabase';
 import { sendTenantInquiryMessage } from '../lib/conversations';
 import { computeLandlordResponseTimeLabel } from '../lib/landlordResponseTime';
@@ -42,12 +43,14 @@ export function ContactLandlordDialog({ open, onOpenChange, property, isAuthenti
   const localizeSalutation = (salutation: string) => {
     if (salutation === '先生') return profileT.salutationMr;
     if (salutation === '女士') return profileT.salutationMs;
+    if (salutation === '不便透露') return profileT.salutationPreferNot;
     return salutation;
   };
 
   const formatLandlordDisplayName = (fullName: string, salutation: string) => {
     const trimmedName = fullName.trim();
-    const localizedSalutation = salutation ? localizeSalutation(salutation) : '';
+    const displaySalutation = salutationForDisplayName(salutation);
+    const localizedSalutation = displaySalutation ? localizeSalutation(displaySalutation) : '';
 
     if (!trimmedName) {
       return localizedSalutation
@@ -98,7 +101,10 @@ export function ContactLandlordDialog({ open, onOpenChange, property, isAuthenti
         if (!isMounted || !data) return;
 
         const fullName = typeof data.full_name === 'string' ? data.full_name : '';
-        const salutation = data.salutation === '先生' || data.salutation === '女士' ? data.salutation : '';
+        const salutation =
+          data.salutation === '先生' || data.salutation === '女士' || data.salutation === '不便透露'
+            ? data.salutation
+            : '';
         setLandlord({
           name: formatLandlordDisplayName(fullName, salutation),
           responseTime: await computeLandlordResponseTimeLabel(property.landlordId, locale),

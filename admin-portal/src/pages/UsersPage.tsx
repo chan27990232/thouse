@@ -456,6 +456,7 @@ export function UsersPage() {
                 <option value="">—</option>
                 <option value="先生">先生</option>
                 <option value="女士">女士</option>
+                <option value="不便透露">不便透露</option>
               </select>
             </label>
             <label style={{ display: 'block' }}>

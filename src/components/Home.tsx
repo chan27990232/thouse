@@ -88,6 +88,7 @@ export function Home({
 }: HomeProps) {
   const { locale, homeT, commonT, filtersT } = useLocale();
   const [searchQuery, setSearchQuery] = useState('');
+  const [appliedSearchQuery, setAppliedSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'home' | 'favorites'>('home');
   const [searchDialogOpen, setSearchDialogOpen] = useState(false);
   const [roleSelectOpen, setRoleSelectOpen] = useState(false);
@@ -351,7 +352,7 @@ export function Home({
   };
 
   const filteredProperties = properties.filter((p) => {
-    if (!propertyMatchesSearchQuery(p, searchQuery)) return false;
+    if (!propertyMatchesSearchQuery(p, appliedSearchQuery)) return false;
     if (areaType === 'district' && selectedDistrict && !propertyMatchesDistrict(p, selectedDistrict)) return false;
     if (!matchesTubeArea(p)) return false;
     if (!matchesSchoolNet(p)) return false;
@@ -371,6 +372,7 @@ export function Home({
 
   const runHeroSearch = (snapshotToSave?: HeroSearchSnapshot) => {
     const snapshot = snapshotToSave ?? buildSearchSnapshot();
+    setAppliedSearchQuery(snapshot.searchQuery);
     setSearchHistory(saveHeroSearchHistory(snapshot));
     setSearchHistoryOpen(false);
     setActiveTab('home');
@@ -384,6 +386,7 @@ export function Home({
 
   const resetHomeFilters = useCallback(() => {
     setSearchQuery('');
+    setAppliedSearchQuery('');
     setAreaType('district');
     setSelectedDistrict('');
     setSelectedTubeLine('');
@@ -561,7 +564,7 @@ export function Home({
           <div className="shrink-0 pb-1 pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] pt-3 sm:px-4 sm:pb-2 sm:pt-4 md:px-10 md:pt-5 lg:px-14">
             <div className="max-w-3xl">
               <h1
-                className="text-[clamp(2.625rem,9.75vw,3.6rem)] font-bold leading-[1.15] drop-shadow-sm sm:text-[3.375rem] sm:leading-tight md:text-[3.375rem] md:leading-tight lg:text-[4.5rem]"
+                className="whitespace-nowrap text-[clamp(1.5rem,5.2vw,3.6rem)] font-bold leading-[1.15] drop-shadow-sm sm:text-[3.375rem] sm:leading-tight md:text-[3.375rem] md:leading-tight lg:text-[4.5rem]"
                 style={{ color: NAVY }}
               >
                 {homeT.heroTitle}

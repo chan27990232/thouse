@@ -39,6 +39,7 @@ loadEnvFile(join(root, '.env.local'), true);
 const FUNCTION_VERIFY_JWT = {
   'notify-lease-rejection': false,
   'signup-verification': false,
+  'profile-update': false,
   'request-password-reset': false,
   'signup-account': false,
   'register-tenant': false,
@@ -56,6 +57,7 @@ const FUNCTION_SECRETS = {
     'PUBLIC_APP_URL',
   ],
   'signup-verification': ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM'],
+  'profile-update': ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM'],
   'request-password-reset': ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM', 'PUBLIC_APP_URL'],
 };
 
