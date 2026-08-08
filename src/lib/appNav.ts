@@ -5,6 +5,7 @@ export type AppScreen =
   | 'home'
   | 'auth-tenant'
   | 'auth-landlord'
+  | 'forgot-password'
   | 'property'
   | 'landlord-dashboard'
   | 'chat'
@@ -38,6 +39,7 @@ function isAppScreen(value: string): value is AppScreen {
     value === 'home' ||
     value === 'auth-tenant' ||
     value === 'auth-landlord' ||
+    value === 'forgot-password' ||
     value === 'property' ||
     value === 'landlord-dashboard' ||
     value === 'chat' ||

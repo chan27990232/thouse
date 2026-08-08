@@ -39,6 +39,27 @@ export function assertSmtpConfigured(env: SmtpEnv): void {
   }
 }
 
+const SMTP_CONNECTION_TIMEOUT_MS = 12_000;
+const SMTP_GREETING_TIMEOUT_MS = 12_000;
+const SMTP_SOCKET_TIMEOUT_MS = 20_000;
+const SMTP_SEND_TIMEOUT_MS = 25_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(message)), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
 export async function sendEmail(env: SmtpEnv, input: SendEmailInput): Promise<void> {
   assertSmtpConfigured(env);
 
@@ -47,6 +68,9 @@ export async function sendEmail(env: SmtpEnv, input: SendEmailInput): Promise<vo
     port: env.port,
     secure: env.port === 465,
     requireTLS: env.port === 587,
+    connectionTimeout: SMTP_CONNECTION_TIMEOUT_MS,
+    greetingTimeout: SMTP_GREETING_TIMEOUT_MS,
+    socketTimeout: SMTP_SOCKET_TIMEOUT_MS,
     auth: {
       user: env.user,
       pass: env.pass,
@@ -54,14 +78,24 @@ export async function sendEmail(env: SmtpEnv, input: SendEmailInput): Promise<vo
   });
 
   try {
-    await transport.sendMail({
-      from: input.from || env.from,
-      to: input.to,
-      subject: input.subject,
-      html: input.html,
-    });
+    await withTimeout(
+      transport.sendMail({
+        from: input.from || env.from,
+        to: input.to,
+        subject: input.subject,
+        html: input.html,
+      }),
+      SMTP_SEND_TIMEOUT_MS,
+      '無法連線郵件伺服器，請檢查網絡或稍後再試。',
+    );
   } catch (error) {
     const detail = error instanceof Error ? error.message : '未知錯誤';
+    if (/無法連線郵件伺服器/.test(detail)) {
+      throw error instanceof Error ? error : new Error(detail);
+    }
+    if (/timeout|timed out|etimedout|econnrefused|enotfound|ehostunreach|network/i.test(detail)) {
+      throw new Error('無法連線郵件伺服器，請檢查網絡或稍後再試。');
+    }
     if (/security defaults|locked by your organization/i.test(detail)) {
       throw new Error(
         '郵件登入失敗：Microsoft 365 已封鎖此信箱的 SMTP 登入（Security Defaults）。請在 M365 管理員中心為寄件信箱啟用 SMTP AUTH，或改用應用程式密碼。',

@@ -48,6 +48,8 @@ const authZhTW = {
   forgotPasswordDetail: '輸入註冊時使用的電子郵件或登入帳號，我們會寄送重設密碼連結。',
   sendResetLink: '寄送重設連結',
   sendResetPasswordLink: '寄出重設密碼連結',
+  resetPasswordLinkSent: '重設密碼連結已寄出，請到你的電子郵件收件匣查看。',
+  sendingResetLink: '寄送中...',
   cancel: '取消',
   brandAlt: '簡屋',
 } as const;
@@ -102,6 +104,8 @@ const authZhCN: AuthMessages = {
   forgotPasswordDetail: '输入注册时使用的电子邮件或登录账号，我们会寄送重设密码链接。',
   sendResetLink: '寄送重设链接',
   sendResetPasswordLink: '寄出重设密码链接',
+  resetPasswordLinkSent: '重设密码链接已寄出，请到你的电子邮件收件匣查看。',
+  sendingResetLink: '寄送中...',
   cancel: '取消',
   brandAlt: '简屋',
 };
@@ -154,6 +158,8 @@ const authEn: AuthMessages = {
   forgotPasswordDetail: 'Enter the email or username you used to register and we will send a password reset link.',
   sendResetLink: 'Send Reset Link',
   sendResetPasswordLink: 'Send Password Reset Link',
+  resetPasswordLinkSent: 'Password reset link sent. Please check your email inbox.',
+  sendingResetLink: 'Sending...',
   cancel: 'Cancel',
   brandAlt: 'Thouse',
 };

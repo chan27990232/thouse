@@ -6,6 +6,7 @@ import { AuthScreen } from './components/AuthScreen';
 import { PropertyDetail } from './components/PropertyDetail';
 import { LandlordDashboard } from './components/LandlordDashboard';
 import { ChatPage } from './components/ChatPage';
+import { ForgotPasswordScreen } from './components/ForgotPasswordScreen';
 import { ResetPasswordScreen } from './components/ResetPasswordScreen';
 import { ProfilePage } from './components/ProfilePage';
 import { EditProfilePage } from './components/EditProfilePage';
@@ -79,6 +80,9 @@ export default function App() {
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(initialNav.property);
   const [propertyResolving, setPropertyResolving] = useState(
     initialNav.screen === 'property' && !initialNav.property && Boolean(initialNav.propertyId),
+  );
+  const [forgotPasswordReturnScreen, setForgotPasswordReturnScreen] = useState<'auth-tenant' | 'auth-landlord'>(
+    'auth-tenant',
   );
   const navRef = useRef({ screen: currentScreen, property: selectedProperty });
   const restoringHistoryRef = useRef(false);
@@ -167,6 +171,15 @@ export default function App() {
       setPropertyResolving(false);
       setNavState(screen, null);
       pushAuthNavHistory(screen);
+    },
+    [setNavState],
+  );
+
+  const openForgotPassword = useCallback(
+    (from: 'auth-tenant' | 'auth-landlord') => {
+      setForgotPasswordReturnScreen(from);
+      setPropertyResolving(false);
+      setNavState('forgot-password', null);
     },
     [setNavState],
   );
@@ -370,10 +383,29 @@ export default function App() {
         </div>
       )}
       {currentScreen === 'auth-tenant' && (
-        <AuthScreen role="tenant" onAuthSuccess={handleAuthSuccess} onBack={closeAuth} />
+        <AuthScreen
+          role="tenant"
+          onAuthSuccess={handleAuthSuccess}
+          onBack={closeAuth}
+          onForgotPassword={() => openForgotPassword('auth-tenant')}
+        />
       )}
       {currentScreen === 'auth-landlord' && (
-        <AuthScreen role="landlord" onAuthSuccess={handleAuthSuccess} onBack={closeAuth} />
+        <AuthScreen
+          role="landlord"
+          onAuthSuccess={handleAuthSuccess}
+          onBack={closeAuth}
+          onForgotPassword={() => openForgotPassword('auth-landlord')}
+        />
+      )}
+      {currentScreen === 'forgot-password' && (
+        <ForgotPasswordScreen
+          onBack={() => {
+            setPropertyResolving(false);
+            setNavState(forgotPasswordReturnScreen, null);
+            pushAuthNavHistory(forgotPasswordReturnScreen);
+          }}
+        />
       )}
       {currentScreen === 'property' && !selectedProperty && (
         <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-gray-50 px-4 text-center text-sm text-gray-600">

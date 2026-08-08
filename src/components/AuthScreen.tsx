@@ -7,7 +7,7 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from './ui/input-otp';
 import { supabase } from '../lib/supabase';
 import { AUTH_ROLE_STORAGE_KEY, getRoleFromMetadata } from '../lib/auth';
 import { findEmailByUsername } from '../lib/profiles';
-import { requestPasswordResetEmail, resolveLoginEmail } from '../lib/passwordRecovery';
+import { resolveLoginEmail } from '../lib/passwordRecovery';
 import { validateSignupEmailWithDatabase } from '../lib/signupEmailValidation';
 import { validatePasswordStrength, PASSWORD_REQUIREMENTS_HINT } from '../lib/passwordValidation';
 import {
@@ -26,9 +26,10 @@ interface AuthScreenProps {
   role: UserRole;
   onBack: () => void;
   onAuthSuccess: (role: UserRole) => void;
+  onForgotPassword: () => void;
 }
 
-export function AuthScreen({ role, onBack, onAuthSuccess }: AuthScreenProps) {
+export function AuthScreen({ role, onBack, onAuthSuccess, onForgotPassword }: AuthScreenProps) {
   const { authT, commonT } = useLocale();
   const [fullName, setFullName] = useState('');
   const [username, setUsername] = useState('');
@@ -41,8 +42,6 @@ export function AuthScreen({ role, onBack, onAuthSuccess }: AuthScreenProps) {
   const [pendingSignupEmail, setPendingSignupEmail] = useState('');
   const [signupEmailSent, setSignupEmailSent] = useState(false);
   const [otpCode, setOtpCode] = useState('');
-  const [showForgotPassword, setShowForgotPassword] = useState(false);
-  const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
   const [emailLoading, setEmailLoading] = useState(false);
   const [authError, setAuthError] = useState('');
   const [authInfo, setAuthInfo] = useState('');
@@ -209,28 +208,6 @@ export function AuthScreen({ role, onBack, onAuthSuccess }: AuthScreenProps) {
       onAuthSuccess(metadataRole ?? role);
     } catch (error) {
       setAuthError(formatAuthFailure(error, mode === 'signup' ? '註冊失敗，請稍後再試。' : '登入失敗，請稍後再試。'));
-    } finally {
-      setEmailLoading(false);
-    }
-  };
-
-  const handleForgotPassword = async () => {
-    try {
-      setAuthError('');
-      setAuthInfo('');
-
-      if (!forgotPasswordEmail.trim()) {
-        throw new Error('請輸入你的電子郵件或用戶名稱。');
-      }
-
-      setEmailLoading(true);
-      await requestPasswordResetEmail(forgotPasswordEmail);
-
-      setAuthInfo('重設密碼連結已寄出，請到你的電子郵件收件匣查看。');
-      setShowForgotPassword(false);
-      setForgotPasswordEmail('');
-    } catch (error) {
-      setAuthError(formatAuthFailure(error, '無法寄出重設密碼 email。'));
     } finally {
       setEmailLoading(false);
     }
@@ -465,41 +442,12 @@ export function AuthScreen({ role, onBack, onAuthSuccess }: AuthScreenProps) {
             onClick={() => {
               setAuthError('');
               setAuthInfo('');
-              setShowForgotPassword((prev) => {
-                if (prev) setForgotPasswordEmail('');
-                return !prev;
-              });
+              onForgotPassword();
             }}
           >
             {authT.forgotPassword}
           </button>
         </div>
-
-        {showForgotPassword ? (
-          <div className="mt-4 space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
-            <p className="text-sm text-gray-600">{authT.forgotPasswordDetail}</p>
-            <div>
-              <label className="mb-2 block text-sm text-gray-700">{authT.emailOrUsername}</label>
-              <Input
-                type="text"
-                autoComplete="username"
-                placeholder={authT.emailOrUsernamePlaceholder}
-                value={forgotPasswordEmail}
-                onChange={(e) => setForgotPasswordEmail(e.target.value)}
-                className="h-12 bg-white"
-              />
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full"
-              onClick={handleForgotPassword}
-              disabled={emailLoading}
-            >
-              {authT.sendResetPasswordLink}
-            </Button>
-          </div>
-        ) : null}
 
         <div className="mt-8 pt-8 border-t text-center">
           <p className="text-sm text-gray-600 mb-4">
