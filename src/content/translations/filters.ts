@@ -1,17 +1,14 @@
 import type { AppLocale } from '../../lib/locale';
 import { formatMessage } from '../../lib/i18nFormat';
 import { getMtrLineLabel, getMtrStationLabel } from '../../lib/hkMtr';
-import { getSchoolNetLabel } from '../../lib/hkSchoolNets';
 
 const filtersZhTW = {
   description: '進階條件會與上方地區、租金、房間數一併套用。',
-  tubeSchoolSection: '地鐵線／校網',
+  tubeSchoolSection: '地鐵線',
   byMtr: '按地鐵線',
-  bySchoolNet: '按校網',
   selectMtrLine: '選擇地鐵線',
   selectStation: '選擇車站（{line}）',
-  selectSchoolNet: '選擇校網',
-  tubeSchoolHint: '可選：以地鐵站或校網搜尋（與左側「地區」擇一使用）。',
+  tubeSchoolHint: '可選：以地鐵站搜尋（與左側「地區」擇一使用）。',
   areaSection: '實用面積（平方呎）',
   areaMin: '最少',
   areaMax: '最多',
@@ -37,13 +34,11 @@ export type FiltersMessages = typeof filtersZhTW;
 
 const filtersZhCN: FiltersMessages = {
   description: '进阶条件会与上方地区、租金、房间数一并套用。',
-  tubeSchoolSection: '地铁线／校网',
+  tubeSchoolSection: '地铁线',
   byMtr: '按地铁线',
-  bySchoolNet: '按校网',
   selectMtrLine: '选择地铁线',
   selectStation: '选择车站（{line}）',
-  selectSchoolNet: '选择校网',
-  tubeSchoolHint: '可选：以地铁站或校网搜索（与左侧「地区」择一使用）。',
+  tubeSchoolHint: '可选：以地铁站搜索（与左侧「地区」择一使用）。',
   areaSection: '实用面积（平方呎）',
   areaMin: '最少',
   areaMax: '最多',
@@ -67,13 +62,11 @@ const filtersZhCN: FiltersMessages = {
 
 const filtersEn: FiltersMessages = {
   description: 'Advanced filters apply together with district, rent and bedrooms above.',
-  tubeSchoolSection: 'MTR / School Net',
+  tubeSchoolSection: 'MTR',
   byMtr: 'By MTR Line',
-  bySchoolNet: 'By School Net',
   selectMtrLine: 'Select MTR Line',
   selectStation: 'Select station ({line})',
-  selectSchoolNet: 'Select School Net',
-  tubeSchoolHint: 'Optional: search by MTR station or school net (instead of district on the left).',
+  tubeSchoolHint: 'Optional: search by MTR station (instead of district on the left).',
   areaSection: 'Saleable area (sq ft)',
   areaMin: 'Min',
   areaMax: 'Max',
@@ -159,9 +152,6 @@ export function buildFiltersT(locale: AppLocale) {
     },
     mtrStation(station: string) {
       return getMtrStationLabel(station, locale);
-    },
-    schoolNet(net: string) {
-      return getSchoolNetLabel(net, locale);
     },
   };
 }

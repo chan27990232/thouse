@@ -20,3 +20,24 @@ export type PropertyBuildingAmenityKey = (typeof PROPERTY_BUILDING_AMENITY_KEYS)
 export type PropertyBuildingAge = 'new' | '5-10' | '10-20' | '20+';
 
 export const PROPERTY_BUILDING_AGE_VALUES: PropertyBuildingAge[] = ['new', '5-10', '10-20', '20+'];
+
+/** Derive legacy age bucket from built year for tenant search filters. */
+export function buildingAgeFromBuiltYear(
+  builtYear: number,
+  referenceYear: number = new Date().getFullYear(),
+): PropertyBuildingAge {
+  const age = referenceYear - builtYear;
+  if (age < 5) return 'new';
+  if (age <= 10) return '5-10';
+  if (age <= 20) return '10-20';
+  return '20+';
+}
+
+export function parsePropertyYear(raw: string): number | null {
+  const digits = raw.replace(/\D/g, '');
+  if (digits.length !== 4) return null;
+  const year = Number(digits);
+  const max = new Date().getFullYear();
+  if (!Number.isFinite(year) || year < 1800 || year > max) return null;
+  return year;
+}

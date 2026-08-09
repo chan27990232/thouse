@@ -13,7 +13,8 @@ export interface Property {
   amenities?: string[];
   district?: string;
   mtrLine?: string;
-  schoolCatchment?: string;
+  builtYear?: number;
+  renovationYear?: number;
   buildingAge?: 'new' | '5-10' | '10-20' | '20+';
   hasPrivateToilet?: boolean;
   images?: string[];

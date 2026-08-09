@@ -24,7 +24,6 @@ import { Input } from './ui/input';
 import { Slider } from './ui/slider';
 import { cn } from './ui/utils';
 import { HK_MTR_LINE_NAMES, getMtrStationsForLine } from '../lib/hkMtr';
-import { HK_SCHOOL_NETS } from '../lib/hkSchoolNets';
 import {
   PROPERTY_BUILDING_AMENITY_KEYS,
   PROPERTY_BUILDING_AGE_VALUES,
@@ -72,10 +71,9 @@ export type FloorLevel = 'low' | 'mid' | 'high';
 export type BuildingAge = PropertyBuildingAge;
 
 export interface HeroMoreFiltersValues {
-  areaType: 'tube' | 'school' | '';
+  areaType: 'tube' | '';
   selectedTubeLine: string;
   selectedTubeStation: string;
-  selectedSchoolNet: string;
   areaRange: [number, number];
   floorLevels: FloorLevel[];
   buildingAges: BuildingAge[];
@@ -87,7 +85,6 @@ export const DEFAULT_HERO_MORE_FILTERS: HeroMoreFiltersValues = {
   areaType: '',
   selectedTubeLine: '',
   selectedTubeStation: '',
-  selectedSchoolNet: '',
   areaRange: [0, HERO_AREA_SQFT_MAX],
   floorLevels: [],
   buildingAges: [],
@@ -99,7 +96,6 @@ export function countActiveHeroMoreFilters(values: HeroMoreFiltersValues): numbe
   let n = 0;
   if (values.areaType === 'tube' && values.selectedTubeLine) n += 1;
   if (values.areaType === 'tube' && values.selectedTubeStation) n += 1;
-  if (values.areaType === 'school' && values.selectedSchoolNet) n += 1;
   if (values.areaRange[0] > 0 || values.areaRange[1] < HERO_AREA_SQFT_MAX) n += 1;
   n += values.floorLevels.length;
   n += values.buildingAges.length;
@@ -194,14 +190,13 @@ export function HeroMoreFiltersDialog({ open, onOpenChange, values, onApply }: H
     if (open) setDraft(values);
   }, [open, values]);
 
-  const setAreaType = (areaType: 'tube' | 'school' | '') => {
+  const setAreaType = (areaType: 'tube' | '') => {
     setDraft((prev) => ({
       ...prev,
       areaType: prev.areaType === areaType ? '' : areaType,
       selectedTubeLine: '',
       selectedTubeStation: '',
-      selectedSchoolNet: '',
-    }));
+        }));
   };
 
   const toggleAmenity = (name: string) => {
@@ -268,12 +263,6 @@ export function HeroMoreFiltersDialog({ open, onOpenChange, values, onApply }: H
               <FilterPill active={draft.areaType === 'tube'} onClick={() => setAreaType(draft.areaType === 'tube' ? '' : 'tube')}>
                 {filtersT.byMtr}
               </FilterPill>
-              <FilterPill
-                active={draft.areaType === 'school'}
-                onClick={() => setAreaType(draft.areaType === 'school' ? '' : 'school')}
-              >
-                {filtersT.bySchoolNet}
-              </FilterPill>
             </div>
 
             {draft.areaType === 'tube' ? (
@@ -324,27 +313,6 @@ export function HeroMoreFiltersDialog({ open, onOpenChange, values, onApply }: H
               </div>
             ) : null}
 
-            {draft.areaType === 'school' ? (
-              <div>
-                <p className="mb-2 text-xs font-medium text-gray-600">{filtersT.selectSchoolNet}</p>
-                <div className="flex max-h-48 flex-wrap gap-2 overflow-y-auto">
-                  {HK_SCHOOL_NETS.map((net) => (
-                    <FilterPill
-                      key={net}
-                      active={draft.selectedSchoolNet === net}
-                      onClick={() =>
-                        setDraft((prev) => ({
-                          ...prev,
-                          selectedSchoolNet: prev.selectedSchoolNet === net ? '' : net,
-                        }))
-                      }
-                    >
-                      {filtersT.schoolNet(net)}
-                    </FilterPill>
-                  ))}
-                </div>
-              </div>
-            ) : null}
 
             {!draft.areaType ? (
               <p className="text-xs text-gray-500">{filtersT.tubeSchoolHint}</p>

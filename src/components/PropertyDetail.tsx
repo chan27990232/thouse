@@ -35,9 +35,15 @@ export function PropertyDetail({ property, onBack, isAuthenticated, onRequireAut
             ? commonT.buildingAge20Plus
             : null;
 
+  const yearLabels = [
+    property.builtYear ? `${propertyT.yearBuilt}：${property.builtYear}` : null,
+    property.renovationYear ? `${propertyT.yearRenovated}：${property.renovationYear}` : null,
+  ].filter(Boolean) as string[];
+
   const listedRoomFeatures = property.roomFeatures ?? [];
   const listedAmenities = property.amenities ?? [];
-  const hasListingFeatures = Boolean(buildingAgeLabel) || listedRoomFeatures.length > 0 || listedAmenities.length > 0;
+  const hasListingFeatures =
+    yearLabels.length > 0 || Boolean(buildingAgeLabel) || listedRoomFeatures.length > 0 || listedAmenities.length > 0;
   const [showRentalApp, setShowRentalApp] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
   const [showContactDialog, setShowContactDialog] = useState(false);
@@ -121,7 +127,12 @@ export function PropertyDetail({ property, onBack, isAuthenticated, onRequireAut
           <div className="border-t py-6">
             <h2 className="mb-3">{propertyT.amenitiesTitle}</h2>
             <div className="flex flex-wrap gap-2">
-              {buildingAgeLabel ? (
+              {yearLabels.map((label) => (
+                <span key={label} className="rounded-full bg-slate-100 px-3 py-1 text-sm text-gray-700">
+                  {label}
+                </span>
+              ))}
+              {!yearLabels.length && buildingAgeLabel ? (
                 <span className="rounded-full bg-slate-100 px-3 py-1 text-sm text-gray-700">{buildingAgeLabel}</span>
               ) : null}
               {listedRoomFeatures.map((name) => (

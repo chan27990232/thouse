@@ -62,10 +62,6 @@ const listPropertyZhTW = {
   districtTitle: '地區',
   districtHint: '請選擇物業所在的香港行政區。',
   districtPlaceholder: '選擇地區（十八區）',
-  schoolNetTitle: '校網（選填）',
-  schoolNetHint: '與租客搜尋的校網選項一致，方便按校網找盤。',
-  schoolNetPlaceholder: '選擇校網',
-  schoolNetNone: '不指定校網',
 
   addressTitle: '地址資料',
   addressHint: '屋苑、大廈、樓層、單位為必填；座數選填。提交後如需修改，須經平台處理。',
@@ -83,7 +79,14 @@ const listPropertyZhTW = {
   rentHint: '請填寫每月租金（港幣）。',
   areaTitle: '面積',
   areaLabel: '實用面積（呎）',
-  buildingAgeTitle: '樓齡（選填）',
+  buildingAgeTitle: '建成年份',
+  builtYearHint: '請輸入物業建成的西元年份（例如：1998）。',
+  builtYearPlaceholder: '例如：1998',
+  renovationYearTitle: '裝修年份',
+  renovationYearHint: '請輸入最近一次裝修的西元年份；若未裝修可填與建成年份相同。',
+  renovationYearPlaceholder: '例如：2018',
+  errBuiltYear: '請輸入有效的建成年份。',
+  errRenovationYear: '請輸入有效的裝修年份（不可早於建成年份）。',
   roomConfigTitle: '房間配置（選填）',
   buildingFacilitiesTitle: '大廈設施（選填）',
 
@@ -106,7 +109,7 @@ const listPropertyZhTW = {
   submitNote: '提交後租盤進入審核，通過後方會出現在租客首頁。請確保資料真實準確。',
 
   errDbMigration:
-    '資料庫尚未套用審核欄位。請執行 supabase/property_listing_verification.sql 及 property_listing_deed_urls.sql 後再試。',
+    '資料庫尚未套用審核欄位。請執行 supabase/property_listing_verification.sql、property_listing_deed_urls.sql 及 property_built_renovation_years.sql 後再試。',
   errSubmitFailed: '新增租盤失敗，請稍後再試。',
 
   addrEstate: '屋苑：',
@@ -162,10 +165,6 @@ const listPropertyZhCN: ListPropertyMessages = {
   districtTitle: '地区',
   districtHint: '请选择物业所在的香港行政区。',
   districtPlaceholder: '选择地区（十八区）',
-  schoolNetTitle: '校网（选填）',
-  schoolNetHint: '与租客搜索的校网选项一致，方便按校网找盘。',
-  schoolNetPlaceholder: '选择校网',
-  schoolNetNone: '不指定校网',
 
   addressTitle: '地址资料',
   addressHint: '屋苑、大厦、楼层、单位为必填；座数选填。提交后如需修改，须经平台处理。',
@@ -183,7 +182,14 @@ const listPropertyZhCN: ListPropertyMessages = {
   rentHint: '请填写每月租金（港币）。',
   areaTitle: '面积',
   areaLabel: '实用面积（呎）',
-  buildingAgeTitle: '楼龄（选填）',
+  buildingAgeTitle: '建成年份',
+  builtYearHint: '请输入物业建成的公元年份（例如：1998）。',
+  builtYearPlaceholder: '例如：1998',
+  renovationYearTitle: '装修年份',
+  renovationYearHint: '请输入最近一次装修的公元年份；若未装修可填与建成年份相同。',
+  renovationYearPlaceholder: '例如：2018',
+  errBuiltYear: '请输入有效的建成年份。',
+  errRenovationYear: '请输入有效的装修年份（不可早于建成年份）。',
   roomConfigTitle: '房间配置（选填）',
   buildingFacilitiesTitle: '大厦设施（选填）',
 
@@ -206,7 +212,7 @@ const listPropertyZhCN: ListPropertyMessages = {
   submitNote: '提交后租盘进入审核，通过后方会出现在租客首页。请确保资料真实准确。',
 
   errDbMigration:
-    '数据库尚未套用审核栏位。请执行 supabase/property_listing_verification.sql 及 property_listing_deed_urls.sql 后再试。',
+    '数据库尚未套用审核栏位。请执行 supabase/property_listing_verification.sql、property_listing_deed_urls.sql 及 property_built_renovation_years.sql 后再试。',
   errSubmitFailed: '新增租盘失败，请稍后再试。',
 
   addrEstate: '屋苑：',
@@ -260,10 +266,6 @@ const listPropertyEn: ListPropertyMessages = {
   districtTitle: 'District',
   districtHint: 'Select the Hong Kong district where the property is located.',
   districtPlaceholder: 'Select district (18 districts)',
-  schoolNetTitle: 'School Net (Optional)',
-  schoolNetHint: 'Matches tenant search school-net filters.',
-  schoolNetPlaceholder: 'Select School Net',
-  schoolNetNone: 'No School Net',
 
   addressTitle: 'Address Details',
   addressHint:
@@ -282,7 +284,14 @@ const listPropertyEn: ListPropertyMessages = {
   rentHint: 'Enter the monthly rent in HKD.',
   areaTitle: 'Area',
   areaLabel: 'Saleable area (sq ft)',
-  buildingAgeTitle: 'Building Age (Optional)',
+  buildingAgeTitle: 'Year Built',
+  builtYearHint: 'Enter the year the building was completed (e.g. 1998).',
+  builtYearPlaceholder: 'e.g. 1998',
+  renovationYearTitle: 'Renovation Year',
+  renovationYearHint: 'Enter the most recent renovation year. If never renovated, use the same year as built.',
+  renovationYearPlaceholder: 'e.g. 2018',
+  errBuiltYear: 'Please enter a valid year built.',
+  errRenovationYear: 'Please enter a valid renovation year (not earlier than year built).',
   roomConfigTitle: 'Room Features (Optional)',
   buildingFacilitiesTitle: 'Building Facilities (Optional)',
 

@@ -67,8 +67,9 @@ export interface Property {
   isFavorite: boolean;
   roomFeatures?: string[];
   amenities?: string[];
+  builtYear?: number;
+  renovationYear?: number;
   buildingAge?: 'new' | '5-10' | '10-20' | '20+';
-  schoolCatchment?: string;
 }
 
 export default function App() {

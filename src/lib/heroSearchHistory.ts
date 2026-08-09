@@ -5,7 +5,6 @@ import { homeMessages } from '../content/translations/home';
 import { filtersMessages } from '../content/translations/filters';
 import { getDistrictLabel } from './hkDistricts';
 import { getMtrLineLabel, getMtrStationLabel } from './hkMtr';
-import { getSchoolNetLabel } from './hkSchoolNets';
 
 const STORAGE_KEY = 'thouse:hero-search-history';
 const MAX_ENTRIES = 10;
@@ -13,11 +12,10 @@ const HERO_PRICE_MAX = 80000;
 
 export interface HeroSearchSnapshot {
   searchQuery: string;
-  areaType: 'district' | 'tube' | 'school';
+  areaType: 'district' | 'tube';
   selectedDistrict: string;
   selectedTubeLine: string;
   selectedTubeStation: string;
-  selectedSchoolNet: string;
   priceRange: [number, number];
   areaRange: [number, number];
   floorLevels: FloorLevel[];
@@ -44,7 +42,6 @@ function isDefaultSnapshot(snapshot: HeroSearchSnapshot): boolean {
   if (q) return false;
   if (snapshot.selectedDistrict) return false;
   if (snapshot.areaType === 'tube' && (snapshot.selectedTubeLine || snapshot.selectedTubeStation)) return false;
-  if (snapshot.areaType === 'school' && snapshot.selectedSchoolNet) return false;
   if (snapshot.priceRange[0] > 0 || snapshot.priceRange[1] < HERO_PRICE_MAX) return false;
   if (snapshot.areaRange[0] > 0 || snapshot.areaRange[1] < HERO_AREA_SQFT_MAX) return false;
   if (snapshot.floorLevels.length > 0) return false;
@@ -64,13 +61,26 @@ export function loadHeroSearchHistory(): HeroSearchHistoryEntry[] {
     if (!raw) return [];
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (item): item is HeroSearchHistoryEntry =>
-        item != null &&
-        typeof item === 'object' &&
-        typeof (item as HeroSearchHistoryEntry).id === 'string' &&
-        typeof (item as HeroSearchHistoryEntry).savedAt === 'string'
-    );
+    const entries: HeroSearchHistoryEntry[] = [];
+    for (const item of parsed) {
+      if (
+        item == null ||
+        typeof item !== 'object' ||
+        typeof (item as { id?: unknown }).id !== 'string' ||
+        typeof (item as { savedAt?: unknown }).savedAt !== 'string'
+      ) {
+        continue;
+      }
+      const rawItem = item as HeroSearchHistoryEntry & { selectedSchoolNet?: string };
+      const areaType = rawItem.areaType === 'tube' ? 'tube' : 'district';
+      entries.push({
+        ...rawItem,
+        areaType,
+        selectedTubeLine: areaType === 'tube' ? rawItem.selectedTubeLine : '',
+        selectedTubeStation: areaType === 'tube' ? rawItem.selectedTubeStation : '',
+      });
+    }
+    return entries;
   } catch {
     return [];
   }
@@ -130,8 +140,6 @@ export function formatHeroSearchHistoryLabel(entry: HeroSearchSnapshot, locale: 
   } else if (entry.areaType === 'tube') {
     if (entry.selectedTubeStation) parts.push(getMtrStationLabel(entry.selectedTubeStation, locale));
     else if (entry.selectedTubeLine) parts.push(getMtrLineLabel(entry.selectedTubeLine, locale));
-  } else if (entry.areaType === 'school' && entry.selectedSchoolNet) {
-    parts.push(getSchoolNetLabel(entry.selectedSchoolNet, locale));
   }
 
   const [minP, maxP] = entry.priceRange;

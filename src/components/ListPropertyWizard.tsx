@@ -30,16 +30,15 @@ import {
   type buildListPropertyT,
 } from '../content/translations/listProperty';
 import { HK_DISTRICTS } from '../lib/hkDistricts';
-import { HK_SCHOOL_NETS } from '../lib/hkSchoolNets';
 import {
   buildListingDescription,
   buildListingTitle,
 } from '../lib/listPropertyOptions';
 import {
   PROPERTY_BUILDING_AMENITY_KEYS,
-  PROPERTY_BUILDING_AGE_VALUES,
   PROPERTY_ROOM_FEATURE_KEYS,
-  type PropertyBuildingAge,
+  buildingAgeFromBuiltYear,
+  parsePropertyYear,
 } from '../lib/propertyFilterFields';
 import { uploadDeedFiles, uploadListingCoverImage, uploadProofPhotoFiles } from '../lib/propertyMediaUpload';
 import { supabase } from '../lib/supabase';
@@ -192,7 +191,6 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
 
   const [propertyTypeId, setPropertyTypeId] = useState<ListingPropertyTypeId | ''>('');
   const [district, setDistrict] = useState('');
-  const [schoolNet, setSchoolNet] = useState('');
   const [estateName, setEstateName] = useState('');
   const [buildingName, setBuildingName] = useState('');
   const [blockTower, setBlockTower] = useState('');
@@ -200,7 +198,8 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
   const [floor, setFloor] = useState('');
   const [price, setPrice] = useState('');
   const [area, setArea] = useState('');
-  const [buildingAge, setBuildingAge] = useState<PropertyBuildingAge | ''>('');
+  const [builtYear, setBuiltYear] = useState('');
+  const [renovationYear, setRenovationYear] = useState('');
   const [roomFeatures, setRoomFeatures] = useState<string[]>([]);
   const [amenities, setAmenities] = useState<string[]>([]);
   const [description, setDescription] = useState('');
@@ -222,12 +221,6 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
     floor: floor || '—',
   });
 
-  const ageLabels: Record<PropertyBuildingAge, string> = {
-    new: commonT.buildingAgeNew,
-    '5-10': commonT.buildingAge5_10,
-    '10-20': commonT.buildingAge10_20,
-    '20+': commonT.buildingAge20Plus,
-  };
 
   const toggleRoomFeature = (name: string) => {
     setRoomFeatures((prev) => (prev.includes(name) ? prev.filter((f) => f !== name) : [...prev, name]));
@@ -251,6 +244,10 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
       const a = Number(area);
       if (!Number.isFinite(p) || p < 1000) return t.errPrice;
       if (!Number.isFinite(a) || a < 50) return t.errArea;
+      const built = parsePropertyYear(builtYear);
+      if (built == null) return t.errBuiltYear;
+      const reno = parsePropertyYear(renovationYear);
+      if (reno == null || reno < built) return t.errRenovationYear;
     }
     if (s === 3) {
       if (proofFiles.length < 1) return t.errProofPhoto;
@@ -315,15 +312,17 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
         district,
         room_features: roomFeatures,
         amenities,
-        building_age: buildingAge || null,
-        school_net: schoolNet,
+        built_year: parsePropertyYear(builtYear),
+        renovation_year: parsePropertyYear(renovationYear),
+        building_age: buildingAgeFromBuiltYear(parsePropertyYear(builtYear)!),
+        school_net: '',
         description: [
           buildListingDescription({
             description,
             roomFeatures,
             amenities,
-            buildingAge,
-            schoolNet,
+            builtYear: parsePropertyYear(builtYear)!,
+            renovationYear: parsePropertyYear(renovationYear)!,
             propertyTypeId,
             district,
           }),
@@ -341,7 +340,7 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
       const { error } = await supabase.from('properties').insert(payload);
       if (error) {
         const m = (error.message || '').toLowerCase();
-        if (m.includes('column') || m.includes('proof_photo') || m.includes('verification') || m.includes('property_deed_urls')) {
+        if (m.includes('column') || m.includes('proof_photo') || m.includes('verification') || m.includes('property_deed_urls') || m.includes('built_year') || m.includes('renovation_year')) {
           throw new Error(t.errDbMigration);
         }
         throw error;
@@ -393,24 +392,6 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
                 {HK_DISTRICTS.map((d) => (
                   <SelectItem key={d} value={d}>
                     {d}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </SectionCard>
-          <SectionCard title={t.schoolNetTitle} hint={t.schoolNetHint}>
-            <Select
-              value={schoolNet || '__none__'}
-              onValueChange={(v) => setSchoolNet(v === '__none__' ? '' : v)}
-            >
-              <SelectTrigger className="w-full bg-white">
-                <SelectValue placeholder={t.schoolNetPlaceholder} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">{t.schoolNetNone}</SelectItem>
-                {HK_SCHOOL_NETS.map((net) => (
-                  <SelectItem key={net} value={net}>
-                    {filtersT.schoolNet(net)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -527,18 +508,27 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
               />
             </div>
           </SectionCard>
-          <SectionCard title={t.buildingAgeTitle}>
-            <div className="flex flex-wrap gap-2">
-              {PROPERTY_BUILDING_AGE_VALUES.map((value) => (
-                <Chip
-                  key={value}
-                  active={buildingAge === value}
-                  onClick={() => setBuildingAge((prev) => (prev === value ? '' : value))}
-                >
-                  {ageLabels[value]}
-                </Chip>
-              ))}
-            </div>
+          <SectionCard title={t.buildingAgeTitle} hint={t.builtYearHint}>
+            <Input
+              type="text"
+              inputMode="numeric"
+              className="bg-white"
+              placeholder={t.builtYearPlaceholder}
+              value={builtYear}
+              onChange={(e) => setBuiltYear(e.target.value.replace(/\D/g, '').slice(0, 4))}
+              required
+            />
+          </SectionCard>
+          <SectionCard title={t.renovationYearTitle} hint={t.renovationYearHint}>
+            <Input
+              type="text"
+              inputMode="numeric"
+              className="bg-white"
+              placeholder={t.renovationYearPlaceholder}
+              value={renovationYear}
+              onChange={(e) => setRenovationYear(e.target.value.replace(/\D/g, '').slice(0, 4))}
+              required
+            />
           </SectionCard>
           <SectionCard title={t.roomConfigTitle}>
             <div className="flex flex-wrap gap-2">
@@ -668,15 +658,18 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
             <h4 className="mt-2 text-base font-semibold text-gray-900">{displayTitle || '—'}</h4>
             <p className="mt-1 text-sm text-gray-600">
               {district} · {propertyTypes.find((pt) => pt.id === propertyTypeId)?.label ?? '—'}
-              {schoolNet ? ` · ${filtersT.schoolNet(schoolNet)}` : ''}
             </p>
             <p className="mt-2 text-lg font-bold text-gray-900">
               HK${Number(price || 0).toLocaleString('en-HK')}
               <span className="text-sm font-normal text-gray-500"> {commonT.perMonth}</span>
             </p>
             <p className="mt-1 text-sm text-gray-600">{previewMeta}</p>
-            {buildingAge ? (
-              <p className="mt-2 text-xs text-gray-600">{ageLabels[buildingAge]}</p>
+            {builtYear || renovationYear ? (
+              <p className="mt-2 text-xs text-gray-600">
+                {builtYear ? `${t.buildingAgeTitle}：${builtYear}` : ''}
+                {builtYear && renovationYear ? ' · ' : ''}
+                {renovationYear ? `${t.renovationYearTitle}：${renovationYear}` : ''}
+              </p>
             ) : null}
             {roomFeatures.length > 0 || amenities.length > 0 ? (
               <div className="mt-3 flex flex-wrap gap-1.5">

@@ -8,6 +8,8 @@ const propertyZhTW = {
   descriptionBody:
     '此劏房位置優越，設備齊全，適合個人或小家庭居住。鄰近公共交通設施、購物中心及餐廳，生活便利。',
   amenitiesTitle: '設施',
+  yearBuilt: '建成年份',
+  yearRenovated: '裝修年份',
   amenityAc: '冷氣',
   amenityHeating: '暖氣',
   amenityWifi: 'WiFi',
@@ -28,6 +30,8 @@ const propertyZhCN: PropertyMessages = {
   descriptionBody:
     '此劏房位置优越，设备齐全，适合个人或小家庭居住。邻近公共交通设施、购物中心及餐厅，生活便利。',
   amenitiesTitle: '设施',
+  yearBuilt: '建成年份',
+  yearRenovated: '装修年份',
   amenityAc: '冷气',
   amenityHeating: '暖气',
   amenityWifi: 'WiFi',
@@ -46,6 +50,8 @@ const propertyEn: PropertyMessages = {
   descriptionBody:
     'Well-located subdivided unit with essential fittings, suitable for individuals or small households. Close to public transport, shopping and dining.',
   amenitiesTitle: 'Amenities',
+  yearBuilt: 'Year Built',
+  yearRenovated: 'Renovation Year',
   amenityAc: 'Air Conditioning',
   amenityHeating: 'Heating',
   amenityWifi: 'WiFi',

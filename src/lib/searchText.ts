@@ -1,7 +1,6 @@
 import { PHRASE_LABELS } from './localizePropertyText';
 import { DISTRICT_LABELS, HK_DISTRICTS } from './hkDistricts';
 import { HK_MTR_LINES, getMtrLineLabel, getMtrStationLabel } from './hkMtr';
-import { HK_SCHOOL_NETS, getSchoolNetLabel } from './hkSchoolNets';
 
 /** 簡體詞組 → 繁體（香港租屋搜尋常見） */
 const SC_PHRASES: [string, string][] = [
@@ -23,7 +22,6 @@ const SC_PHRASES: [string, string][] = [
   ['离岛', '離島'],
   ['北区', '北區'],
   ['葵青', '葵青'],
-  ['校网', '校網'],
   ['地铁', '地鐵'],
   ['服务式', '服務式'],
   ['工作室', '工作室'],
@@ -167,10 +165,6 @@ function buildSearchAliasIndex(): Map<string, Set<string>> {
     }
   }
 
-  for (const net of HK_SCHOOL_NETS) {
-    addSearchAlias(index, net, net);
-    addSearchAlias(index, getSchoolNetLabel(net, 'en'), net);
-  }
 
   addSearchAlias(index, 'mongkok', '旺角');
   addSearchAlias(index, 'mk', '旺角');

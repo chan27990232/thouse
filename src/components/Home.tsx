@@ -94,11 +94,10 @@ export function Home({
   const [roleSelectOpen, setRoleSelectOpen] = useState(false);
   const [noticeOpen, setNoticeOpen] = useState(false);
 
-  const [areaType, setAreaType] = useState<'district' | 'tube' | 'school'>('district');
+  const [areaType, setAreaType] = useState<'district' | 'tube'>('district');
   const [selectedDistrict, setSelectedDistrict] = useState<string>('');
   const [selectedTubeLine, setSelectedTubeLine] = useState<string>('');
   const [selectedTubeStation, setSelectedTubeStation] = useState<string>('');
-  const [selectedSchoolNet, setSelectedSchoolNet] = useState<string>('');
   const [priceRange, setPriceRange] = useState([0, HERO_PRICE_MAX]);
   const [areaRange, setAreaRange] = useState<[number, number]>([0, HERO_AREA_SQFT_MAX]);
   const [floorLevels, setFloorLevels] = useState<FloorLevel[]>([]);
@@ -122,7 +121,6 @@ export function Home({
       selectedDistrict,
       selectedTubeLine,
       selectedTubeStation,
-      selectedSchoolNet,
       priceRange: [priceRange[0], priceRange[1]] as [number, number],
       areaRange: [areaRange[0], areaRange[1]] as [number, number],
       floorLevels,
@@ -138,7 +136,6 @@ export function Home({
     selectedDistrict,
     selectedTubeLine,
     selectedTubeStation,
-    selectedSchoolNet,
     priceRange,
     areaRange,
     floorLevels,
@@ -151,11 +148,10 @@ export function Home({
 
   const applySearchSnapshot = useCallback((snapshot: HeroSearchSnapshot) => {
     setSearchQuery(snapshot.searchQuery);
-    setAreaType(snapshot.areaType);
+    setAreaType(snapshot.areaType === 'tube' ? 'tube' : 'district');
     setSelectedDistrict(snapshot.selectedDistrict);
     setSelectedTubeLine(snapshot.selectedTubeLine);
     setSelectedTubeStation(snapshot.selectedTubeStation);
-    setSelectedSchoolNet(snapshot.selectedSchoolNet);
     setPriceRange([snapshot.priceRange[0], snapshot.priceRange[1]]);
     setAreaRange([snapshot.areaRange[0], snapshot.areaRange[1]]);
     setFloorLevels(snapshot.floorLevels);
@@ -220,10 +216,9 @@ export function Home({
 
   const moreFilterValues = useMemo<HeroMoreFiltersValues>(
     () => ({
-      areaType: areaType === 'tube' ? 'tube' : areaType === 'school' ? 'school' : '',
+      areaType: areaType === 'tube' ? 'tube' : '',
       selectedTubeLine,
       selectedTubeStation,
-      selectedSchoolNet,
       areaRange,
       floorLevels,
       buildingAges,
@@ -234,7 +229,6 @@ export function Home({
       areaType,
       selectedTubeLine,
       selectedTubeStation,
-      selectedSchoolNet,
       areaRange,
       floorLevels,
       buildingAges,
@@ -256,19 +250,11 @@ export function Home({
       setSelectedDistrict('');
       setSelectedTubeLine(filters.selectedTubeLine);
       setSelectedTubeStation(filters.selectedTubeStation);
-      setSelectedSchoolNet('');
-    } else if (filters.areaType === 'school' && filters.selectedSchoolNet) {
-      setAreaType('school');
-      setSelectedDistrict('');
-      setSelectedTubeLine('');
-      setSelectedTubeStation('');
-      setSelectedSchoolNet(filters.selectedSchoolNet);
     } else if (filters.areaType === '') {
       if (areaType !== 'district') {
         setAreaType('district');
         setSelectedTubeLine('');
         setSelectedTubeStation('');
-        setSelectedSchoolNet('');
       }
     }
     setActiveTab('home');
@@ -281,7 +267,6 @@ export function Home({
       setAreaType('district');
       setSelectedTubeLine('');
       setSelectedTubeStation('');
-      setSelectedSchoolNet('');
     }
   };
 
@@ -345,17 +330,11 @@ export function Home({
     return buildingAges.includes(p.buildingAge);
   };
 
-  const matchesSchoolNet = (p: Property) => {
-    if (areaType !== 'school' || !selectedSchoolNet) return true;
-    if (p.schoolCatchment) return p.schoolCatchment === selectedSchoolNet;
-    return textMatchesQuery(p.title, selectedSchoolNet);
-  };
 
   const filteredProperties = properties.filter((p) => {
     if (!propertyMatchesSearchQuery(p, appliedSearchQuery)) return false;
     if (areaType === 'district' && selectedDistrict && !propertyMatchesDistrict(p, selectedDistrict)) return false;
     if (!matchesTubeArea(p)) return false;
-    if (!matchesSchoolNet(p)) return false;
     if (p.price < priceRange[0] || p.price > priceRange[1]) return false;
     if (p.area < areaRange[0] || p.area > areaRange[1]) return false;
     if (!matchesFloorLevels(p)) return false;
@@ -671,8 +650,7 @@ export function Home({
                         setAreaType('district');
                         setSelectedTubeLine('');
                         setSelectedTubeStation('');
-                        setSelectedSchoolNet('');
-                      }}
+                                        }}
                     >
                       <SelectTrigger className="h-10 w-full rounded-md border border-gray-200 bg-white px-3 text-left text-sm text-gray-800 shadow-sm focus:ring-1 focus:ring-gray-300">
                         <SelectValue placeholder={homeT.anyDistrict} />
@@ -830,11 +808,6 @@ export function Home({
                       <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs text-gray-800">
                         {homeT.tube}：{moreFilterValues.selectedTubeLine}
                         {moreFilterValues.selectedTubeStation ? ` · ${moreFilterValues.selectedTubeStation}` : ''}
-                      </span>
-                    ) : null}
-                    {moreFilterValues.areaType === 'school' && moreFilterValues.selectedSchoolNet ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs text-gray-800">
-                        {homeT.schoolNet}：{filtersT.schoolNet(moreFilterValues.selectedSchoolNet)}
                       </span>
                     ) : null}
                     {(moreFilterValues.areaRange[0] > 0 || moreFilterValues.areaRange[1] < HERO_AREA_SQFT_MAX) && (

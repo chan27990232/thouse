@@ -1,5 +1,6 @@
 import type { Property } from '../App';
 import type { PropertyBuildingAge } from './propertyFilterFields';
+import { buildingAgeFromBuiltYear } from './propertyFilterFields';
 import { supabase } from './supabase';
 
 /** 物業未上傳圖片時使用之佔位圖（非假房源列表） */
@@ -20,7 +21,8 @@ interface PropertyRow {
   room_features?: string[] | null;
   amenities?: string[] | null;
   building_age?: string | null;
-  school_net?: string | null;
+  built_year?: number | string | null;
+  renovation_year?: number | string | null;
 }
 
 function toNumber(value: number | string | null | undefined, fallback = 0) {
@@ -114,8 +116,21 @@ function mapProperty(row: PropertyRow): Property {
     district: (row.district ?? '').trim(),
     roomFeatures: Array.isArray(row.room_features) ? row.room_features : undefined,
     amenities: Array.isArray(row.amenities) ? row.amenities : undefined,
-    buildingAge: (row.building_age as PropertyBuildingAge | null) ?? undefined,
-    schoolCatchment: (row.school_net ?? '').trim() || undefined,
+    builtYear: (() => {
+      const n = toNumber(row.built_year, NaN);
+      return Number.isFinite(n) && n > 0 ? n : undefined;
+    })(),
+    renovationYear: (() => {
+      const n = toNumber(row.renovation_year, NaN);
+      return Number.isFinite(n) && n > 0 ? n : undefined;
+    })(),
+    buildingAge: (() => {
+      const raw = (row.building_age as PropertyBuildingAge | null) ?? undefined;
+      if (raw) return raw;
+      const y = toNumber(row.built_year, NaN);
+      if (Number.isFinite(y) && y > 0) return buildingAgeFromBuiltYear(y);
+      return undefined;
+    })(),
     isFavorite: false,
   };
 }
@@ -124,7 +139,7 @@ function mapProperty(row: PropertyRow): Property {
 export async function loadHomepageProperties(): Promise<Property[]> {
   const { data, error } = await supabase
     .from('properties')
-    .select('id,landlord_id,title,image,price,area,floor,bedrooms,bathrooms,district,room_features,amenities,building_age,school_net')
+    .select('id,landlord_id,title,image,price,area,floor,bedrooms,bathrooms,district,room_features,amenities,building_age,built_year,renovation_year')
     .eq('verification_status', 'approved')
     .in('status', ['available', 'rented'])
     .order('id', { ascending: true });
@@ -146,7 +161,7 @@ export async function loadPropertyById(id: string): Promise<Property | null> {
 
   const { data, error } = await supabase
     .from('properties')
-    .select('id,landlord_id,title,image,price,area,floor,bedrooms,bathrooms,district,room_features,amenities,building_age,school_net')
+    .select('id,landlord_id,title,image,price,area,floor,bedrooms,bathrooms,district,room_features,amenities,building_age,built_year,renovation_year')
     .eq('id', trimmed)
     .maybeSingle();
 
