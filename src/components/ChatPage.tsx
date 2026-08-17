@@ -100,7 +100,7 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
   const [inboxActionLoading, setInboxActionLoading] = useState(false);
   const [archivedRevision, setArchivedRevision] = useState(0);
 
-  const isSupportActive = userRole === 'tenant' && activeId === THOUSE_SUPPORT_PIN_ID;
+  const isSupportActive = activeId === THOUSE_SUPPORT_PIN_ID;
   const activeThread = isSupportActive ? null : (threads.find((t) => t.conversation.id === activeId) ?? null);
 
   const activeTenantIdForLandlord = useMemo(() => {
@@ -147,15 +147,12 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
         return;
       }
       setUserId(user.id);
-      await loadThreads(user.id);
-      if (userRole === 'tenant') {
-        await loadSupportTicket(user.id);
-      }
+      await Promise.all([loadThreads(user.id), loadSupportTicket(user.id)]);
     })();
     return () => {
       cancelled = true;
     };
-  }, [loadThreads, loadSupportTicket, userRole]);
+  }, [loadThreads, loadSupportTicket]);
 
   useEffect(() => {
     const {
@@ -227,7 +224,7 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
 
   const totalUnread =
     threads.reduce((s, t) => s + t.unreadCount, 0) +
-    (userRole === 'tenant' && supportTicket?.hasUnreadFromStaff ? 1 : 0);
+    (supportTicket?.hasUnreadFromStaff ? 1 : 0);
 
   const archivedIds = useMemo(() => {
     void archivedRevision;
@@ -262,7 +259,7 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
     setInboxActionLoading(true);
     try {
       await markAllConversationsRead(threads.map((t) => t.conversation.id));
-      if (userRole === 'tenant' && supportTicket?.hasUnreadFromStaff) {
+      if (supportTicket?.hasUnreadFromStaff) {
         setSupportTicket((prev) => (prev ? { ...prev, hasUnreadFromStaff: false } : prev));
       }
       await loadThreads(userId);
@@ -421,12 +418,12 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
               {listLoading && threads.length === 0 ? (
                 <p className="p-4 text-sm text-gray-500">{commonT.loading}</p>
               ) : null}
-              {!listLoading && userRole !== 'tenant' && threads.length === 0 ? (
+              {!listLoading && threads.length === 0 && !supportTicket ? (
                 <p className="p-4 text-sm leading-relaxed text-gray-500">
                   {chatT.noConversations}
                 </p>
               ) : null}
-              {userRole === 'tenant' && supportTicket ? (
+              {supportTicket ? (
                 <button
                   type="button"
                   onClick={() => setActiveId(THOUSE_SUPPORT_PIN_ID)}

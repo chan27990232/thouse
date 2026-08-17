@@ -13,6 +13,7 @@ import { supabase } from '../lib/supabase';
 import { sendTenantInquiryMessage } from '../lib/conversations';
 import { computeLandlordResponseTimeLabel } from '../lib/landlordResponseTime';
 import { getPropertyStarSummary, type StarSummary } from '../lib/transactionReviews';
+import { isCurrentUserVerified } from '../lib/identityVerification';
 import { useLocale } from '../context/LocaleContext';
 
 interface ContactLandlordDialogProps {
@@ -133,6 +134,10 @@ export function ContactLandlordDialog({ open, onOpenChange, property, isAuthenti
     }
     if (!isAuthenticated) {
       toast.error(contactLandlordT.toastLoginRequired);
+      return;
+    }
+    if (!(await isCurrentUserVerified())) {
+      toast.error(contactLandlordT.toastVerificationRequired);
       return;
     }
     if (!property.landlordId) {

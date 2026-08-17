@@ -5,6 +5,7 @@ import {
   type LeasePaymentSubmitMethod,
   type PaymentMethodCode,
 } from './leaseFirstPayment';
+import { assertCurrentUserVerified } from './identityVerification';
 
 export { computeFirstPaymentTotal } from './leaseFirstPayment';
 
@@ -63,6 +64,7 @@ export async function submitLeaseApplication(input: SubmitLeaseInput): Promise<S
   if (userErr || !user) {
     throw new Error('請先登入');
   }
+  await assertCurrentUserVerified('請先完成實名驗證，方可簽約。可到個人資料提交申請。');
   if (!input.landlordId) {
     throw new Error('無法識別物業業主，請重新整理物業列表後再試。');
   }

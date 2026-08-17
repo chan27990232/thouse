@@ -123,6 +123,31 @@ export async function getLatestIdentityVerificationSubmission(userId: string) {
   return (data as IdentityVerificationSubmission | null) ?? null;
 }
 
+/** 目前登入用戶是否已通過實名驗證（profiles.is_verified） */
+export async function isCurrentUserVerified(): Promise<boolean> {
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+  if (userError || !user) return false;
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('is_verified')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  if (error) return false;
+  return Boolean(data?.is_verified);
+}
+
+/** 未通過實名驗證時拋錯（給提交／API 防衛用） */
+export async function assertCurrentUserVerified(message: string): Promise<void> {
+  if (!(await isCurrentUserVerified())) {
+    throw new Error(message);
+  }
+}
+
 export async function signedIdentityVerificationUrl(path: string, expiresIn = 3600) {
   const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(path, expiresIn);
   if (error) throw error;

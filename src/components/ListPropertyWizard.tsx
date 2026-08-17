@@ -41,6 +41,7 @@ import {
   parsePropertyYear,
 } from '../lib/propertyFilterFields';
 import { uploadDeedFiles, uploadListingCoverImage, uploadProofPhotoFiles } from '../lib/propertyMediaUpload';
+import { assertCurrentUserVerified } from '../lib/identityVerification';
 import { supabase } from '../lib/supabase';
 import { cn } from './ui/utils';
 
@@ -282,6 +283,8 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
     try {
       setSaveError('');
       setSaveLoading(true);
+
+      await assertCurrentUserVerified(t.errNotVerified);
 
       let imageUrl = coverUrl.trim();
       if (coverFile) {

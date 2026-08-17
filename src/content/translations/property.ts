@@ -10,6 +10,8 @@ const propertyZhTW = {
   amenitiesTitle: '設施',
   yearBuilt: '建成年份',
   yearRenovated: '裝修年份',
+  buildingAge: '樓齡',
+  yearNotProvided: '—',
   amenityAc: '冷氣',
   amenityHeating: '暖氣',
   amenityWifi: 'WiFi',
@@ -19,6 +21,11 @@ const propertyZhTW = {
   contactLandlord: '聯絡業主',
   signNow: '立即簽約',
   missingLandlordError: '此物業缺少業主資料，無法通知業主。請重新從列表進入。',
+  tenantVerificationRequired: '請先完成實名驗證，方可聯絡業主或簽約。可到個人資料提交申請。',
+  landlordLabel: '業主',
+  landlordLoading: '載入中…',
+  landlordProfileTitle: '業主資料',
+  viewLandlordProfile: '查看業主資料',
 } as const;
 
 export type PropertyMessages = typeof propertyZhTW;
@@ -32,6 +39,8 @@ const propertyZhCN: PropertyMessages = {
   amenitiesTitle: '设施',
   yearBuilt: '建成年份',
   yearRenovated: '装修年份',
+  buildingAge: '楼龄',
+  yearNotProvided: '—',
   amenityAc: '冷气',
   amenityHeating: '暖气',
   amenityWifi: 'WiFi',
@@ -41,6 +50,11 @@ const propertyZhCN: PropertyMessages = {
   contactLandlord: '联络业主',
   signNow: '立即签约',
   missingLandlordError: '此物业缺少业主资料，无法通知业主。请重新从列表进入。',
+  tenantVerificationRequired: '请先完成实名验证，方可联络业主或签约。可到个人资料提交申请。',
+  landlordLabel: '业主',
+  landlordLoading: '加载中…',
+  landlordProfileTitle: '业主资料',
+  viewLandlordProfile: '查看业主资料',
 };
 
 const propertyEn: PropertyMessages = {
@@ -52,6 +66,8 @@ const propertyEn: PropertyMessages = {
   amenitiesTitle: 'Amenities',
   yearBuilt: 'Year Built',
   yearRenovated: 'Renovation Year',
+  buildingAge: 'Building Age',
+  yearNotProvided: '—',
   amenityAc: 'Air Conditioning',
   amenityHeating: 'Heating',
   amenityWifi: 'WiFi',
@@ -61,6 +77,12 @@ const propertyEn: PropertyMessages = {
   contactLandlord: 'Contact Landlord',
   signNow: 'Apply Now',
   missingLandlordError: 'Landlord information is missing. Please open this listing again from the list.',
+  tenantVerificationRequired:
+    'Please complete identity verification before contacting the landlord or applying. You can submit it from your profile.',
+  landlordLabel: 'Landlord',
+  landlordLoading: 'Loading…',
+  landlordProfileTitle: 'Landlord profile',
+  viewLandlordProfile: 'View landlord profile',
 };
 
 export const propertyMessages: Record<AppLocale, PropertyMessages> = {

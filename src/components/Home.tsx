@@ -250,12 +250,11 @@ export function Home({
       setSelectedDistrict('');
       setSelectedTubeLine(filters.selectedTubeLine);
       setSelectedTubeStation(filters.selectedTubeStation);
-    } else if (filters.areaType === '') {
-      if (areaType !== 'district') {
-        setAreaType('district');
-        setSelectedTubeLine('');
-        setSelectedTubeStation('');
-      }
+    } else {
+      // 取消「按地鐵線」、或取消已選線／站 → 搜尋不再套用 MTR 條件
+      setAreaType('district');
+      setSelectedTubeLine('');
+      setSelectedTubeStation('');
     }
     setActiveTab('home');
     listingsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });

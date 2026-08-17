@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Home, Plus, DollarSign, Users, Bell, FileText, FileUp, Wallet, MessageCircle, User, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { LandlordWalletPanel } from './LandlordWalletPanel';
 import { Property } from '../App';
 import { Button } from './ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from './ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { NoticeDialog } from './NoticeDialog';
 import { PropertyManagementDialog } from './PropertyManagementDialog';
@@ -23,6 +24,7 @@ import {
 } from '../lib/leaseApplications';
 import { notifyLeaseRejectionByEmail } from '../lib/leaseRejectionNotify';
 import { type PaymentMethodCode } from '../lib/leaseFirstPayment';
+import { isCurrentUserVerified } from '../lib/identityVerification';
 import { supabase } from '../lib/supabase';
 import { LOCALE_DATE_LOCALE } from '../lib/locale';
 import thouseLogo from 'figma:asset/f0c80b0c66e9c54aea3881bdf7a4eb152cbc4c0b.png';
@@ -197,6 +199,19 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
       setPropertiesLoading(false);
     }
   }, [locale]);
+
+  const openListProperty = async () => {
+    if (!currentLandlordId) {
+      toast.error(landlordT.signInToList);
+      return;
+    }
+    const verified = await isCurrentUserVerified();
+    if (!verified) {
+      toast.error(landlordT.verificationRequiredToList);
+      return;
+    }
+    setShowAddProperty(true);
+  };
 
   useEffect(() => {
     void loadLandlordProperties();
@@ -402,12 +417,14 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
             <div className="mb-6">
               <h2 className="mb-3">{landlordT.quickActions}</h2>
               <Dialog open={showAddProperty} onOpenChange={setShowAddProperty}>
-                <DialogTrigger asChild>
-                  <Button className="w-full bg-black text-white hover:bg-gray-800 mb-2">
-                    <Plus className="w-4 h-4 mr-2" />
-                    {landlordT.listProperty}
-                  </Button>
-                </DialogTrigger>
+                <Button
+                  type="button"
+                  className="w-full bg-black text-white hover:bg-gray-800 mb-2"
+                  onClick={() => void openListProperty()}
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  {landlordT.listProperty}
+                </Button>
                 <DialogContent className="mx-auto max-h-[90vh] max-w-lg overflow-y-auto sm:max-w-xl">
                   <DialogHeader>
                     <DialogTitle>{landlordT.listPropertyTitle}</DialogTitle>
@@ -452,7 +469,7 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
                 <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 px-6 py-12 text-center">
                   <p className="text-base text-gray-700 mb-2">{landlordT.noPropertiesTitle}</p>
                   <p className="text-sm text-gray-500 mb-5">{landlordT.noPropertiesHint}</p>
-                  <Button className="bg-black text-white hover:bg-gray-800" onClick={() => setShowAddProperty(true)}>
+                  <Button className="bg-black text-white hover:bg-gray-800" onClick={() => void openListProperty()}>
                     <Plus className="w-4 h-4 mr-2" />
                     {landlordT.listFirstProperty}
                   </Button>

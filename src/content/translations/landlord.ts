@@ -21,6 +21,7 @@ const landlordZhTW = {
   listPropertyTitle: '刊登租盤',
   listPropertyDesc: '分步填寫放盤資料；提交後由平台審核，通過方會顯示於租客首頁。',
   signInToList: '請先登入業主帳號。',
+  verificationRequiredToList: '請先完成實名驗證，方可刊登租盤。可到個人資料提交申請。',
   viewAllApplications: '查看所有申請',
   myPropertiesTitle: '我的物業',
   loadingProperties: '正在載入你的物業...',
@@ -104,6 +105,7 @@ const landlordZhCN: LandlordMessages = {
   listPropertyTitle: '刊登租盘',
   listPropertyDesc: '分步填写放盘资料；提交后由平台审核，通过方会显示于租客首页。',
   signInToList: '请先登录业主账号。',
+  verificationRequiredToList: '请先完成实名验证，方可刊登租盘。可到个人资料提交申请。',
   viewAllApplications: '查看所有申请',
   myPropertiesTitle: '我的物业',
   loadingProperties: '正在加载你的物业...',
@@ -186,6 +188,8 @@ const landlordEn: LandlordMessages = {
   listPropertyDesc:
     'Complete the listing step by step. After submission, listings appear on the tenant home page once approved.',
   signInToList: 'Please sign in as a landlord first.',
+  verificationRequiredToList:
+    'Please complete identity verification before listing a property. You can submit it from your profile.',
   viewAllApplications: 'View All Applications',
   myPropertiesTitle: 'My Properties',
   loadingProperties: 'Loading your properties...',

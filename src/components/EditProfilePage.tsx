@@ -8,6 +8,7 @@ import { supabase } from '../lib/supabase';
 import { getSalutationFromMetadata, getUsernameFromMetadata } from '../lib/auth';
 import { normalizeSalutation, SALUTATION_PREFER_NOT, type AppSalutation } from '../lib/salutation';
 import { sendProfileEmailChangeOtp, updateOwnProfile } from '../lib/profileUpdate';
+import { changeOwnPassword, getPasswordChangeQuota, PASSWORD_CHANGE_LIMIT_MESSAGE } from '../lib/changePassword';
 import { SIGNUP_RESEND_COOLDOWN_SEC } from '../lib/signupEmailVerify';
 import { useLocale } from '../context/LocaleContext';
 import { toast } from 'sonner';
@@ -35,6 +36,14 @@ export function EditProfilePage({ onBack, onSaved }: EditProfilePageProps) {
   const [sendingOtp, setSendingOtp] = useState(false);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
+
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordInfo, setPasswordInfo] = useState('');
+  const [updatingPassword, setUpdatingPassword] = useState(false);
+  const [passwordChangeLocked, setPasswordChangeLocked] = useState(false);
 
   const emailChanged = email.trim().toLowerCase() !== originalEmail.trim().toLowerCase();
   const nameChangesRemaining = Math.max(0, 2 - nameChangesInWindow);
@@ -83,6 +92,13 @@ export function EditProfilePage({ onBack, onSaved }: EditProfilePageProps) {
         if (!quotaError && quotaData && typeof quotaData === 'object' && 'changes_in_window' in quotaData) {
           const count = (quotaData as { changes_in_window?: unknown }).changes_in_window;
           setNameChangesInWindow(typeof count === 'number' ? count : Number(count) || 0);
+        }
+
+        try {
+          const passwordQuota = await getPasswordChangeQuota();
+          if (isMounted) setPasswordChangeLocked(passwordQuota.locked);
+        } catch {
+          if (isMounted) setPasswordChangeLocked(false);
         }
       } catch (e) {
         if (isMounted) {
@@ -176,6 +192,33 @@ export function EditProfilePage({ onBack, onSaved }: EditProfilePageProps) {
       setError(e instanceof Error ? e.message : profileT.updateFailed);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    try {
+      setUpdatingPassword(true);
+      setPasswordError('');
+      setPasswordInfo('');
+      await changeOwnPassword({
+        currentPassword,
+        newPassword,
+        confirmPassword: confirmNewPassword,
+      });
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmNewPassword('');
+      setPasswordChangeLocked(true);
+      setPasswordInfo(profileT.passwordUpdated);
+      toast.success(profileT.passwordUpdated);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : profileT.passwordUpdateFailed;
+      setPasswordError(message);
+      if (message === PASSWORD_CHANGE_LIMIT_MESSAGE || message === profileT.passwordChangeLimit) {
+        setPasswordChangeLocked(true);
+      }
+    } finally {
+      setUpdatingPassword(false);
     }
   };
 
@@ -310,6 +353,74 @@ export function EditProfilePage({ onBack, onSaved }: EditProfilePageProps) {
             <Button className="h-12 w-full bg-black text-white hover:bg-gray-800" onClick={() => void handleSave()} disabled={saving}>
               {saving ? profileT.saving : profileT.saveChanges}
             </Button>
+
+            <div className="space-y-4 border-t pt-8">
+              <div>
+                <h2 className="text-lg font-medium">{profileT.changePasswordTitle}</h2>
+                <p className="mt-1 text-sm text-gray-600">
+                  {passwordChangeLocked ? profileT.passwordChangeLockedHint : profileT.changePasswordHint}
+                </p>
+              </div>
+
+              <div>
+                <Label htmlFor="current-password">{profileT.currentPassword}</Label>
+                <Input
+                  id="current-password"
+                  className="mt-2 h-12"
+                  type="password"
+                  autoComplete="current-password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  disabled={passwordChangeLocked}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="new-password">{profileT.newPassword}</Label>
+                <Input
+                  id="new-password"
+                  className="mt-2 h-12"
+                  type="password"
+                  autoComplete="new-password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  disabled={passwordChangeLocked}
+                />
+                <p className="mt-1.5 text-xs text-gray-500">{profileT.passwordRequirements}</p>
+              </div>
+
+              <div>
+                <Label htmlFor="confirm-new-password">{profileT.confirmNewPassword}</Label>
+                <Input
+                  id="confirm-new-password"
+                  className="mt-2 h-12"
+                  type="password"
+                  autoComplete="new-password"
+                  value={confirmNewPassword}
+                  onChange={(e) => setConfirmNewPassword(e.target.value)}
+                  disabled={passwordChangeLocked}
+                />
+              </div>
+
+              {passwordError ? <p className="text-sm text-red-500">{passwordError}</p> : null}
+              {passwordInfo ? <p className="text-sm text-green-600">{passwordInfo}</p> : null}
+
+              <Button
+                type="button"
+                variant="outline"
+                className="h-12 w-full"
+                onClick={() => void handleChangePassword()}
+                disabled={
+                  passwordChangeLocked ||
+                  updatingPassword ||
+                  !currentPassword ||
+                  !newPassword ||
+                  !confirmNewPassword
+                }
+              >
+                {updatingPassword ? profileT.updatingPassword : profileT.updatePassword}
+              </Button>
+            </div>
           </div>
         )}
       </div>

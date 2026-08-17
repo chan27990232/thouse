@@ -53,6 +53,7 @@ const listPropertyZhTW = {
   errDeed: '請上傳至少一份房產證明',
   errCover: '請上傳租盤主圖或填寫主圖網址',
   errTitle: '請確認放盤標題',
+  errNotVerified: '請先完成實名驗證，方可刊登租盤。可到個人資料提交申請。',
 
   purposeTitle: '放盤用途',
   purposeHint: '簡屋目前僅支援住宅出租放盤。',
@@ -156,6 +157,7 @@ const listPropertyZhCN: ListPropertyMessages = {
   errDeed: '请上传至少一份房产证明',
   errCover: '请上传租盘主图或填写主图网址',
   errTitle: '请确认放盘标题',
+  errNotVerified: '请先完成实名验证，方可刊登租盘。可到个人资料提交申请。',
 
   purposeTitle: '放盘用途',
   purposeHint: '简屋目前仅支援住宅出租放盘。',
@@ -257,6 +259,8 @@ const listPropertyEn: ListPropertyMessages = {
   errDeed: 'Please upload at least one property deed document',
   errCover: 'Please upload a cover image or enter an image URL',
   errTitle: 'Please confirm the listing title',
+  errNotVerified:
+    'Please complete identity verification before listing a property. You can submit it from your profile.',
 
   purposeTitle: 'Listing purpose',
   purposeHint: 'Thouse currently supports residential rentals only.',
