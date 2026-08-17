@@ -4,6 +4,7 @@ import { formatMessage } from '../../lib/i18nFormat';
 const landlordWalletZhTW = {
   loadingWallet: '載入錢包…',
   availableBalance: '可用餘額',
+  cumulativeProfit: '累積盈利',
   requestWithdrawal: '申請提現',
   amountHkd: '金額（HK$）',
   maxPlaceholder: '最多 {max}',
@@ -40,6 +41,7 @@ export type LandlordWalletMessages = typeof landlordWalletZhTW;
 const landlordWalletZhCN: LandlordWalletMessages = {
   loadingWallet: '载入钱包…',
   availableBalance: '可用余额',
+  cumulativeProfit: '累积盈利',
   requestWithdrawal: '申请提现',
   amountHkd: '金额（HK$）',
   maxPlaceholder: '最多 {max}',
@@ -74,6 +76,7 @@ const landlordWalletZhCN: LandlordWalletMessages = {
 const landlordWalletEn: LandlordWalletMessages = {
   loadingWallet: 'Loading wallet…',
   availableBalance: 'Available Balance',
+  cumulativeProfit: 'Cumulative Earnings',
   requestWithdrawal: 'Request Withdrawal',
   amountHkd: 'Amount (HK$)',
   maxPlaceholder: 'Max {max}',

@@ -7,15 +7,26 @@ type FnResponse = { ok: boolean; message?: string };
 const SIGNUP_VERIFY_API_TIMEOUT_MS = 30_000;
 
 async function invokeSignupVerificationApi(body: Record<string, unknown>): Promise<FnResponse> {
-  const res = await withAuthTimeoutMs(
-    fetch('/api/signup-verification', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    }),
-    '驗證碼請求逾時，請稍後再試。',
-    SIGNUP_VERIFY_API_TIMEOUT_MS,
-  );
+  let res: Response;
+  try {
+    res = await withAuthTimeoutMs(
+      fetch('/api/signup-verification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }),
+      '驗證碼請求逾時，請稍後再試。',
+      SIGNUP_VERIFY_API_TIMEOUT_MS,
+    );
+  } catch (error) {
+    const raw = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+    if (/failed to fetch|fetch failed|networkerror|load failed/i.test(raw)) {
+      throw new Error(
+        '無法連線本機驗證碼服務。請改開 http://127.0.0.1:3000 並硬重新整理，確認終端機仍在執行 npm run dev。',
+      );
+    }
+    throw error;
+  }
 
   const payload = (await res.json().catch(() => ({}))) as FnResponse;
   if (!res.ok || !payload.ok) {

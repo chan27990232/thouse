@@ -3,6 +3,7 @@ import { Loader2, Wallet, ArrowDownToLine, History } from 'lucide-react';
 import { Button } from './ui/button';
 import {
   fetchLandlordWalletBalance,
+  fetchLandlordCumulativeProfit,
   fetchLandlordWalletLedger,
   fetchLandlordWithdrawalRequests,
   submitLandlordWithdrawal,
@@ -19,6 +20,7 @@ function formatHkd(n: number) {
 export function LandlordWalletPanel() {
   const { locale, landlordWalletT: t } = useLocale();
   const [balance, setBalance] = useState(0);
+  const [cumulativeProfit, setCumulativeProfit] = useState(0);
   const [ledger, setLedger] = useState<WalletLedgerEntry[]>([]);
   const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,12 +38,14 @@ export function LandlordWalletPanel() {
   const load = useCallback(async () => {
     setLoading(true);
     setErr('');
-    const [bal, led, wds] = await Promise.all([
+    const [bal, profit, led, wds] = await Promise.all([
       fetchLandlordWalletBalance(),
+      fetchLandlordCumulativeProfit(),
       fetchLandlordWalletLedger(),
       fetchLandlordWithdrawalRequests(),
     ]);
     setBalance(bal);
+    setCumulativeProfit(profit);
     setLedger(led);
     setWithdrawals(wds);
     setLoading(false);
@@ -100,11 +104,21 @@ export function LandlordWalletPanel() {
   return (
     <div className="space-y-6">
       <section className="rounded-xl bg-gradient-to-r from-gray-900 to-gray-700 p-5 text-white shadow-sm">
-        <div className="flex items-center gap-2 text-sm text-gray-300">
-          <Wallet className="h-4 w-4" aria-hidden />
-          {t.availableBalance}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-sm text-gray-300">
+              <Wallet className="h-4 w-4 shrink-0" aria-hidden />
+              {t.availableBalance}
+            </div>
+            <p className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">{formatHkd(balance)}</p>
+          </div>
+          <div className="min-w-0 border-l border-white/15 pl-4">
+            <p className="text-sm text-gray-300">{t.cumulativeProfit}</p>
+            <p className="mt-2 text-2xl font-semibold tracking-tight text-gray-100 sm:text-3xl">
+              {formatHkd(cumulativeProfit)}
+            </p>
+          </div>
         </div>
-        <p className="mt-2 text-3xl font-semibold tracking-tight">{formatHkd(balance)}</p>
       </section>
 
       {err ? (

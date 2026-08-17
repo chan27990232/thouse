@@ -18,9 +18,17 @@ interface ProfilePageProps {
   onBack: () => void;
   onSignOut: () => void;
   onEditProfile: () => void;
+  autoOpenVerification?: boolean;
+  onAutoOpenVerificationConsumed?: () => void;
 }
 
-export function ProfilePage({ onBack, onSignOut, onEditProfile }: ProfilePageProps) {
+export function ProfilePage({
+  onBack,
+  onSignOut,
+  onEditProfile,
+  autoOpenVerification = false,
+  onAutoOpenVerificationConsumed,
+}: ProfilePageProps) {
   const { locale, profileT } = useLocale();
   const [salutation, setSalutation] = useState<AppSalutation>('');
   const [fullName, setFullName] = useState('');
@@ -203,6 +211,25 @@ export function ProfilePage({ onBack, onSignOut, onEditProfile }: ProfilePagePro
     role === 'landlord' ? landlordVerificationSubmittedAt : tenantVerificationSubmittedAt;
   const verificationRejectionReason =
     role === 'landlord' ? landlordVerificationRejectionReason : tenantVerificationRejectionReason;
+
+  useEffect(() => {
+    if (!autoOpenVerification || loading) return;
+    if (role !== 'landlord' && role !== 'tenant') {
+      onAutoOpenVerificationConsumed?.();
+      return;
+    }
+    if (!isVerified && verificationStatus !== 'pending') {
+      setVerificationDialogOpen(true);
+    }
+    onAutoOpenVerificationConsumed?.();
+  }, [
+    autoOpenVerification,
+    loading,
+    role,
+    isVerified,
+    verificationStatus,
+    onAutoOpenVerificationConsumed,
+  ]);
 
   return (
     <div className="mx-auto min-h-screen w-full min-w-0 max-w-3xl overflow-x-hidden bg-white">

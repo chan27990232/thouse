@@ -38,6 +38,24 @@ export async function fetchLandlordWalletBalance(): Promise<number> {
   return Number(data?.available_balance ?? 0);
 }
 
+/** 累積盈利：歷來入帳（payout_credit）合計，不含提現扣款 */
+export async function fetchLandlordCumulativeProfit(): Promise<number> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return 0;
+
+  const { data, error } = await supabase
+    .from('landlord_wallet_ledger')
+    .select('amount')
+    .eq('landlord_id', user.id)
+    .eq('entry_type', 'payout_credit');
+
+  if (error || !data) return 0;
+
+  return data.reduce((sum, row) => sum + Number(row.amount ?? 0), 0);
+}
+
 export async function fetchLandlordWalletLedger(limit = 50): Promise<WalletLedgerEntry[]> {
   const {
     data: { user },

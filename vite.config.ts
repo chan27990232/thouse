@@ -64,10 +64,13 @@
       port: 3000,
       /** 佔用時直接報錯，避免實際跑在 3001 卻以為是 3000 導致 HMR 斷線 */
       strictPort: true,
-      open: true,
+      /** 綁所有 IPv4 介面，讓 localhost / 127.0.0.1 都能打到同一支 API */
+      host: '0.0.0.0',
+      open: 'http://127.0.0.1:3000',
       /** 穩定本機 HMR WebSocket，減少畫面底部「disconnected / reconnecting」 */
       hmr: {
-        host: 'localhost',
+        protocol: 'ws',
+        host: '127.0.0.1',
         port: 3000,
         clientPort: 3000,
       },

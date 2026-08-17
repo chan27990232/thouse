@@ -22,6 +22,7 @@ const propertyZhTW = {
   signNow: '立即簽約',
   missingLandlordError: '此物業缺少業主資料，無法通知業主。請重新從列表進入。',
   tenantVerificationRequired: '請先完成實名驗證，方可聯絡業主或簽約。可到個人資料提交申請。',
+  goToVerification: '前往實名驗證',
   landlordLabel: '業主',
   landlordLoading: '載入中…',
   landlordProfileTitle: '業主資料',
@@ -51,6 +52,7 @@ const propertyZhCN: PropertyMessages = {
   signNow: '立即签约',
   missingLandlordError: '此物业缺少业主资料，无法通知业主。请重新从列表进入。',
   tenantVerificationRequired: '请先完成实名验证，方可联络业主或签约。可到个人资料提交申请。',
+  goToVerification: '前往实名验证',
   landlordLabel: '业主',
   landlordLoading: '加载中…',
   landlordProfileTitle: '业主资料',
@@ -79,6 +81,7 @@ const propertyEn: PropertyMessages = {
   missingLandlordError: 'Landlord information is missing. Please open this listing again from the list.',
   tenantVerificationRequired:
     'Please complete identity verification before contacting the landlord or applying. You can submit it from your profile.',
+  goToVerification: 'Go to verification',
   landlordLabel: 'Landlord',
   landlordLoading: 'Loading…',
   landlordProfileTitle: 'Landlord profile',

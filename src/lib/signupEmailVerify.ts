@@ -21,6 +21,9 @@ export function isSignupEmailRateLimited(message: string): boolean {
 
 function translateAuthMessage(message: string): string {
   const m = message.toLowerCase();
+  if (m.includes('failed to fetch') || m.includes('fetch failed') || m.includes('networkerror') || m.includes('load failed')) {
+    return '無法連線伺服器。請改開 http://127.0.0.1:3000 並硬重新整理（Cmd+Shift+R），確認終端機仍在執行 npm run dev。';
+  }
   if (m.includes('email not confirmed')) {
     return '請先完成電郵驗證，再登入。';
   }
@@ -79,8 +82,19 @@ export function formatAuthFailure(error: unknown, fallback: string): string {
   }
 
   if (error && typeof error === 'object') {
-    const authError = error as AuthError & { msg?: string; error_description?: string };
-    const candidates = [authError.message, authError.msg, authError.error_description, authError.code]
+    const authError = error as AuthError & { msg?: string; error_description?: string; cause?: unknown };
+    const causeMessage =
+      authError.cause && typeof authError.cause === 'object' && 'message' in authError.cause
+        ? String((authError.cause as { message?: unknown }).message ?? '')
+        : '';
+    const candidates = [
+      authError.message,
+      authError.msg,
+      authError.error_description,
+      authError.code,
+      causeMessage,
+      error instanceof Error ? String(error) : '',
+    ]
       .filter((part): part is string => typeof part === 'string')
       .map((part) => part.trim())
       .filter((part) => part.length > 0 && part !== '{}');

@@ -43,7 +43,7 @@ function receiptLink(url: string | null | undefined) {
   if (!u) return <span className="muted">—</span>;
   return (
     <a href={u} target="_blank" rel="noopener noreferrer">
-      查看收據
+      查看轉賬證明
     </a>
   );
 }
@@ -59,7 +59,9 @@ export function PaymentReceiptsPage() {
   const [rows, setRows] = useState<PaymentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
+  const [info, setInfo] = useState('');
   const [kindFilter, setKindFilter] = useState<'' | PaymentKind>('');
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -204,10 +206,60 @@ export function PaymentReceiptsPage() {
     return rows.filter((r) => r.kind === kindFilter);
   }, [rows, kindFilter]);
 
+  const canConfirmBank = (r: PaymentRow) => r.status === 'pending_bank';
+
+  const confirmPayment = async (r: PaymentRow) => {
+    if (!canConfirmBank(r) || confirmingId) return;
+    const ok = window.confirm(
+      `確認已收到 ${r.tenantName}（${KIND_LABEL[r.kind]}）HK$${r.amount.toLocaleString()} 的入數？\n確認後租客進度會進入下一關。`,
+    );
+    if (!ok) return;
+
+    setConfirmingId(`${r.kind}-${r.id}`);
+    setErr('');
+    setInfo('');
+    try {
+      if (r.kind === 'lease_initial') {
+        const { error } = await supabase
+          .from('lease_applications')
+          .update({
+            payment_status: 'succeeded',
+            paid_at: new Date().toISOString(),
+          })
+          .eq('id', r.id)
+          .eq('payment_status', 'pending_bank');
+        if (error) throw error;
+      } else if (r.kind === 'monthly_rent') {
+        const { error } = await supabase.rpc('confirm_rent_payment', {
+          p_rent_payment_id: r.id,
+        });
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('tenant_utility_obligations')
+          .update({
+            status: 'paid',
+            paid_at: new Date().toISOString(),
+          })
+          .eq('id', r.id)
+          .eq('status', 'pending_bank');
+        if (error) throw error;
+      }
+      setInfo(`已確認入數：${r.tenantName}／${KIND_LABEL[r.kind]}`);
+      await load();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : '確認入數失敗');
+    } finally {
+      setConfirmingId(null);
+    }
+  };
+
   return (
     <div>
       <h1 style={{ marginTop: 0, fontSize: '1.5rem' }}>付款收據</h1>
-      <p className="muted">記錄所有租客付款（簽約首期、每月租金及水電煤），含轉賬證明連結。</p>
+      <p className="muted">
+        「查看轉賬證明」只會打開圖片／PDF。核對無誤後，請按同一格的「確認入數」，租客才會進入平台一審。
+      </p>
 
       <div className="card" style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
         <span className="muted">類型</span>
@@ -223,6 +275,7 @@ export function PaymentReceiptsPage() {
       </div>
 
       {err && <p style={{ color: '#f85149', fontSize: '0.9rem' }}>{err}</p>}
+      {info ? <p style={{ color: '#3fb950', fontSize: '0.9rem' }}>{info}</p> : null}
       {loading ? (
         <p className="muted">載入中…</p>
       ) : (
@@ -237,7 +290,7 @@ export function PaymentReceiptsPage() {
                 <th>金額</th>
                 <th>方式</th>
                 <th>狀態</th>
-                <th>收據</th>
+                <th>收據／核對</th>
                 <th>參考編號</th>
               </tr>
             </thead>
@@ -295,8 +348,32 @@ export function PaymentReceiptsPage() {
                   </td>
                   <td>{methodLabel(r.paymentMethod)}</td>
                   <td>{STATUS_LABEL[r.status] ?? r.status}</td>
-                  <td>{receiptLink(r.receiptUrl)}</td>
-                  <td className="muted" style={{ fontSize: '0.75rem', maxWidth: '120px', wordBreak: 'break-all' }}>
+                  <td>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', alignItems: 'flex-start' }}>
+                      {receiptLink(r.receiptUrl)}
+                      {canConfirmBank(r) ? (
+                        <button
+                          type="button"
+                          className="btn"
+                          disabled={confirmingId === `${r.kind}-${r.id}`}
+                          onClick={() => void confirmPayment(r)}
+                        >
+                          {confirmingId === `${r.kind}-${r.id}` ? '處理中…' : '確認入數'}
+                        </button>
+                      ) : null}
+                    </div>
+                  </td>
+                  <td
+                    className="muted"
+                    style={{
+                      fontSize: '0.75rem',
+                      minWidth: '160px',
+                      maxWidth: '220px',
+                      overflowWrap: 'anywhere',
+                      whiteSpace: 'normal',
+                    }}
+                    title={r.paymentReference ?? undefined}
+                  >
                     {r.paymentReference ?? '—'}
                   </td>
                 </tr>

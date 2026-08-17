@@ -22,9 +22,16 @@ interface PropertyDetailProps {
   onBack: () => void;
   isAuthenticated: boolean;
   onRequireAuth: () => void;
+  onGoToVerification: () => void;
 }
 
-export function PropertyDetail({ property, onBack, isAuthenticated, onRequireAuth }: PropertyDetailProps) {
+export function PropertyDetail({
+  property,
+  onBack,
+  isAuthenticated,
+  onRequireAuth,
+  onGoToVerification,
+}: PropertyDetailProps) {
   const {
     commonT,
     propertyT,
@@ -133,7 +140,12 @@ export function PropertyDetail({ property, onBack, isAuthenticated, onRequireAut
     }
     const verified = await isCurrentUserVerified();
     if (!verified) {
-      toast.error(propertyT.tenantVerificationRequired);
+      toast.error(propertyT.tenantVerificationRequired, {
+        action: {
+          label: propertyT.goToVerification,
+          onClick: () => onGoToVerification(),
+        },
+      });
       return false;
     }
     return true;

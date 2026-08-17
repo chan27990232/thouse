@@ -85,6 +85,7 @@ export default function App() {
   const [forgotPasswordReturnScreen, setForgotPasswordReturnScreen] = useState<'auth-tenant' | 'auth-landlord'>(
     'auth-tenant',
   );
+  const [openVerificationOnProfile, setOpenVerificationOnProfile] = useState(false);
   const navRef = useRef({ screen: currentScreen, property: selectedProperty });
   const restoringHistoryRef = useRef(false);
 
@@ -107,6 +108,15 @@ export default function App() {
     },
     [setNavState],
   );
+
+  const goToVerification = useCallback(() => {
+    setOpenVerificationOnProfile(true);
+    navigate('profile');
+  }, [navigate]);
+
+  const consumeOpenVerification = useCallback(() => {
+    setOpenVerificationOnProfile(false);
+  }, []);
 
   const restoreNav = useCallback(
     async (nav: StoredNav, options?: { fromHistory?: boolean }) => {
@@ -426,6 +436,7 @@ export default function App() {
           onBack={() => goBack('home')}
           isAuthenticated={isAuthenticated}
           onRequireAuth={() => openAuth('tenant')}
+          onGoToVerification={goToVerification}
         />
       )}
       {currentScreen === 'landlord-dashboard' && (
@@ -451,6 +462,8 @@ export default function App() {
           onBack={() => goBack('home')}
           onSignOut={handleSignOut}
           onEditProfile={() => navigate('profile-edit')}
+          autoOpenVerification={openVerificationOnProfile}
+          onAutoOpenVerificationConsumed={consumeOpenVerification}
         />
       )}
       {currentScreen === 'profile-edit' && (
