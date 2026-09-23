@@ -137,14 +137,14 @@ export function TenantLeaseApplicationsPage({ onBack }: TenantLeaseApplicationsP
           </Button>
           <div className="flex min-w-0 items-center gap-2">
             <ClipboardList className="h-5 w-5 shrink-0 text-gray-700" />
-            <h1 className="truncate text-lg font-semibold">我的租盤申請</h1>
+            <h1 className="truncate text-lg font-semibold">我的租房申請</h1>
           </div>
         </div>
       </header>
 
       <main className="mx-auto max-w-3xl space-y-4 px-4 py-6">
         <p className="text-sm text-gray-600 leading-relaxed">
-          以下為你已提交的簽約申請與審批進度。已核准的租盤請至「我的租盤」查看與繳費。
+          以下為你已提交的簽約申請與審批進度。已核准的租房請至「我的租房」查看與繳費。
         </p>
 
         {loading ? (
@@ -157,7 +157,7 @@ export function TenantLeaseApplicationsPage({ onBack }: TenantLeaseApplicationsP
         ) : rows.length === 0 ? (
           <div className="rounded-xl border border-dashed border-gray-300 bg-white px-6 py-14 text-center">
             <House className="mx-auto mb-3 h-10 w-10 text-gray-300" />
-            <p className="text-sm font-medium text-gray-800">暫無租盤申請</p>
+            <p className="text-sm font-medium text-gray-800">暫無租房申請</p>
           </div>
         ) : (
           rows.map((row) => {
@@ -180,6 +180,10 @@ export function TenantLeaseApplicationsPage({ onBack }: TenantLeaseApplicationsP
                       <h2 className="text-sm font-semibold leading-snug">{localizePropertyTitle(row.propertyTitle)}</h2>
                       {getStatusBadge(row)}
                     </div>
+                    <p className="text-sm text-gray-600">
+                      <span className="text-gray-500">業主：</span>
+                      {row.landlordName || '—'}
+                    </p>
                     <p className="text-base font-semibold">
                       HK${row.firstPaymentTotal.toLocaleString()}
                       <span className="ml-1 text-xs font-normal text-gray-500">首期總額</span>

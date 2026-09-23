@@ -33,16 +33,25 @@ export function IdentityVerificationDialog({
   const { profileT } = useLocale();
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const [legalName, setLegalName] = useState(defaultLegalName);
-  const [idNumber, setIdNumber] = useState('');
+  const [idNumberBody, setIdNumberBody] = useState('');
+  const [idNumberCheck, setIdNumberCheck] = useState('');
   const [dateOfBirth, setDateOfBirth] = useState('');
   const [idCardFile, setIdCardFile] = useState<File | null>(null);
   const [bankFile, setBankFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
+  const composedIdNumber = () => {
+    const body = idNumberBody.trim().toUpperCase();
+    const check = idNumberCheck.trim().toUpperCase();
+    if (!body && !check) return '';
+    return `${body}(${check})`;
+  };
+
   const resetForm = () => {
     setLegalName(defaultLegalName);
-    setIdNumber('');
+    setIdNumberBody('');
+    setIdNumberCheck('');
     setDateOfBirth('');
     setIdCardFile(null);
     setBankFile(null);
@@ -61,6 +70,7 @@ export function IdentityVerificationDialog({
       setError(profileT.verificationLegalNamePlaceholder);
       return;
     }
+    const idNumber = composedIdNumber();
     if (!validateHongKongIdNumber(idNumber)) {
       setError(profileT.verificationIdNumberInvalid);
       return;
@@ -83,7 +93,7 @@ export function IdentityVerificationDialog({
       await submitIdentityVerification({
         role,
         legalName: legalName.trim(),
-        idNumber: idNumber.trim(),
+        idNumber,
         dateOfBirth,
         idCardFile,
         bankStatementFile: bankFile,
@@ -119,13 +129,39 @@ export function IdentityVerificationDialog({
 
           <div>
             <Label htmlFor="verify-id-number">{profileT.verificationIdNumber}</Label>
-            <Input
-              id="verify-id-number"
-              className="mt-2 h-11 uppercase"
-              value={idNumber}
-              onChange={(e) => setIdNumber(e.target.value.toUpperCase())}
-              placeholder={profileT.verificationIdNumberPlaceholder}
-            />
+            <div className="mt-2 flex items-center gap-2">
+              <Input
+                id="verify-id-number"
+                className="h-11 min-w-0 flex-1 uppercase"
+                value={idNumberBody}
+                maxLength={8}
+                autoComplete="off"
+                inputMode="text"
+                onChange={(e) =>
+                  setIdNumberBody(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8))
+                }
+                placeholder={profileT.verificationIdNumberBodyPlaceholder}
+              />
+              <span className="shrink-0 text-lg font-medium text-gray-700" aria-hidden>
+                (
+              </span>
+              <Input
+                id="verify-id-check"
+                className="h-11 w-14 shrink-0 px-2 text-center uppercase"
+                value={idNumberCheck}
+                maxLength={1}
+                autoComplete="off"
+                inputMode="text"
+                aria-label={profileT.verificationIdNumberCheckAria}
+                onChange={(e) =>
+                  setIdNumberCheck(e.target.value.toUpperCase().replace(/[^0-9A]/g, '').slice(0, 1))
+                }
+                placeholder={profileT.verificationIdNumberCheckPlaceholder}
+              />
+              <span className="shrink-0 text-lg font-medium text-gray-700" aria-hidden>
+                )
+              </span>
+            </div>
           </div>
 
           <div>

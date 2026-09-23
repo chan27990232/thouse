@@ -142,14 +142,6 @@ export function ThouseHomeFooter({ className }: ThouseHomeFooterProps) {
                   style={{ filter: 'grayscale(1) contrast(10) brightness(1.1)' }}
                 />
               </SocialIcon>
-              <SocialIcon
-                label={commonT.wechatAria}
-                href="https://u.wechat.com/IAt7G2Q1pvX_K0RRdOGcPWQ?s=2"
-              >
-                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-                  <path d="M9.5 4C6.46 4 4 6.13 4 8.75c0 1.57.88 2.97 2.25 3.85-.14.52-.58 1.95-.58 1.95s2.02-.64 3.08-.98c.56.1 1.14.18 1.75.18 3.04 0 5.5-2.13 5.5-4.75S12.54 4 9.5 4zM16 11.5c-2.76 0-5 1.79-5 4s2.24 4 5 4c.55 0 1.08-.08 1.58-.23l1.94.62-.47-1.48c.99-.8 1.6-1.9 1.6-3.11 0-2.21-2.24-4-5-4z" />
-                </svg>
-              </SocialIcon>
             </div>
           </div>
         </div>

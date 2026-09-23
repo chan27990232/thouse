@@ -18,6 +18,8 @@ interface PropertyRow {
   bedrooms: number | string | null;
   bathrooms: number | string | null;
   district: string | null;
+  status?: string | null;
+  created_at?: string | null;
   room_features?: string[] | null;
   amenities?: string[] | null;
   building_age?: string | null;
@@ -103,6 +105,16 @@ export function dedupePropertyRows<T extends DedupeableRow>(
 }
 
 function mapProperty(row: PropertyRow): Property {
+  const statusRaw = (row.status ?? '').trim();
+  const status =
+    statusRaw === 'available' ||
+    statusRaw === 'rented' ||
+    statusRaw === 'draft' ||
+    statusRaw === 'inactive' ||
+    statusRaw === 'maintenance'
+      ? statusRaw
+      : undefined;
+
   return {
     id: row.id,
     landlordId: row.landlord_id ?? undefined,
@@ -114,6 +126,8 @@ function mapProperty(row: PropertyRow): Property {
     bedrooms: toNumber(row.bedrooms, 1),
     bathrooms: toNumber(row.bathrooms, 1),
     district: (row.district ?? '').trim(),
+    status,
+    createdAt: row.created_at ?? undefined,
     roomFeatures: Array.isArray(row.room_features) ? row.room_features : undefined,
     amenities: Array.isArray(row.amenities) ? row.amenities : undefined,
     builtYear: (() => {
@@ -135,22 +149,36 @@ function mapProperty(row: PropertyRow): Property {
   };
 }
 
+function compareHomepageProperties(a: PropertyRow, b: PropertyRow): number {
+  const aRented = isRentedStatus(a.status);
+  const bRented = isRentedStatus(b.status);
+  if (aRented !== bRented) return aRented ? 1 : -1;
+
+  const aCreated = createdAtMs(a);
+  const bCreated = createdAtMs(b);
+  if (aCreated !== bCreated) return bCreated - aCreated;
+
+  return String(a.id).localeCompare(String(b.id));
+}
+
 /** 從 Supabase 載入首頁租盤（僅真實資料；失敗回傳空陣列） */
 export async function loadHomepageProperties(): Promise<Property[]> {
   const { data, error } = await supabase
     .from('properties')
-    .select('id,landlord_id,title,image,price,area,floor,bedrooms,bathrooms,district,room_features,amenities,building_age,built_year,renovation_year')
+    .select(
+      'id,landlord_id,title,image,price,area,floor,bedrooms,bathrooms,district,status,created_at,room_features,amenities,building_age,built_year,renovation_year',
+    )
     .eq('verification_status', 'approved')
     .in('status', ['available', 'rented'])
-    .order('id', { ascending: true });
+    .order('created_at', { ascending: false });
 
   if (error) {
     return [];
   }
 
   const raw = (data ?? []) as PropertyRow[];
-  const uniqueRows = dedupePropertyRows(raw, 'smallestId');
-  uniqueRows.sort((a, b) => String(a.id).localeCompare(String(b.id)));
+  const uniqueRows = dedupePropertyRows(raw, 'newestByCreatedAt');
+  uniqueRows.sort(compareHomepageProperties);
   return uniqueRows.map(mapProperty);
 }
 
@@ -161,7 +189,9 @@ export async function loadPropertyById(id: string): Promise<Property | null> {
 
   const { data, error } = await supabase
     .from('properties')
-    .select('id,landlord_id,title,image,price,area,floor,bedrooms,bathrooms,district,room_features,amenities,building_age,built_year,renovation_year')
+    .select(
+      'id,landlord_id,title,image,price,area,floor,bedrooms,bathrooms,district,status,created_at,room_features,amenities,building_age,built_year,renovation_year',
+    )
     .eq('id', trimmed)
     .maybeSingle();
 

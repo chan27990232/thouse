@@ -7,8 +7,8 @@ import { LOCALE_DATE_LOCALE } from '../../lib/locale';
 import { parseDateOnly } from '../../lib/appClock';
 
 const tenantMyPropertiesZhTW = {
-  title: '我的租盤',
-  myApplications: '我的租盤申請',
+  title: '我的租房',
+  myApplications: '我的租房申請',
   deadlineRent:
     '· 每月租金須於<strong>下月 7 日 23:59 前</strong>繳付（遇週末或公眾假期提前至上一個工作日）。',
   deadlinePlatformTransfer: '· 平台將於每月 <strong>15 日 23:59 前</strong>把租金轉交業主。',
@@ -16,9 +16,10 @@ const tenantMyPropertiesZhTW = {
     '· 水電煤須於業主上傳帳單後 <strong>21 日內 23:59 前</strong>繳付（遇假期同樣提前）。',
   loadError: '無法載入',
   loadingPayments: '載入繳費資訊…',
-  emptyTitle: '暫無正在租用的租盤',
-  emptyHint: '簽約完成後會顯示於此；申請進度請查看「我的租盤申請」。',
+  emptyTitle: '暫無正在租用的租房',
+  emptyHint: '簽約完成後會顯示於此；申請進度請查看「我的租房申請」。',
   activeBadge: '租用中',
+  landlordLabel: '業主',
   renewInviteTitle: '業主邀請你續約',
   renewInviteBody:
     '延長 <strong>{months}</strong> 個月。{notes}請確認是否同意續租；同意後平台才會審核。',
@@ -66,8 +67,8 @@ const tenantMyPropertiesZhTW = {
 export type TenantMyPropertiesMessages = typeof tenantMyPropertiesZhTW;
 
 const tenantMyPropertiesZhCN: TenantMyPropertiesMessages = {
-  title: '我的租盘',
-  myApplications: '我的租盘申请',
+  title: '我的租房',
+  myApplications: '我的租房申请',
   deadlineRent:
     '· 每月租金须于<strong>下月 7 日 23:59 前</strong>缴付（遇周末或公众假期提前至上一个工作日）。',
   deadlinePlatformTransfer: '· 平台将于每月 <strong>15 日 23:59 前</strong>把租金转交业主。',
@@ -75,9 +76,10 @@ const tenantMyPropertiesZhCN: TenantMyPropertiesMessages = {
     '· 水电煤须于业主上传账单后 <strong>21 日内 23:59 前</strong>缴付（遇假期同样提前）。',
   loadError: '无法加载',
   loadingPayments: '加载缴费信息…',
-  emptyTitle: '暂无正在租用的租盘',
-  emptyHint: '签约完成后会显示于此；申请进度请查看「我的租盘申请」。',
+  emptyTitle: '暂无正在租用的租房',
+  emptyHint: '签约完成后会显示于此；申请进度请查看「我的租房申请」。',
   activeBadge: '租用中',
+  landlordLabel: '业主',
   renewInviteTitle: '业主邀请你续约',
   renewInviteBody:
     '延长 <strong>{months}</strong> 个月。{notes}请确认是否同意续租；同意后平台才会审核。',
@@ -136,6 +138,7 @@ const tenantMyPropertiesEn: TenantMyPropertiesMessages = {
   emptyTitle: 'No Active Rentals',
   emptyHint: 'Approved leases appear here. Track applications under “My Applications”.',
   activeBadge: 'Active',
+  landlordLabel: 'Landlord',
   renewInviteTitle: 'Landlord invited you to renew',
   renewInviteBody:
     'Extend for <strong>{months}</strong> month(s). {notes}Please confirm whether you agree; the platform reviews after you accept.',

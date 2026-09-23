@@ -18,6 +18,7 @@ alter table public.profiles add column if not exists salutation text not null de
 alter table public.profiles add column if not exists phone text not null default '';
 alter table public.profiles add column if not exists response_time text not null default '';
 alter table public.profiles add column if not exists is_verified boolean not null default false;
+alter table public.profiles add column if not exists avatar_url text not null default '';
 
 create unique index if not exists profiles_username_lower_idx
 on public.profiles (lower(username))

@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
-import { ArrowLeft, User } from 'lucide-react';
+import { useEffect, useRef, useState, type ChangeEvent } from 'react';
+import { ArrowLeft, Camera, Loader2, User } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
+import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { supabase } from '../lib/supabase';
 import { getRoleFromMetadata, getSalutationFromMetadata, getStoredAuthRole, getUsernameFromMetadata } from '../lib/auth';
 import { normalizeSalutation, type AppSalutation } from '../lib/salutation';
@@ -13,6 +14,8 @@ import { useLocale } from '../context/LocaleContext';
 import { salutationLabel } from '../content/translations/profile';
 import { responseTimeMessages } from '../content/translations/responseTime';
 import { formatLocaleDateTimeLong } from '../lib/i18nDate';
+import { updateOwnAvatarUrl, uploadProfileAvatar } from '../lib/profileAvatarUpload';
+import { toast } from 'sonner';
 
 interface ProfilePageProps {
   onBack: () => void;
@@ -45,10 +48,13 @@ export function ProfilePage({
   const [tenantVerificationRejectionReason, setTenantVerificationRejectionReason] = useState('');
   const [tenantVerificationSubmittedAt, setTenantVerificationSubmittedAt] = useState<string | null>(null);
   const [role, setRole] = useState<'tenant' | 'landlord' | ''>('');
+  const [avatarUrl, setAvatarUrl] = useState('');
+  const [avatarUploading, setAvatarUploading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [verificationDialogOpen, setVerificationDialogOpen] = useState(false);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -70,7 +76,7 @@ export function ProfilePage({
         const profileRes = await supabase
           .from('profiles')
           .select(
-            'full_name,username,email,salutation,phone,response_time,is_verified,role,landlord_verification_status,landlord_verification_rejection_reason,landlord_verification_submitted_at,tenant_verification_status,tenant_verification_rejection_reason,tenant_verification_submitted_at',
+            'full_name,username,email,salutation,phone,response_time,is_verified,role,avatar_url,landlord_verification_status,landlord_verification_rejection_reason,landlord_verification_submitted_at,tenant_verification_status,tenant_verification_rejection_reason,tenant_verification_submitted_at',
           )
           .eq('id', user.id)
           .maybeSingle();
@@ -80,7 +86,9 @@ export function ProfilePage({
           const errMsg = (profileRes.error.message || '').toLowerCase();
           if (
             errMsg.includes('column') &&
-            (errMsg.includes('landlord_verification') || errMsg.includes('tenant_verification'))
+            (errMsg.includes('landlord_verification') ||
+              errMsg.includes('tenant_verification') ||
+              errMsg.includes('avatar_url'))
           ) {
             const { data: legacy } = await supabase
               .from('profiles')
@@ -104,6 +112,11 @@ export function ProfilePage({
         );
         setPhone(profile?.phone ?? (typeof user.user_metadata?.phone === 'string' ? user.user_metadata.phone : ''));
         setEmail(profile?.email ?? user.email ?? '');
+        setAvatarUrl(
+          typeof (profile as { avatar_url?: string } | null)?.avatar_url === 'string'
+            ? ((profile as { avatar_url?: string }).avatar_url ?? '').trim()
+            : '',
+        );
         setResponseTime('');
         setResponseTimeLoading(false);
         setIsVerified(Boolean(profile?.is_verified));
@@ -231,6 +244,40 @@ export function ProfilePage({
     onAutoOpenVerificationConsumed,
   ]);
 
+  const handleAvatarFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || avatarUploading) return;
+
+    setAvatarUploading(true);
+    setError('');
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error('NOT_SIGNED_IN');
+      }
+      const url = await uploadProfileAvatar(user.id, file, avatarUrl);
+      await updateOwnAvatarUrl(url);
+      setAvatarUrl(url);
+      toast.success(profileT.avatarUpdated);
+    } catch (e) {
+      const code = e instanceof Error ? e.message : '';
+      if (code === 'INVALID_TYPE') {
+        toast.error(profileT.avatarInvalidType);
+      } else if (code === 'TOO_LARGE') {
+        toast.error(profileT.avatarTooLarge);
+      } else if (code === 'BUCKET_MISSING' || code === 'RLS') {
+        toast.error(profileT.avatarBucketMissing);
+      } else {
+        toast.error(profileT.avatarUploadFailed);
+      }
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
+
   return (
     <div className="mx-auto min-h-screen w-full min-w-0 max-w-3xl overflow-x-hidden bg-white">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b p-4">
@@ -244,12 +291,45 @@ export function ProfilePage({
       </div>
 
       <div className="px-4 py-8 sm:px-6 sm:py-10">
-        <div className="flex flex-col items-center text-center mb-8">
-          <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center mb-4">
-            <User className="w-10 h-10 text-gray-500" />
+        <div className="mb-8 flex flex-col items-center text-center">
+          <div className="relative mb-4">
+            <Avatar className="h-20 w-20 border border-gray-200 bg-gray-100">
+              {avatarUrl ? <AvatarImage src={avatarUrl} alt={fullName || profileT.title} /> : null}
+              <AvatarFallback className="bg-gray-100 text-gray-500">
+                <User className="h-10 w-10" />
+              </AvatarFallback>
+            </Avatar>
+            <button
+              type="button"
+              disabled={avatarUploading || loading}
+              onClick={() => avatarInputRef.current?.click()}
+              className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-60"
+              aria-label={profileT.changeAvatar}
+            >
+              {avatarUploading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Camera className="h-4 w-4" />
+              )}
+            </button>
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              className="hidden"
+              onChange={handleAvatarFileChange}
+            />
           </div>
+          <button
+            type="button"
+            disabled={avatarUploading || loading}
+            onClick={() => avatarInputRef.current?.click()}
+            className="mb-3 text-sm font-medium text-gray-700 underline-offset-2 hover:underline disabled:opacity-60"
+          >
+            {avatarUploading ? profileT.avatarUploading : profileT.changeAvatar}
+          </button>
           <h1 className="text-2xl">{profileT.title}</h1>
-          <p className="text-gray-600 mt-2">{profileT.subtitle}</p>
+          <p className="mt-2 text-gray-600">{profileT.subtitle}</p>
         </div>
 
         {loading ? (

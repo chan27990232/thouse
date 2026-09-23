@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, type MouseEvent } from 'react';
 import { Bed, Building2, Heart, Maximize2, ShowerHead } from 'lucide-react';
 import { Property } from '../App';
 import { useLocale } from '../context/LocaleContext';
@@ -14,6 +14,7 @@ export function PropertyCard({ property, onToggleFavorite, onClick }: PropertyCa
   const { commonT, localizePropertyTitle } = useLocale();
   const displayTitle = localizePropertyTitle(property.title);
   const imageClickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isRented = property.status === 'rented';
 
   const handleImageClick = () => {
     if (imageClickTimer.current) clearTimeout(imageClickTimer.current);
@@ -23,7 +24,7 @@ export function PropertyCard({ property, onToggleFavorite, onClick }: PropertyCa
     }, 220);
   };
 
-  const handleImageDoubleClick = (e: React.MouseEvent) => {
+  const handleImageDoubleClick = (e: MouseEvent) => {
     e.preventDefault();
     if (imageClickTimer.current) {
       clearTimeout(imageClickTimer.current);
@@ -39,7 +40,7 @@ export function PropertyCard({ property, onToggleFavorite, onClick }: PropertyCa
           type="button"
           onClick={handleImageClick}
           onDoubleClick={handleImageDoubleClick}
-          className="block w-full cursor-pointer"
+          className="relative block w-full cursor-pointer"
           aria-label={commonT.format('viewProperty', { title: displayTitle })}
         >
           <ImageWithFallback
@@ -47,7 +48,15 @@ export function PropertyCard({ property, onToggleFavorite, onClick }: PropertyCa
             alt={displayTitle}
             className="aspect-[4/3] w-full object-cover"
           />
+          {isRented ? (
+            <span className="pointer-events-none absolute inset-0 bg-white/50" aria-hidden />
+          ) : null}
         </button>
+        {isRented ? (
+          <span className="pointer-events-none absolute left-3 top-3 rounded-md bg-black/75 px-3.5 py-1.5 text-sm font-semibold text-white shadow-sm">
+            {commonT.rentedBadge}
+          </span>
+        ) : null}
         <button
           type="button"
           onClick={(e) => {
@@ -96,13 +105,15 @@ export function PropertyCard({ property, onToggleFavorite, onClick }: PropertyCa
             <span className="text-xl tabular-nums min-[380px]:text-2xl">${property.price}</span>
             <span className="ml-1 text-gray-500">{commonT.perMonth}</span>
           </div>
-          <button
-            onClick={onClick}
-            className="min-h-11 w-full min-w-0 bg-black px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-gray-800 min-[380px]:w-auto min-[380px]:shrink-0 min-[380px]:px-6"
-            type="button"
-          >
-            {commonT.rentCta}
-          </button>
+          {!isRented ? (
+            <button
+              onClick={onClick}
+              className="min-h-11 w-full min-w-0 bg-black px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-gray-800 min-[380px]:w-auto min-[380px]:shrink-0 min-[380px]:px-6"
+              type="button"
+            >
+              {commonT.rentCta}
+            </button>
+          ) : null}
         </div>
       </div>
     </div>

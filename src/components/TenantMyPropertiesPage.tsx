@@ -112,6 +112,10 @@ function ActiveLeaseCard({
           {lease.propertyDistrict ? (
             <p className="mt-1 text-sm text-gray-600">{displayDistrict}</p>
           ) : null}
+          <p className="mt-1 text-sm text-gray-600">
+            <span className="text-gray-500">{tenantMyPropertiesT.landlordLabel}：</span>
+            {lease.landlordName || '—'}
+          </p>
           <p className="mt-2 text-lg font-bold">
             HK${lease.monthlyRent.toLocaleString()}
             <span className="ml-1 text-xs font-normal text-gray-500">{commonT.perMonth}</span>

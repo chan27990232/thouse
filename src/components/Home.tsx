@@ -444,6 +444,10 @@ export function Home({
               type="button"
               onClick={() =>
                 requireTenantAuth(() => {
+                  if (activeTab === 'favorites') {
+                    setActiveTab('home');
+                    return;
+                  }
                   setActiveTab('favorites');
                   listingsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 })

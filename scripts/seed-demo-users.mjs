@@ -40,10 +40,11 @@ if (!serviceKey) {
 }
 
 const DEMO_USERS = [
-  { username: 'tenant_02', role: 'tenant', fullName: '示範租客 02' },
-  { username: 'tenant_03', role: 'tenant', fullName: '示範租客 03' },
-  { username: 'landlord_01', role: 'landlord', fullName: '示範業主 01' },
-  { username: 'landlord_02', role: 'landlord', fullName: '示範業主 02' },
+  { username: 'tenant01', role: 'tenant', fullName: '示範租客 01', verified: false },
+  { username: 'tenant_02', role: 'tenant', fullName: '示範租客 02', verified: true },
+  { username: 'tenant_03', role: 'tenant', fullName: '示範租客 03', verified: true },
+  { username: 'landlord_01', role: 'landlord', fullName: '示範業主 01', verified: true },
+  { username: 'landlord_02', role: 'landlord', fullName: '示範業主 02', verified: true },
 ];
 
 const supabase = createClient(supabaseUrl, serviceKey, {
@@ -66,7 +67,7 @@ async function findUserIdByEmail(email) {
   return null;
 }
 
-async function upsertDemoUser({ username, role, fullName }) {
+async function upsertDemoUser({ username, role, fullName, verified = true }) {
   const email = internalEmail(username);
   const password = username;
 
@@ -118,7 +119,7 @@ async function upsertDemoUser({ username, role, fullName }) {
       salutation: '',
       phone: '',
       response_time: '',
-      is_verified: true,
+      is_verified: Boolean(verified),
       role,
       is_deactivated: false,
       updated_at: new Date().toISOString(),
@@ -127,7 +128,7 @@ async function upsertDemoUser({ username, role, fullName }) {
   );
   if (profileError) throw profileError;
 
-  return { userId, username, email, role, password };
+  return { userId, username, email, role, password, verified: Boolean(verified) };
 }
 
 async function main() {

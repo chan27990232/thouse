@@ -6,6 +6,10 @@ import {
   type PaymentMethodCode,
 } from './leaseFirstPayment';
 import { assertCurrentUserVerified } from './identityVerification';
+import {
+  buildLandlordChatDisplayName,
+  type PublicChatProfile,
+} from './chatDisplayName';
 
 export { computeFirstPaymentTotal } from './leaseFirstPayment';
 
@@ -173,7 +177,7 @@ export function getLeasePaymentStatusLabel(status: string | null | undefined): s
   }
 }
 
-/** 租客「我的租盤申請」列表用 */
+/** 租客「我的租房申請」列表用 */
 export interface TenantLeaseApplicationSummary {
   id: string;
   propertyId: string;
@@ -194,6 +198,8 @@ export interface TenantLeaseApplicationSummary {
   paymentReference: string | null;
   bankTransferReceiptUrl?: string | null;
   createdAt: string;
+  landlordId: string;
+  landlordName: string;
 }
 
 /** 業主控制台「查看所有申請」列表用 */
@@ -217,6 +223,7 @@ export interface LandlordLeaseApplicationSummary {
 type LeaseAppRowDb = {
   id: string;
   property_id: string;
+  landlord_id: string;
   created_at: string;
   status: string;
   full_name: string;
@@ -256,6 +263,7 @@ export async function fetchLeaseApplicationsForTenant(): Promise<TenantLeaseAppl
       `
       id,
       property_id,
+      landlord_id,
       created_at,
       status,
       move_in_date,
@@ -272,10 +280,29 @@ export async function fetchLeaseApplicationsForTenant(): Promise<TenantLeaseAppl
     .order('created_at', { ascending: false });
 
   if (error) {
-    throw new Error(error.message || '無法載入租盤進度');
+    throw new Error(error.message || '無法載入租房進度');
   }
 
   const rows = (data ?? []) as LeaseAppRowDb[];
+  const landlordIds = [...new Set(rows.map((r) => r.landlord_id).filter(Boolean))];
+  const landlordNameById = new Map<string, string>();
+
+  await Promise.all(
+    landlordIds.map(async (id) => {
+      const { data: profileRows, error: profileErr } = await supabase.rpc('get_public_chat_profile', {
+        profile_id: id,
+      });
+      if (profileErr) return;
+      const profile = (Array.isArray(profileRows) ? profileRows[0] : profileRows) as PublicChatProfile | null;
+      if (!profile) return;
+      const name =
+        profile.role === 'landlord'
+          ? buildLandlordChatDisplayName(profile.full_name, profile.salutation)
+          : profile.full_name.trim();
+      if (name) landlordNameById.set(id, name);
+    }),
+  );
+
   return rows.map((raw) => ({
     id: raw.id,
     propertyId: raw.property_id,
@@ -296,6 +323,8 @@ export async function fetchLeaseApplicationsForTenant(): Promise<TenantLeaseAppl
     paymentReference: raw.payment_reference,
     bankTransferReceiptUrl: raw.bank_transfer_receipt_url?.trim() || null,
     createdAt: raw.created_at,
+    landlordId: raw.landlord_id ?? '',
+    landlordName: landlordNameById.get(raw.landlord_id) || '',
   }));
 }
 

@@ -65,6 +65,8 @@ export interface Property {
   bathrooms: number;
   district?: string;
   isFavorite: boolean;
+  status?: 'available' | 'rented' | 'draft' | 'inactive' | 'maintenance';
+  createdAt?: string;
   roomFeatures?: string[];
   amenities?: string[];
   builtYear?: number;
