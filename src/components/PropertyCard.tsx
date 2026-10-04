@@ -17,6 +17,7 @@ export function PropertyCard({ property, onToggleFavorite, onClick }: PropertyCa
   const isRented = property.status === 'rented';
 
   const handleImageClick = () => {
+    if (isRented) return;
     if (imageClickTimer.current) clearTimeout(imageClickTimer.current);
     imageClickTimer.current = setTimeout(() => {
       onClick();
@@ -26,6 +27,7 @@ export function PropertyCard({ property, onToggleFavorite, onClick }: PropertyCa
 
   const handleImageDoubleClick = (e: MouseEvent) => {
     e.preventDefault();
+    if (isRented) return;
     if (imageClickTimer.current) {
       clearTimeout(imageClickTimer.current);
       imageClickTimer.current = null;
@@ -34,24 +36,36 @@ export function PropertyCard({ property, onToggleFavorite, onClick }: PropertyCa
   };
 
   return (
-    <div className="flex h-full min-w-0 max-w-full flex-col overflow-hidden rounded-lg border border-gray-200 bg-white transition-shadow hover:shadow-lg">
+    <div
+      className={`flex h-full min-w-0 max-w-full flex-col overflow-hidden rounded-lg border border-gray-200 bg-white ${
+        isRented ? '' : 'transition-shadow hover:shadow-lg'
+      }`}
+    >
       <div className="relative">
-        <button
-          type="button"
-          onClick={handleImageClick}
-          onDoubleClick={handleImageDoubleClick}
-          className="relative block w-full cursor-pointer"
-          aria-label={commonT.format('viewProperty', { title: displayTitle })}
-        >
-          <ImageWithFallback
-            src={property.image}
-            alt={displayTitle}
-            className="aspect-[4/3] w-full object-cover"
-          />
-          {isRented ? (
+        {isRented ? (
+          <div className="relative block w-full cursor-default">
+            <ImageWithFallback
+              src={property.image}
+              alt={displayTitle}
+              className="aspect-[4/3] w-full object-cover"
+            />
             <span className="pointer-events-none absolute inset-0 bg-white/50" aria-hidden />
-          ) : null}
-        </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={handleImageClick}
+            onDoubleClick={handleImageDoubleClick}
+            className="relative block w-full cursor-pointer"
+            aria-label={commonT.format('viewProperty', { title: displayTitle })}
+          >
+            <ImageWithFallback
+              src={property.image}
+              alt={displayTitle}
+              className="aspect-[4/3] w-full object-cover"
+            />
+          </button>
+        )}
         {isRented ? (
           <span className="pointer-events-none absolute left-3 top-3 rounded-md bg-black/75 px-3.5 py-1.5 text-sm font-semibold text-white shadow-sm">
             {commonT.rentedBadge}

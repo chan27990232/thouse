@@ -40,18 +40,33 @@ function SocialIcon({
 
 type ThouseHomeFooterProps = {
   className?: string;
+  onGoHome?: () => void;
 };
 
-export function ThouseHomeFooter({ className }: ThouseHomeFooterProps) {
-  const { openInfoPage } = useInfoPages();
+export function ThouseHomeFooter({ className, onGoHome }: ThouseHomeFooterProps) {
+  const { openInfoPage, closeInfoPage } = useInfoPages();
   const { locale, commonT } = useLocale();
   const footerLinks = getFooterLinks(locale);
   const year = new Date().getFullYear();
 
+  const handleGoHome = () => {
+    // 資訊頁是 fixed overlay；關閉後還要捲動底層主頁，否則看起來像沒反應
+    closeInfoPage();
+    onGoHome?.();
+    const scrollTop = () => {
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+    };
+    scrollTop();
+    window.requestAnimationFrame(scrollTop);
+    window.setTimeout(scrollTop, 50);
+  };
+
   return (
     <footer
       id="thouse-page-footer"
-      className={cn('w-full shrink-0 text-[11px] sm:text-xs relative z-10', className)}
+      className={cn('relative z-50 w-full shrink-0 text-[11px] sm:text-xs', className)}
       style={{ backgroundColor: FOOTER_BG, color: '#e8e8e8', borderTop: LINE }}
     >
       <div className="w-full" style={{ borderBottom: LINE }}>
@@ -86,18 +101,24 @@ export function ThouseHomeFooter({ className }: ThouseHomeFooterProps) {
             className="flex flex-col gap-4 sm:flex-row sm:items-center pb-6"
             style={{ borderBottom: LINE }}
           >
-            <div className="flex min-w-0 items-center gap-8 sm:gap-10 md:gap-12">
+            <button
+              type="button"
+              onClick={handleGoHome}
+              className="flex min-w-0 cursor-pointer items-center gap-8 rounded-md text-left sm:gap-10 md:gap-12 transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#3b3b3b]"
+              aria-label={commonT.logoAlt}
+            >
               <img
                 src={thouseLogo}
-                alt={commonT.logoAlt}
-                className="h-12 w-12 shrink-0 object-contain"
+                alt=""
+                className="h-12 w-12 shrink-0 object-contain pointer-events-none"
+                aria-hidden
               />
-              <p className="min-w-0 text-left text-sm sm:text-base leading-snug">
+              <span className="min-w-0 text-left text-sm sm:text-base leading-snug">
                 <span className="font-normal tracking-[0.12em] text-gray-300">THOUSE</span>
                 <span className="text-white/90"> </span>
                 <span className="font-semibold text-white">{commonT.companyLegalName}</span>
-              </p>
-            </div>
+              </span>
+            </button>
           </div>
 
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6 pt-6">

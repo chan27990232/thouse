@@ -31,6 +31,9 @@ import thouseLogo from 'figma:asset/f0c80b0c66e9c54aea3881bdf7a4eb152cbc4c0b.png
 import { ThouseHomeFooter } from './ThouseHomeFooter';
 import { LanguageSwitcher } from './LanguageSwitcher';
 import { useLocale } from '../context/LocaleContext';
+import { landlordOccupancyStatusLabel } from '../content/translations/landlord';
+import { useInfoPages } from '../context/InfoPagesContext';
+import { ResubmitListingMaterialsDialog } from './ResubmitListingMaterialsDialog';
 
 interface LandlordHomeProps {
   onSignOut: () => void;
@@ -60,6 +63,7 @@ interface ManagedProperty extends Property {
 
 export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfileClick, onGoHome }: LandlordHomeProps) {
   const { locale, landlordT, leaseWorkflowT, localizePropertyTitle } = useLocale();
+  const { openInfoPage } = useInfoPages();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [showAddProperty, setShowAddProperty] = useState(false);
   const [noticeOpen, setNoticeOpen] = useState(false);
@@ -68,6 +72,7 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
   const [managementOpen, setManagementOpen] = useState(false);
   const [utilityDialogOpen, setUtilityDialogOpen] = useState(false);
   const [utilityProperty, setUtilityProperty] = useState<ManagedProperty | null>(null);
+  const [resubmitProperty, setResubmitProperty] = useState<ManagedProperty | null>(null);
   const [applicationsListOpen, setApplicationsListOpen] = useState(false);
   const [applicationsList, setApplicationsList] = useState<LandlordLeaseApplicationSummary[]>([]);
   const [applicationsListLoading, setApplicationsListLoading] = useState(false);
@@ -217,6 +222,21 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
     void loadLandlordProperties();
   }, [loadLandlordProperties]);
 
+  const goLandlordHome = () => {
+    onGoHome();
+    setActiveTab('dashboard');
+    void loadLandlordProperties();
+    void fetchUnreadInquiryCount().then(setUnreadCount);
+    const scrollTop = () => {
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+    };
+    scrollTop();
+    window.requestAnimationFrame(scrollTop);
+    window.setTimeout(scrollTop, 50);
+  };
+
   useEffect(() => {
     if (!applicationsListOpen) return;
     let cancelled = false;
@@ -310,13 +330,7 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
           <div className="flex flex-wrap items-center justify-between gap-2">
             <button
               type="button"
-              onClick={() => {
-                onGoHome();
-                setActiveTab('dashboard');
-                void loadLandlordProperties();
-                void fetchUnreadInquiryCount().then(setUnreadCount);
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
+              onClick={goLandlordHome}
               className="flex min-w-0 items-center gap-2 rounded-lg border border-transparent text-left transition-colors hover:opacity-90"
               aria-label={landlordT.overview}
             >
@@ -503,10 +517,16 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
                                 className={`text-xs px-2 py-1 rounded-full whitespace-nowrap ${
                                   property.status === 'rented'
                                     ? 'bg-green-100 text-green-700'
-                                    : 'bg-amber-100 text-amber-700'
+                                    : property.verificationStatus === 'rejected'
+                                      ? 'bg-gray-100 text-gray-700'
+                                      : 'bg-amber-100 text-amber-700'
                                 }`}
                               >
-                                {property.status === 'rented' ? landlordT.statusRented : landlordT.statusAvailable}
+                                {landlordOccupancyStatusLabel(
+                                  landlordT,
+                                  property.status,
+                                  property.verificationStatus,
+                                )}
                               </span>
                               <span
                                 className={`text-xs px-2 py-1 rounded-full whitespace-nowrap ${
@@ -525,10 +545,33 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
                               </span>
                             </div>
                           </div>
-                          {property.verificationStatus === 'rejected' && property.verificationRejectedReason ? (
-                            <p className="text-xs text-red-600 mt-1">{property.verificationRejectedReason}</p>
+                          {property.verificationStatus === 'rejected' ? (
+                            <p className="text-xs leading-relaxed whitespace-pre-wrap text-red-600 mt-1">
+                              {landlordT.rejectionReasonPrefix}
+                              {property.verificationRejectedReason || landlordT.rejectionReasonEmpty}
+                            </p>
                           ) : null}
 
+                          {property.verificationStatus === 'rejected' ? (
+                            <div className="mt-4 flex min-h-11 flex-col gap-2 sm:min-h-0 sm:flex-row sm:gap-2">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className="w-full min-h-11 flex-1 sm:min-h-10"
+                                onClick={() => openInfoPage('contact')}
+                              >
+                                {landlordT.contactSupport}
+                              </Button>
+                              <Button
+                                type="button"
+                                className="w-full min-h-11 flex-1 bg-black text-white hover:bg-gray-800 sm:min-h-10"
+                                onClick={() => setResubmitProperty(property)}
+                              >
+                                {landlordT.resubmitDocuments}
+                              </Button>
+                            </div>
+                          ) : (
+                            <>
                           <div className="space-y-2 text-sm text-gray-600 mb-4">
                             <div className="flex justify-between gap-3">
                               <span>{landlordT.monthlyRent}</span>
@@ -581,6 +624,8 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
                               {landlordT.uploadUtilityBills}
                             </Button>
                           </div>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -600,7 +645,7 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
       </div>
     </div>
 
-    <ThouseHomeFooter className="w-full" />
+    <ThouseHomeFooter className="w-full" onGoHome={goLandlordHome} />
 
       <Dialog open={applicationsListOpen} onOpenChange={setApplicationsListOpen}>
         <DialogContent className="flex max-h-[85vh] max-w-lg flex-col gap-0 overflow-hidden sm:max-w-xl">
@@ -764,6 +809,22 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
         }}
         property={utilityProperty ? { id: utilityProperty.id, title: utilityProperty.title } : null}
       />
+      {currentLandlordId && resubmitProperty ? (
+        <ResubmitListingMaterialsDialog
+          open
+          onOpenChange={(o) => {
+            if (!o) setResubmitProperty(null);
+          }}
+          landlordId={currentLandlordId}
+          propertyId={resubmitProperty.id}
+          propertyTitle={localizePropertyTitle(resubmitProperty.title)}
+          rejectionReason={resubmitProperty.verificationRejectedReason}
+          onSuccess={async () => {
+            await loadLandlordProperties({ silent: true });
+            setResubmitProperty(null);
+          }}
+        />
+      ) : null}
     </>
   );
 }

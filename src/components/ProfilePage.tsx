@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ChangeEvent } from 'react';
+import { useEffect, useState } from 'react';
 import { ArrowLeft, Camera, Loader2, User } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -10,11 +10,13 @@ import { normalizeSalutation, type AppSalutation } from '../lib/salutation';
 import { computeLandlordResponseTimeLabel } from '../lib/landlordResponseTime';
 import { TransactionReviewPanel } from './TransactionReviewPanel';
 import { IdentityVerificationDialog } from './IdentityVerificationDialog';
+import { ProfileAvatarEditor } from './ProfileAvatarEditor';
 import { useLocale } from '../context/LocaleContext';
 import { salutationLabel } from '../content/translations/profile';
 import { responseTimeMessages } from '../content/translations/responseTime';
 import { formatLocaleDateTimeLong } from '../lib/i18nDate';
-import { updateOwnAvatarUrl, uploadProfileAvatar } from '../lib/profileAvatarUpload';
+import { PhoneCountryField } from './PhoneCountryField';
+import { splitPhoneNumber, type PhoneCountryLabelKey } from '../lib/phoneCountryCode';
 import { toast } from 'sonner';
 
 interface ProfilePageProps {
@@ -50,11 +52,11 @@ export function ProfilePage({
   const [role, setRole] = useState<'tenant' | 'landlord' | ''>('');
   const [avatarUrl, setAvatarUrl] = useState('');
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarEditorOpen, setAvatarEditorOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [verificationDialogOpen, setVerificationDialogOpen] = useState(false);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
-  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -244,10 +246,21 @@ export function ProfilePage({
     onAutoOpenVerificationConsumed,
   ]);
 
-  const handleAvatarFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-    if (!file || avatarUploading) return;
+  const toastAvatarUploadError = (e: unknown) => {
+    const code = e instanceof Error ? e.message : '';
+    if (code === 'INVALID_TYPE') {
+      toast.error(profileT.avatarInvalidType);
+    } else if (code === 'TOO_LARGE') {
+      toast.error(profileT.avatarTooLarge);
+    } else if (code === 'BUCKET_MISSING' || code === 'RLS') {
+      toast.error(profileT.avatarBucketMissing);
+    } else {
+      toast.error(profileT.avatarUploadFailed);
+    }
+  };
+
+  const handleAvatarCroppedFile = async (file: File) => {
+    if (avatarUploading) return;
 
     setAvatarUploading(true);
     setError('');
@@ -263,20 +276,30 @@ export function ProfilePage({
       setAvatarUrl(url);
       toast.success(profileT.avatarUpdated);
     } catch (e) {
-      const code = e instanceof Error ? e.message : '';
-      if (code === 'INVALID_TYPE') {
-        toast.error(profileT.avatarInvalidType);
-      } else if (code === 'TOO_LARGE') {
-        toast.error(profileT.avatarTooLarge);
-      } else if (code === 'BUCKET_MISSING' || code === 'RLS') {
-        toast.error(profileT.avatarBucketMissing);
-      } else {
-        toast.error(profileT.avatarUploadFailed);
-      }
+      toastAvatarUploadError(e);
+      throw e;
     } finally {
       setAvatarUploading(false);
     }
   };
+
+  const handleAvatarRemove = async () => {
+    if (avatarUploading || !avatarUrl) return;
+
+    setAvatarUploading(true);
+    setError('');
+    try {
+      await removeProfileAvatar(avatarUrl);
+      setAvatarUrl('');
+      toast.success(profileT.avatarRemoved);
+    } catch {
+      toast.error(profileT.avatarRemoveFailed);
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
+
+  const phoneParts = splitPhoneNumber(phone);
 
   return (
     <div className="mx-auto min-h-screen w-full min-w-0 max-w-3xl overflow-x-hidden bg-white">
@@ -302,7 +325,7 @@ export function ProfilePage({
             <button
               type="button"
               disabled={avatarUploading || loading}
-              onClick={() => avatarInputRef.current?.click()}
+              onClick={() => setAvatarEditorOpen(true)}
               className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-60"
               aria-label={profileT.changeAvatar}
             >
@@ -312,18 +335,11 @@ export function ProfilePage({
                 <Camera className="h-4 w-4" />
               )}
             </button>
-            <input
-              ref={avatarInputRef}
-              type="file"
-              accept="image/jpeg,image/png,image/webp,image/gif"
-              className="hidden"
-              onChange={handleAvatarFileChange}
-            />
           </div>
           <button
             type="button"
             disabled={avatarUploading || loading}
-            onClick={() => avatarInputRef.current?.click()}
+            onClick={() => setAvatarEditorOpen(true)}
             className="mb-3 text-sm font-medium text-gray-700 underline-offset-2 hover:underline disabled:opacity-60"
           >
             {avatarUploading ? profileT.avatarUploading : profileT.changeAvatar}
@@ -358,7 +374,15 @@ export function ProfilePage({
 
             <div>
               <Label>{profileT.phone}</Label>
-              <Input className="mt-2 h-12 bg-gray-50" value={phone || '—'} readOnly />
+              <PhoneCountryField
+                className="mt-2"
+                readOnly
+                countryCode={phoneParts.countryCode}
+                phone={phone.trim() ? phoneParts.localNumber : '—'}
+                phoneId="profile-phone"
+                countryAriaLabel={profileT.phoneCountryCode}
+                optionLabel={(key: PhoneCountryLabelKey) => profileT[key]}
+              />
             </div>
 
             <div>
@@ -465,6 +489,17 @@ export function ProfilePage({
           </div>
         )}
       </div>
+
+      <ProfileAvatarEditor
+        open={avatarEditorOpen}
+        onOpenChange={setAvatarEditorOpen}
+        avatarUrl={avatarUrl}
+        avatarAlt={fullName || profileT.title}
+        hasAvatar={Boolean(avatarUrl)}
+        busy={avatarUploading}
+        onCroppedFile={handleAvatarCroppedFile}
+        onRemove={handleAvatarRemove}
+      />
 
       {(role === 'landlord' || role === 'tenant') && (
         <IdentityVerificationDialog

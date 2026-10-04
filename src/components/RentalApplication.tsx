@@ -1,5 +1,5 @@
-import { useEffect, useId, useState } from 'react';
-import { Calendar, User, FileText, CreditCard, ArrowRight, FileSignature, ChevronDown } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Calendar, User, FileText, CreditCard, ArrowRight, FileSignature } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -12,136 +12,14 @@ import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Checkbox } from './ui/checkbox';
 import { useLocale } from '../context/LocaleContext';
 import { LOCALE_DATE_LOCALE } from '../lib/locale';
-import type { RentalApplicationMessages } from '../content/translations/rentalApplication';
 import { cn } from './ui/utils';
-
-const DEFAULT_PHONE_COUNTRY_CODE = '+852';
-
-const PHONE_COUNTRY_OPTIONS: {
-  code: string;
-  labelKey: keyof RentalApplicationMessages;
-}[] = [
-  { code: '+852', labelKey: 'phoneRegionHK' },
-  { code: '+86', labelKey: 'phoneRegionCN' },
-  { code: '+853', labelKey: 'phoneRegionMO' },
-  { code: '+886', labelKey: 'phoneRegionTW' },
-  { code: '+65', labelKey: 'phoneRegionSG' },
-  { code: '+60', labelKey: 'phoneRegionMY' },
-  { code: '+1', labelKey: 'phoneRegionUS' },
-  { code: '+44', labelKey: 'phoneRegionGB' },
-];
-
-function normalizePhoneCountryCode(raw: string) {
-  const cleaned = raw.replace(/[^\d+]/g, '');
-  if (!cleaned) return '';
-  const digits = cleaned.replace(/\+/g, '');
-  return `+${digits}`.slice(0, 5);
-}
-
-function formatPhoneWithCountryCode(countryCode: string, localNumber: string) {
-  const code = normalizePhoneCountryCode(countryCode) || DEFAULT_PHONE_COUNTRY_CODE;
-  const digits = localNumber.trim().replace(/\s+/g, ' ');
-  return `${code} ${digits}`.trim();
-}
-
-function isValidPhoneCountryCode(code: string) {
-  return /^\+\d{1,4}$/.test(normalizePhoneCountryCode(code));
-}
-
-function PhoneField({
-  countryCode,
-  onCountryCodeChange,
-  phone,
-  onPhoneChange,
-  phoneId,
-  countryAriaLabel,
-  phonePlaceholder,
-  optionLabel,
-}: {
-  countryCode: string;
-  onCountryCodeChange: (value: string) => void;
-  phone: string;
-  onPhoneChange: (value: string) => void;
-  phoneId: string;
-  countryAriaLabel: string;
-  phonePlaceholder: string;
-  optionLabel: (labelKey: keyof RentalApplicationMessages) => string;
-}) {
-  const [open, setOpen] = useState(false);
-  const listId = useId();
-
-  return (
-    <div
-      className={cn(
-        'flex h-9 w-full items-stretch overflow-hidden rounded-md border border-input bg-input-background',
-        'transition-[color,box-shadow] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50',
-      )}
-    >
-      <div className="relative flex w-[5.75rem] shrink-0 items-center border-r border-input/70">
-        <input
-          type="text"
-          inputMode="tel"
-          autoComplete="tel-country-code"
-          aria-label={countryAriaLabel}
-          aria-controls={listId}
-          aria-expanded={open}
-          aria-autocomplete="list"
-          placeholder="+852"
-          value={countryCode}
-          onChange={(e) => onCountryCodeChange(normalizePhoneCountryCode(e.target.value))}
-          className="h-full w-full bg-transparent pl-3 pr-7 text-sm tabular-nums outline-none md:text-sm"
-        />
-        <Popover open={open} onOpenChange={setOpen}>
-          <PopoverTrigger asChild>
-            <button
-              type="button"
-              aria-label={countryAriaLabel}
-              className="absolute inset-y-0 right-0 flex w-7 items-center justify-center text-muted-foreground hover:text-foreground"
-            >
-              <ChevronDown className="h-3.5 w-3.5" />
-            </button>
-          </PopoverTrigger>
-          <PopoverContent
-            id={listId}
-            className="w-56 p-1"
-            align="start"
-            onOpenAutoFocus={(e) => e.preventDefault()}
-          >
-            <div className="max-h-56 overflow-y-auto">
-              {PHONE_COUNTRY_OPTIONS.map(({ code, labelKey }) => (
-                <button
-                  key={code}
-                  type="button"
-                  className={cn(
-                    'flex w-full items-center rounded-sm px-2 py-1.5 text-left text-sm',
-                    'hover:bg-gray-100',
-                    countryCode === code && 'bg-gray-100 font-medium',
-                  )}
-                  onClick={() => {
-                    onCountryCodeChange(code);
-                    setOpen(false);
-                  }}
-                >
-                  {optionLabel(labelKey)}
-                </button>
-              ))}
-            </div>
-          </PopoverContent>
-        </Popover>
-      </div>
-      <input
-        id={phoneId}
-        type="tel"
-        inputMode="tel"
-        autoComplete="tel-national"
-        placeholder={phonePlaceholder}
-        value={phone}
-        onChange={(e) => onPhoneChange(e.target.value)}
-        className="h-full min-w-0 flex-1 bg-transparent px-3 text-base outline-none placeholder:text-muted-foreground md:text-sm"
-      />
-    </div>
-  );
-}
+import { PhoneCountryField } from './PhoneCountryField';
+import {
+  DEFAULT_PHONE_COUNTRY_CODE,
+  formatPhoneWithCountryCode,
+  isValidPhoneCountryCode,
+  type PhoneCountryLabelKey,
+} from '../lib/phoneCountryCode';
 
 interface RentalApplicationProps {
   open: boolean;
@@ -272,7 +150,8 @@ export function RentalApplication({ open, onOpenChange, property, onProceedToPay
 
               <div className="space-y-2">
                 <Label htmlFor="phone">{t.phone}</Label>
-                <PhoneField
+                <PhoneCountryField
+                  className="h-9"
                   countryCode={phoneCountryCode}
                   onCountryCodeChange={setPhoneCountryCode}
                   phone={phone}
@@ -280,7 +159,7 @@ export function RentalApplication({ open, onOpenChange, property, onProceedToPay
                   phoneId="phone"
                   countryAriaLabel={t.phoneCountryCode}
                   phonePlaceholder={t.phonePlaceholder}
-                  optionLabel={(key) => t[key]}
+                  optionLabel={(key: PhoneCountryLabelKey) => t[key]}
                 />
               </div>
 
@@ -408,7 +287,8 @@ export function RentalApplication({ open, onOpenChange, property, onProceedToPay
 
               <div className="space-y-2">
                 <Label htmlFor="emergencyPhone">{t.emergencyPhone}</Label>
-                <PhoneField
+                <PhoneCountryField
+                  className="h-9"
                   countryCode={emergencyPhoneCountryCode}
                   onCountryCodeChange={setEmergencyPhoneCountryCode}
                   phone={emergencyPhone}
@@ -416,7 +296,7 @@ export function RentalApplication({ open, onOpenChange, property, onProceedToPay
                   phoneId="emergencyPhone"
                   countryAriaLabel={t.phoneCountryCode}
                   phonePlaceholder={t.emergencyPhonePlaceholder}
-                  optionLabel={(key) => t[key]}
+                  optionLabel={(key: PhoneCountryLabelKey) => t[key]}
                 />
               </div>
 

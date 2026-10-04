@@ -11,7 +11,13 @@ import { sendProfileEmailChangeOtp, updateOwnProfile } from '../lib/profileUpdat
 import { changeOwnPassword, getPasswordChangeQuota, PASSWORD_CHANGE_LIMIT_MESSAGE } from '../lib/changePassword';
 import { SIGNUP_RESEND_COOLDOWN_SEC } from '../lib/signupEmailVerify';
 import { useLocale } from '../context/LocaleContext';
-import { toast } from 'sonner';
+import { PhoneCountryField } from './PhoneCountryField';
+import {
+  formatPhoneWithCountryCode,
+  isValidPhoneCountryCode,
+  splitPhoneNumber,
+  type PhoneCountryLabelKey,
+} from '../lib/phoneCountryCode';
 
 interface EditProfilePageProps {
   onBack: () => void;
@@ -26,6 +32,7 @@ export function EditProfilePage({ onBack, onSaved }: EditProfilePageProps) {
   const [loginAccountId, setLoginAccountId] = useState('');
   const [nameChangesInWindow, setNameChangesInWindow] = useState(0);
   const [phone, setPhone] = useState('');
+  const [phoneCountryCode, setPhoneCountryCode] = useState('+852');
   const [email, setEmail] = useState('');
   const [originalEmail, setOriginalEmail] = useState('');
   const [emailCode, setEmailCode] = useState('');
@@ -84,7 +91,11 @@ export function EditProfilePage({ onBack, onSaved }: EditProfilePageProps) {
           (typeof profile?.username === 'string' ? profile.username : '') || getUsernameFromMetadata(user.user_metadata),
         );
         const loadedEmail = profile?.email ?? user.email ?? '';
-        setPhone(profile?.phone ?? (typeof user.user_metadata?.phone === 'string' ? user.user_metadata.phone : ''));
+        const loadedPhone =
+          profile?.phone ?? (typeof user.user_metadata?.phone === 'string' ? user.user_metadata.phone : '');
+        const split = splitPhoneNumber(loadedPhone);
+        setPhoneCountryCode(split.countryCode);
+        setPhone(split.localNumber);
         setEmail(loadedEmail);
         setOriginalEmail(loadedEmail);
 
@@ -178,10 +189,14 @@ export function EditProfilePage({ onBack, onSaved }: EditProfilePageProps) {
         }
       }
 
+      if (!isValidPhoneCountryCode(phoneCountryCode)) {
+        throw new Error(profileT.phoneCountryCodeInvalid);
+      }
+
       await updateOwnProfile({
         salutation,
         fullName: trimmedName,
-        phone: phone.trim(),
+        phone: formatPhoneWithCountryCode(phoneCountryCode, phone),
         email: email.trim().toLowerCase(),
         emailCode: emailChanged ? emailCode.trim() : undefined,
       });
@@ -293,11 +308,16 @@ export function EditProfilePage({ onBack, onSaved }: EditProfilePageProps) {
 
             <div>
               <Label>{profileT.phone}</Label>
-              <Input
-                className="mt-2 h-12"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder={profileT.phonePlaceholder}
+              <PhoneCountryField
+                className="mt-2"
+                countryCode={phoneCountryCode}
+                onCountryCodeChange={setPhoneCountryCode}
+                phone={phone}
+                onPhoneChange={setPhone}
+                phoneId="edit-profile-phone"
+                countryAriaLabel={profileT.phoneCountryCode}
+                phonePlaceholder={profileT.phonePlaceholder}
+                optionLabel={(key: PhoneCountryLabelKey) => profileT[key]}
               />
             </div>
 

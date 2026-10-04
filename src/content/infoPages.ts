@@ -81,7 +81,7 @@ const infoPagesEn: Record<InfoPageId, InfoPageContent> = {
     paragraphs: [
       'For enquiries, partnerships, or technical support, email:',
       'abbie@thousehk.com',
-      'Hours: Mon–Fri 10:00–18:00 (except public holidays).',
+      'Service Hours: Mon–Fri 10:00–18:00 (except public holidays).',
     ],
   },
   terms: {

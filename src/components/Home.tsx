@@ -216,6 +216,10 @@ export function Home({
 
   const moreFilterValues = useMemo<HeroMoreFiltersValues>(
     () => ({
+      selectedDistrict,
+      priceRange: [priceRange[0], priceRange[1]] as [number, number],
+      heroUnitType,
+      roomFilter,
       areaType: areaType === 'tube' ? 'tube' : '',
       selectedTubeLine,
       selectedTubeStation,
@@ -226,6 +230,10 @@ export function Home({
       amenities,
     }),
     [
+      selectedDistrict,
+      priceRange,
+      heroUnitType,
+      roomFilter,
       areaType,
       selectedTubeLine,
       selectedTubeStation,
@@ -245,14 +253,17 @@ export function Home({
     setBuildingAges(filters.buildingAges);
     setRoomFeatures(filters.roomFeatures);
     setAmenities(filters.amenities);
+    setPriceRange([clampHeroPrice(filters.priceRange[0]), clampHeroPrice(filters.priceRange[1])]);
+    setHeroUnitType(filters.heroUnitType || 'any');
+    setRoomFilter(filters.roomFilter);
     if (filters.areaType === 'tube' && (filters.selectedTubeLine || filters.selectedTubeStation)) {
       setAreaType('tube');
       setSelectedDistrict('');
       setSelectedTubeLine(filters.selectedTubeLine);
       setSelectedTubeStation(filters.selectedTubeStation);
     } else {
-      // 取消「按地鐵線」、或取消已選線／站 → 搜尋不再套用 MTR 條件
       setAreaType('district');
+      setSelectedDistrict(filters.selectedDistrict);
       setSelectedTubeLine('');
       setSelectedTubeStation('');
     }
@@ -261,7 +272,13 @@ export function Home({
   };
 
   const clearAdvancedFilters = () => {
-    handleMoreFiltersApply(DEFAULT_HERO_MORE_FILTERS);
+    handleMoreFiltersApply({
+      ...DEFAULT_HERO_MORE_FILTERS,
+      selectedDistrict,
+      priceRange: [priceRange[0], priceRange[1]],
+      heroUnitType,
+      roomFilter,
+    });
     if (areaType !== 'district') {
       setAreaType('district');
       setSelectedTubeLine('');
@@ -388,7 +405,14 @@ export function Home({
     setSearchDialogOpen(false);
     setNoticeOpen(false);
     void refreshHomepage();
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    const scrollTop = () => {
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+    };
+    scrollTop();
+    window.requestAnimationFrame(scrollTop);
+    window.setTimeout(scrollTop, 50);
   };
 
   const navIconBtnClass = (active: boolean) =>
@@ -911,7 +935,7 @@ export function Home({
         )}
       </div>
 
-      <ThouseHomeFooter className="mt-auto" />
+      <ThouseHomeFooter className="mt-auto" onGoHome={goHome} />
 
       <HeroMoreFiltersDialog
         open={searchDialogOpen}

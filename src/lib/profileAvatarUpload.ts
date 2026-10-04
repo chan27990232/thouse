@@ -2,6 +2,7 @@ import { supabase } from './supabase';
 
 const BUCKET = 'profile-avatars';
 const MAX_BYTES = 5 * 1024 * 1024;
+const MAX_SOURCE_BYTES = 25 * 1024 * 1024;
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif']);
 
 function extFromName(filename: string, mime: string) {
@@ -13,11 +14,26 @@ function extFromName(filename: string, mime: string) {
   return 'jpg';
 }
 
+function isAllowedImageType(type: string) {
+  return ALLOWED_TYPES.has(type) || type.startsWith('image/');
+}
+
 export function validateAvatarFile(file: File): string | null {
-  if (!ALLOWED_TYPES.has(file.type) && !file.type.startsWith('image/')) {
+  if (!isAllowedImageType(file.type)) {
     return 'INVALID_TYPE';
   }
   if (file.size > MAX_BYTES) {
+    return 'TOO_LARGE';
+  }
+  return null;
+}
+
+/** 裁剪前的原始檔（手機拍照常超過 5MB）。 */
+export function validateAvatarSourceFile(file: File): string | null {
+  if (!isAllowedImageType(file.type)) {
+    return 'INVALID_TYPE';
+  }
+  if (file.size > MAX_SOURCE_BYTES) {
     return 'TOO_LARGE';
   }
   return null;
@@ -77,7 +93,7 @@ export async function uploadProfileAvatar(
   return publicUrl;
 }
 
-export async function updateOwnAvatarUrl(avatarUrl: string): Promise<void> {
+export async function updateOwnAvatarUrl(avatarUrl: string | null): Promise<void> {
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -85,12 +101,27 @@ export async function updateOwnAvatarUrl(avatarUrl: string): Promise<void> {
     throw new Error('NOT_SIGNED_IN');
   }
 
+  const nextUrl = avatarUrl?.trim() ? avatarUrl.trim() : '';
   const { error } = await supabase
     .from('profiles')
-    .update({ avatar_url: avatarUrl, updated_at: new Date().toISOString() })
+    .update({ avatar_url: nextUrl, updated_at: new Date().toISOString() })
     .eq('id', user.id);
 
   if (error) {
     throw new Error(error.message || 'UPDATE_FAILED');
+  }
+}
+
+/**
+ * 清除個人頭像（DB + Storage）。
+ */
+export async function removeProfileAvatar(previousAvatarUrl?: string | null): Promise<void> {
+  await updateOwnAvatarUrl(null);
+
+  if (previousAvatarUrl) {
+    const oldPath = tryExtractAvatarPath(previousAvatarUrl);
+    if (oldPath) {
+      void supabase.storage.from(BUCKET).remove([oldPath]);
+    }
   }
 }

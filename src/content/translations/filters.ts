@@ -3,7 +3,7 @@ import { formatMessage } from '../../lib/i18nFormat';
 import { getMtrLineLabel, getMtrStationLabel } from '../../lib/hkMtr';
 
 const filtersZhTW = {
-  description: '進階條件會與上方地區、租金、房間數一併套用。',
+  description: '可在此設定地區、租金、單位類型、房間數，並與地鐵、面積等進階條件一併套用。',
   tubeSchoolSection: '地鐵線',
   byMtr: '按地鐵線',
   selectMtrLine: '選擇地鐵線',
@@ -33,7 +33,7 @@ const filtersZhTW = {
 export type FiltersMessages = typeof filtersZhTW;
 
 const filtersZhCN: FiltersMessages = {
-  description: '进阶条件会与上方地区、租金、房间数一并套用。',
+  description: '可在此设定地区、租金、单位类型、房间数，并与地铁、面积等进阶条件一并套用。',
   tubeSchoolSection: '地铁线',
   byMtr: '按地铁线',
   selectMtrLine: '选择地铁线',
@@ -61,7 +61,7 @@ const filtersZhCN: FiltersMessages = {
 };
 
 const filtersEn: FiltersMessages = {
-  description: 'Advanced filters apply together with district, rent and bedrooms above.',
+  description: 'Set district, rent, unit type and bedrooms here, along with MTR, size and other filters.',
   tubeSchoolSection: 'MTR',
   byMtr: 'By MTR Line',
   selectMtrLine: 'Select MTR Line',

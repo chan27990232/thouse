@@ -16,13 +16,17 @@ import {
   WashingMachine,
   AirVent,
   Tv,
+  Home,
+  Wallet,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Slider } from './ui/slider';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { cn } from './ui/utils';
+import { HK_DISTRICTS, getDistrictLabel } from '../lib/hkDistricts';
 import { HK_MTR_LINE_NAMES, getMtrStationsForLine } from '../lib/hkMtr';
 import {
   PROPERTY_BUILDING_AMENITY_KEYS,
@@ -35,6 +39,7 @@ import { useLocale } from '../context/LocaleContext';
 const NAVY = '#1a365d' as const;
 
 export const HERO_AREA_SQFT_MAX = 2000;
+export const HERO_RENT_MAX = 80000;
 
 export const BUILDING_AMENITIES: { name: string; icon: LucideIcon }[] = [
   { name: '升降機', icon: Building2 },
@@ -71,6 +76,10 @@ export type FloorLevel = 'low' | 'mid' | 'high';
 export type BuildingAge = PropertyBuildingAge;
 
 export interface HeroMoreFiltersValues {
+  selectedDistrict: string;
+  priceRange: [number, number];
+  heroUnitType: string;
+  roomFilter: string;
   areaType: 'tube' | '';
   selectedTubeLine: string;
   selectedTubeStation: string;
@@ -82,6 +91,10 @@ export interface HeroMoreFiltersValues {
 }
 
 export const DEFAULT_HERO_MORE_FILTERS: HeroMoreFiltersValues = {
+  selectedDistrict: '',
+  priceRange: [0, HERO_RENT_MAX],
+  heroUnitType: 'any',
+  roomFilter: '',
   areaType: '',
   selectedTubeLine: '',
   selectedTubeStation: '',
@@ -112,6 +125,20 @@ function parseAreaInput(raw: string): number {
   const digits = raw.replace(/\D/g, '');
   if (!digits) return 0;
   return clampArea(Number(digits));
+}
+
+function clampRent(value: number): number {
+  return Math.min(HERO_RENT_MAX, Math.max(0, value));
+}
+
+function parseRentInput(raw: string): number {
+  const digits = raw.replace(/\D/g, '');
+  if (!digits) return 0;
+  return clampRent(Number(digits));
+}
+
+function formatRent(n: number): string {
+  return n.toLocaleString('en-HK');
 }
 
 function FilterPill({
@@ -170,7 +197,7 @@ interface HeroMoreFiltersDialogProps {
 }
 
 export function HeroMoreFiltersDialog({ open, onOpenChange, values, onApply }: HeroMoreFiltersDialogProps) {
-  const { homeT, filtersT, commonT } = useLocale();
+  const { locale, homeT, filtersT, commonT } = useLocale();
   const [draft, setDraft] = useState<HeroMoreFiltersValues>(values);
 
   const floorLabels: Record<FloorLevel, string> = {
@@ -196,7 +223,8 @@ export function HeroMoreFiltersDialog({ open, onOpenChange, values, onApply }: H
       areaType: prev.areaType === areaType ? '' : areaType,
       selectedTubeLine: '',
       selectedTubeStation: '',
-        }));
+      selectedDistrict: '',
+    }));
   };
 
   const toggleAmenity = (name: string) => {
@@ -258,6 +286,134 @@ export function HeroMoreFiltersDialog({ open, onOpenChange, values, onApply }: H
         </DialogHeader>
 
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
+          <Section icon={<MapPin className="h-4 w-4" />} title={homeT.district}>
+            <Select
+              value={draft.selectedDistrict || 'any'}
+              onValueChange={(v) =>
+                setDraft((prev) => ({
+                  ...prev,
+                  selectedDistrict: v === 'any' ? '' : v,
+                  areaType: '',
+                  selectedTubeLine: '',
+                  selectedTubeStation: '',
+                }))
+              }
+            >
+              <SelectTrigger className="h-10 w-full rounded-md border border-gray-200 bg-white px-3 text-left text-sm text-gray-800 shadow-sm">
+                <SelectValue placeholder={homeT.anyDistrict} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="any">{homeT.anyDistrict}</SelectItem>
+                {HK_DISTRICTS.map((d) => (
+                  <SelectItem key={d} value={d}>
+                    {getDistrictLabel(d, locale)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Section>
+
+          <Section icon={<Wallet className="h-4 w-4" />} title={homeT.rentRange}>
+            <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-white px-2.5 py-2">
+              <label className="flex min-w-0 flex-1 items-center gap-1.5">
+                <span className="shrink-0 text-xs text-gray-600">{homeT.minRent}</span>
+                <div className="relative min-w-0 flex-1">
+                  <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">
+                    HK$
+                  </span>
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    aria-label={homeT.minRent}
+                    value={draft.priceRange[0] === 0 ? '' : formatRent(draft.priceRange[0])}
+                    placeholder="0"
+                    onChange={(e) => {
+                      const nextMin = parseRentInput(e.target.value);
+                      setDraft((prev) => ({
+                        ...prev,
+                        priceRange: [Math.min(nextMin, prev.priceRange[1]), prev.priceRange[1]],
+                      }));
+                    }}
+                    className="h-9 border-gray-200 bg-white pl-9 text-sm tabular-nums shadow-sm"
+                  />
+                </div>
+              </label>
+              <span className="text-gray-300">—</span>
+              <label className="flex min-w-0 flex-1 items-center gap-1.5">
+                <span className="shrink-0 text-xs text-gray-600">{homeT.maxRent}</span>
+                <div className="relative min-w-0 flex-1">
+                  <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">
+                    HK$
+                  </span>
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    aria-label={homeT.maxRent}
+                    value={draft.priceRange[1] >= HERO_RENT_MAX ? '' : formatRent(draft.priceRange[1])}
+                    placeholder={`${formatRent(HERO_RENT_MAX)}+`}
+                    onChange={(e) => {
+                      const digits = e.target.value.replace(/\D/g, '');
+                      const nextMax = digits ? clampRent(Number(digits)) : HERO_RENT_MAX;
+                      setDraft((prev) => ({
+                        ...prev,
+                        priceRange: [prev.priceRange[0], Math.max(nextMax, prev.priceRange[0])],
+                      }));
+                    }}
+                    className="h-9 border-gray-200 bg-white pl-9 text-sm tabular-nums shadow-sm"
+                  />
+                </div>
+              </label>
+            </div>
+            <Slider
+              variant="navy"
+              value={draft.priceRange}
+              onValueChange={(v) => setDraft((prev) => ({ ...prev, priceRange: v as [number, number] }))}
+              min={0}
+              max={HERO_RENT_MAX}
+              step={500}
+              className="touch-manipulation"
+            />
+            <div className="mt-2 flex justify-between text-xs text-gray-500">
+              <span>HK$0</span>
+              <span>HK${formatRent(HERO_RENT_MAX)}+</span>
+            </div>
+          </Section>
+
+          <Section icon={<Home className="h-4 w-4" />} title={homeT.unitType}>
+            <Select
+              value={draft.heroUnitType}
+              onValueChange={(v) => setDraft((prev) => ({ ...prev, heroUnitType: v }))}
+            >
+              <SelectTrigger className="h-10 w-full rounded-md border border-gray-200 bg-white px-3 text-left text-sm text-gray-800 shadow-sm">
+                <SelectValue placeholder={homeT.any} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="any">{homeT.any}</SelectItem>
+                <SelectItem value="residential">{homeT.residential}</SelectItem>
+                <SelectItem value="service">{homeT.serviceApartment}</SelectItem>
+                <SelectItem value="workshop">{homeT.workshop}</SelectItem>
+              </SelectContent>
+            </Select>
+          </Section>
+
+          <Section icon={<BedDouble className="h-4 w-4" />} title={homeT.bedrooms}>
+            <Select
+              value={draft.roomFilter || 'any'}
+              onValueChange={(v) => setDraft((prev) => ({ ...prev, roomFilter: v === 'any' ? '' : v }))}
+            >
+              <SelectTrigger className="h-10 w-full rounded-md border border-gray-200 bg-white px-3 text-left text-sm text-gray-800 shadow-sm">
+                <SelectValue placeholder={homeT.anyBedrooms} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="any">{homeT.anyBedrooms}</SelectItem>
+                <SelectItem value="studio">{homeT.studio}</SelectItem>
+                <SelectItem value="1">{homeT.oneBed}</SelectItem>
+                <SelectItem value="2">{homeT.twoBed}</SelectItem>
+                <SelectItem value="3+">{homeT.threePlusBed}</SelectItem>
+              </SelectContent>
+            </Select>
+          </Section>
+
           <Section icon={<MapPin className="h-4 w-4" />} title={filtersT.tubeSchoolSection}>
             <div className="mb-3 flex flex-wrap gap-2">
               <FilterPill active={draft.areaType === 'tube'} onClick={() => setAreaType(draft.areaType === 'tube' ? '' : 'tube')}>

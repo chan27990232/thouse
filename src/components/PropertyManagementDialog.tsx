@@ -38,6 +38,7 @@ import { LeaseManagementFileUpload } from './LeaseManagementFileUpload';
 import { parseDdMmYyyy } from '../lib/dateInput';
 import { supabase } from '../lib/supabase';
 import { useLocale } from '../context/LocaleContext';
+import { landlordOccupancyStatusLabel } from '../content/translations/landlord';
 import { LOCALE_DATE_LOCALE } from '../lib/locale';
 
 export interface ManagedProperty extends Property {
@@ -51,6 +52,7 @@ export interface ManagedProperty extends Property {
   moveInDate?: string | null;
   leaseMonths?: number | null;
   leaseNotes?: string;
+  verificationStatus?: 'pending' | 'approved' | 'rejected';
 }
 
 interface PropertyManagementDialogProps {
@@ -327,8 +329,11 @@ export function PropertyManagementDialog({
   const lastRenewedLabel = leaseInfo?.lastRenewedAt
     ? new Date(leaseInfo.lastRenewedAt).toLocaleString(dateLocale)
     : pmT.notAvailable;
-  const statusLabel =
-    property.status === 'rented' ? landlordT.statusRented : landlordT.statusAvailable;
+  const statusLabel = landlordOccupancyStatusLabel(
+    landlordT,
+    property.status,
+    property.verificationStatus,
+  );
   const pendingRequest = getPendingLeaseManagementRequest(managementRequests);
   const formsDisabled = Boolean(pendingRequest) || actionLoading !== null;
 

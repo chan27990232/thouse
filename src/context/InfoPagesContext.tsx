@@ -29,12 +29,11 @@ export function InfoPagesProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const closeInfoPage = useCallback(() => {
+    setActivePage(null);
     if (window.history.state?.thouseInfoPage) {
       closingFromButtonRef.current = true;
       window.history.back();
-      return;
     }
-    setActivePage(null);
   }, []);
 
   useEffect(() => {

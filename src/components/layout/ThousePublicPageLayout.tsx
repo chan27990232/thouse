@@ -77,7 +77,7 @@ export function ThousePublicPageLayout({
 
       <div className="flex-1" aria-hidden />
 
-      <ThouseHomeFooter className="mt-auto" />
+      <ThouseHomeFooter className="mt-auto" onGoHome={onBack} />
     </div>
   );
 }
