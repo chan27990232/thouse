@@ -7,6 +7,10 @@ import { formatMessage } from './i18nFormat';
 import type { LeaseManagementRequestFileRecord } from './leaseManagementRequestFiles';
 import { getLeaseWorkflowStatusLabel } from './leaseApplications';
 import { type RentPaymentStatus } from './rentPayments';
+import {
+  buildChatPeerLabel,
+  type PublicChatProfile,
+} from './chatDisplayName';
 
 export type LandlordLeaseAction = 'early_end' | 'renew' | 'breach';
 
@@ -41,7 +45,9 @@ export const LEASE_MANAGEMENT_REQUEST_STATUS_LABELS: Record<LeaseManagementReque
 
 export interface LandlordPropertyLeaseInfo {
   leaseApplicationId: string | null;
+  tenantId: string | null;
   tenantName: string | null;
+  tenantProfileLabel: string | null;
   tenantEmail: string | null;
   tenantPhone: string | null;
   moveInDate: string | null;
@@ -56,7 +62,9 @@ export interface LandlordPropertyLeaseInfo {
 
 const EMPTY_LEASE_INFO: LandlordPropertyLeaseInfo = {
   leaseApplicationId: null,
+  tenantId: null,
   tenantName: null,
+  tenantProfileLabel: null,
   tenantEmail: null,
   tenantPhone: null,
   moveInDate: null,
@@ -86,6 +94,7 @@ export function formatLandlordNextDueLabel(
 function mapLeaseRow(row: {
   id: string;
   property_id: string;
+  tenant_id?: string | null;
   full_name: string;
   email: string;
   phone: string;
@@ -95,9 +104,12 @@ function mapLeaseRow(row: {
   landlord_management_notes?: string | null;
   last_renewed_at?: string | null;
 }): LandlordPropertyLeaseInfo {
+  const tenantName = row.full_name?.trim() || null;
   return {
     leaseApplicationId: row.id,
-    tenantName: row.full_name?.trim() || null,
+    tenantId: row.tenant_id?.trim() || null,
+    tenantName,
+    tenantProfileLabel: tenantName,
     tenantEmail: row.email?.trim() || null,
     tenantPhone: row.phone?.trim() || null,
     moveInDate: row.move_in_date,
@@ -122,7 +134,7 @@ export async function fetchLandlordLeaseInfoByPropertyIds(
     supabase
       .from('lease_applications')
       .select(
-        'id, property_id, full_name, email, phone, move_in_date, lease_duration_months, additional_notes, landlord_management_notes, last_renewed_at, created_at'
+        'id, property_id, tenant_id, full_name, email, phone, move_in_date, lease_duration_months, additional_notes, landlord_management_notes, last_renewed_at, created_at'
       )
       .eq('landlord_id', landlordId)
       .eq('status', 'approved')
@@ -149,6 +161,7 @@ export async function fetchLandlordLeaseInfoByPropertyIds(
         row as {
           id: string;
           property_id: string;
+          tenant_id: string | null;
           full_name: string;
           email: string;
           phone: string;
@@ -159,6 +172,24 @@ export async function fetchLandlordLeaseInfoByPropertyIds(
           last_renewed_at: string | null;
         }
       );
+    }
+  }
+
+  const tenantIds = [...new Set(Object.values(result).map((info) => info.tenantId).filter((id): id is string => Boolean(id)))];
+  if (tenantIds.length > 0) {
+    const profiles = new Map<string, PublicChatProfile>();
+    await Promise.all(
+      tenantIds.map(async (id) => {
+        const { data: rows, error } = await supabase.rpc('get_public_chat_profile', { profile_id: id });
+        if (error) return;
+        const row = (Array.isArray(rows) ? rows[0] : rows) as PublicChatProfile | null;
+        if (row) profiles.set(id, row);
+      }),
+    );
+    for (const info of Object.values(result)) {
+      if (!info.tenantId) continue;
+      info.tenantProfileLabel =
+        buildChatPeerLabel(profiles.get(info.tenantId), info.tenantName ?? '', '租客') || info.tenantName;
     }
   }
 

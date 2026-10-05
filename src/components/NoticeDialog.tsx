@@ -4,7 +4,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
 import { supabase } from '../lib/supabase';
 import { fetchUnreadNoticesForLandlord, fetchUnreadNoticesForTenant, type UnreadNoticeItem } from '../lib/conversations';
-import { NoticeMessageBody } from './NoticeMessageBody';
+import { isActionNoticeKind } from '../lib/leaseNotice';
+import { NoticeMessageBody, noticeKindLabel } from './NoticeMessageBody';
 import { useLocale } from '../context/LocaleContext';
 import { formatLocaleDateTime } from '../lib/i18nDate';
 import { translateRoleFallback } from '../content/translations/chat';
@@ -13,7 +14,14 @@ interface NoticeDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   userRole: 'tenant' | 'landlord';
-  onOpenChat?: () => void;
+  onOpenChat?: (conversationId?: string) => void;
+}
+
+function kindBadgeClass(kind: UnreadNoticeItem['kind']) {
+  if (kind === 'viewing' || kind === 'viewingSuccess') return 'bg-sky-100 text-sky-800';
+  if (kind === 'viewingIgnored' || kind === 'leaseRejected') return 'bg-gray-100 text-gray-700';
+  if (kind.startsWith('lease')) return 'bg-amber-100 text-amber-800';
+  return 'bg-stone-100 text-stone-700';
 }
 
 function NoticeCard({
@@ -22,17 +30,23 @@ function NoticeCard({
   onClose,
 }: {
   notice: UnreadNoticeItem;
-  onOpenChat?: () => void;
+  onOpenChat?: (conversationId?: string) => void;
   onClose: () => void;
 }) {
   const { locale, noticeT, localizePropertyTitle } = useLocale();
   const fromName = translateRoleFallback(notice.fromLabel, locale);
   const displayPropertyTitle = localizePropertyTitle(notice.propertyTitle);
+  const kind = notice.kind;
 
   return (
     <article className="min-w-0 overflow-hidden rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm leading-relaxed">
       <div className="mb-2 flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
+          <div className="mb-1 flex flex-wrap items-center gap-1.5">
+            <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${kindBadgeClass(kind)}`}>
+              {noticeKindLabel(kind, noticeT)}
+            </span>
+          </div>
           <p className="truncate font-medium text-gray-900">{displayPropertyTitle}</p>
           <p className="mt-0.5 text-xs text-gray-600">{noticeT.format('fromLabel', { name: fromName })}</p>
         </div>
@@ -51,11 +65,11 @@ function NoticeCard({
           className="mt-3 h-8 w-full text-xs"
           onClick={() => {
             onClose();
-            onOpenChat();
+            onOpenChat(notice.conversationId);
           }}
         >
           <MessageCircle className="mr-1.5 h-3.5 w-3.5" />
-          {noticeT.goToChat}
+          {isActionNoticeKind(kind) ? noticeT.goToView : noticeT.goToChat}
         </Button>
       ) : null}
     </article>

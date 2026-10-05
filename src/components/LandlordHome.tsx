@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Home, Plus, DollarSign, Users, Bell, FileText, FileUp, Wallet, MessageCircle, User, Loader2 } from 'lucide-react';
+import { Home, Plus, DollarSign, Users, Bell, FileText, FileUp, Wallet, MessageCircle, User, Loader2, Star, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import { LandlordWalletPanel } from './LandlordWalletPanel';
 import { Property } from '../App';
@@ -15,7 +15,7 @@ import {
 import { ListPropertyWizard } from './ListPropertyWizard';
 import { UtilityBillUploadDialog } from './UtilityBillUploadDialog';
 import { dedupePropertyRows, defaultPropertyImage } from '../lib/properties';
-import { fetchUnreadInquiryCount } from '../lib/conversations';
+import { sendLeaseNoticeForApplication } from '../lib/leaseNotice';
 import {
   fetchPendingApplicationCounts,
   fetchLeaseApplicationsForLandlord,
@@ -24,6 +24,7 @@ import {
 } from '../lib/leaseApplications';
 import { notifyLeaseRejectionByEmail } from '../lib/leaseRejectionNotify';
 import { type PaymentMethodCode } from '../lib/leaseFirstPayment';
+import { getProfileStarSummary, type StarSummary } from '../lib/transactionReviews';
 import { isCurrentUserVerified } from '../lib/identityVerification';
 import { supabase } from '../lib/supabase';
 import { LOCALE_DATE_LOCALE } from '../lib/locale';
@@ -34,11 +35,12 @@ import { useLocale } from '../context/LocaleContext';
 import { landlordOccupancyStatusLabel } from '../content/translations/landlord';
 import { useInfoPages } from '../context/InfoPagesContext';
 import { ResubmitListingMaterialsDialog } from './ResubmitListingMaterialsDialog';
+import { EditListingMediaDialog } from './EditListingMediaDialog';
 
 interface LandlordHomeProps {
   onSignOut: () => void;
   onPropertyClick: (property: Property) => void;
-  onChatClick: () => void;
+  onChatClick: (conversationId?: string) => void;
   onProfileClick: () => void;
   onGoHome: () => void;
 }
@@ -47,7 +49,10 @@ type VerificationState = 'pending' | 'approved' | 'rejected';
 
 interface ManagedProperty extends Property {
   status: 'rented' | 'available';
+  tenantId: string | null;
   tenantName: string | null;
+  tenantProfileLabel: string | null;
+  tenantStarSummary: StarSummary;
   nextDueDate: string;
   applications: number;
   leaseApplicationId: string | null;
@@ -62,7 +67,7 @@ interface ManagedProperty extends Property {
 }
 
 export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfileClick, onGoHome }: LandlordHomeProps) {
-  const { locale, landlordT, leaseWorkflowT, localizePropertyTitle } = useLocale();
+  const { locale, landlordT, leaseWorkflowT, chatT, noticeT, localizePropertyTitle } = useLocale();
   const { openInfoPage } = useInfoPages();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [showAddProperty, setShowAddProperty] = useState(false);
@@ -73,6 +78,7 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
   const [utilityDialogOpen, setUtilityDialogOpen] = useState(false);
   const [utilityProperty, setUtilityProperty] = useState<ManagedProperty | null>(null);
   const [resubmitProperty, setResubmitProperty] = useState<ManagedProperty | null>(null);
+  const [editListingProperty, setEditListingProperty] = useState<ManagedProperty | null>(null);
   const [applicationsListOpen, setApplicationsListOpen] = useState(false);
   const [applicationsList, setApplicationsList] = useState<LandlordLeaseApplicationSummary[]>([]);
   const [applicationsListLoading, setApplicationsListLoading] = useState(false);
@@ -163,6 +169,24 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
       fetchLandlordLeaseInfoByPropertyIds(user.id, propertyIds),
     ]);
 
+    const tenantIds = [
+      ...new Set(
+        Object.values(leaseByProperty)
+          .map((lease) => lease.tenantId)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    const starByTenant = new Map<string, StarSummary>();
+    await Promise.all(
+      tenantIds.map(async (id) => {
+        try {
+          starByTenant.set(id, await getProfileStarSummary(id));
+        } catch {
+          starByTenant.set(id, { avgStars: 0, reviewCount: 0 });
+        }
+      }),
+    );
+
     setMyProperties(
       uniqueRows.map((property) => {
         const vs = property.verification_status;
@@ -171,6 +195,7 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
         const lease = leaseByProperty[property.id];
         const hasActiveLease = Boolean(lease?.leaseApplicationId);
         const isRented = property.status === 'rented' || hasActiveLease;
+        const tenantId = lease?.tenantId ?? null;
         return {
           id: property.id,
           landlordId: property.landlord_id ?? undefined,
@@ -183,7 +208,12 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
           bathrooms: Number(property.bathrooms ?? 1),
           isFavorite: false,
           status: isRented ? 'rented' : 'available',
+          tenantId,
           tenantName: lease?.tenantName ?? null,
+          tenantProfileLabel: lease?.tenantProfileLabel ?? lease?.tenantName ?? null,
+          tenantStarSummary: tenantId
+            ? (starByTenant.get(tenantId) ?? { avgStars: 0, reviewCount: 0 })
+            : { avgStars: 0, reviewCount: 0 },
           nextDueDate: formatLandlordNextDueLabel(hasActiveLease, {
             nextDueDate: lease?.nextDueDate ?? null,
             nextRentStatus: lease?.nextRentStatus ?? null,
@@ -206,16 +236,20 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
   }, [locale]);
 
   const openListProperty = async () => {
-    if (!currentLandlordId) {
-      toast.error(landlordT.signInToList);
-      return;
+    try {
+      if (!currentLandlordId) {
+        toast.error(landlordT.signInToList);
+        return;
+      }
+      const verified = await isCurrentUserVerified();
+      if (!verified) {
+        toast.error(landlordT.verificationRequiredToList);
+        return;
+      }
+      window.setTimeout(() => setShowAddProperty(true), 0);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : landlordT.signInToList);
     }
-    const verified = await isCurrentUserVerified();
-    if (!verified) {
-      toast.error(landlordT.verificationRequiredToList);
-      return;
-    }
-    setShowAddProperty(true);
   };
 
   useEffect(() => {
@@ -279,6 +313,17 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
       );
 
       await respondToLeaseApplication(row.id, decision);
+
+      if (currentLandlordId && row.tenantId) {
+        await sendLeaseNoticeForApplication({
+          propertyId: row.propertyId,
+          tenantId: row.tenantId,
+          landlordId: currentLandlordId,
+          senderId: currentLandlordId,
+          type: decision === 'approved' ? 'landlord_accepted' : 'rejected',
+          text: decision === 'approved' ? noticeT.bodyLeaseLandlordAccepted : noticeT.bodyLeaseRejected,
+        });
+      }
 
       const afterRows = await fetchLeaseApplicationsForLandlord();
       const newlyRejected = afterRows.filter(
@@ -430,37 +475,18 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
             {/* Quick Actions */}
             <div className="mb-6">
               <h2 className="mb-3">{landlordT.quickActions}</h2>
-              <Dialog open={showAddProperty} onOpenChange={setShowAddProperty}>
-                <Button
-                  type="button"
-                  className="w-full bg-black text-white hover:bg-gray-800 mb-2"
-                  onClick={() => void openListProperty()}
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  {landlordT.listProperty}
-                </Button>
-                <DialogContent className="mx-auto max-h-[90vh] max-w-lg overflow-y-auto sm:max-w-xl">
-                  <DialogHeader>
-                    <DialogTitle>{landlordT.listPropertyTitle}</DialogTitle>
-                    <DialogDescription>
-                      {landlordT.listPropertyDesc}
-                    </DialogDescription>
-                  </DialogHeader>
-                  {currentLandlordId ? (
-                    <ListPropertyWizard
-                      key={showAddProperty ? 'open' : 'closed'}
-                      landlordId={currentLandlordId}
-                      onCancel={() => setShowAddProperty(false)}
-                      onSuccess={async () => {
-                        await loadLandlordProperties({ silent: true });
-                        setShowAddProperty(false);
-                      }}
-                    />
-                  ) : (
-                    <p className="py-8 text-center text-sm text-gray-500">{landlordT.signInToList}</p>
-                  )}
-                </DialogContent>
-              </Dialog>
+              <Button
+                type="button"
+                className="w-full bg-black text-white hover:bg-gray-800 mb-2"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  void openListProperty();
+                }}
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                {landlordT.listProperty}
+              </Button>
               <Button
                 type="button"
                 variant="outline"
@@ -491,15 +517,17 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
               ) : (
                 <div className="space-y-5">
                   {myProperties.map((property) => (
-                    <div key={property.id} className="rounded-lg border border-gray-200 p-4 bg-white">
-                      <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-                        <ImageWithFallback
-                          src={property.image}
-                          alt={localizePropertyTitle(property.title)}
-                          className="h-44 w-full shrink-0 rounded-md object-cover sm:h-40 sm:w-56"
-                        />
+                    <div key={property.id} className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+                      <div className="flex flex-col sm:flex-row sm:items-stretch">
+                        <div className="relative h-52 w-full shrink-0 overflow-hidden bg-gray-100 sm:min-h-[16rem] sm:w-[42%] sm:max-w-[22rem] sm:self-stretch">
+                          <ImageWithFallback
+                            src={property.image}
+                            alt={localizePropertyTitle(property.title)}
+                            className="absolute inset-0 h-full w-full object-cover"
+                          />
+                        </div>
 
-                        <div className="min-w-0 flex-1">
+                        <div className="min-w-0 flex-1 p-4">
                           <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
                             <div className="min-w-0">
                               <h3 className="font-medium truncate">{localizePropertyTitle(property.title)}</h3>
@@ -513,6 +541,7 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
                               </p>
                             </div>
                             <div className="flex shrink-0 flex-row flex-wrap items-center gap-1 sm:flex-col sm:items-end">
+                              {property.status === 'rented' || property.verificationStatus !== 'pending' ? (
                               <span
                                 className={`text-xs px-2 py-1 rounded-full whitespace-nowrap ${
                                   property.status === 'rented'
@@ -528,6 +557,7 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
                                   property.verificationStatus,
                                 )}
                               </span>
+                              ) : null}
                               <span
                                 className={`text-xs px-2 py-1 rounded-full whitespace-nowrap ${
                                   property.verificationStatus === 'approved'
@@ -573,14 +603,50 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
                           ) : (
                             <>
                           <div className="space-y-2 text-sm text-gray-600 mb-4">
+                            {property.status === 'rented' && (property.tenantProfileLabel || property.tenantName) ? (
+                              <div className="flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black text-sm font-medium text-white">
+                                  {(property.tenantProfileLabel || property.tenantName || '租')
+                                    .replace(/[（）()]/g, '')
+                                    .slice(0, 1)}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <p className="truncate font-medium text-gray-900">
+                                    {property.tenantProfileLabel || property.tenantName}
+                                  </p>
+                                  <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                                    <span className="text-xs text-gray-500">{landlordT.tenant}</span>
+                                    <span className="inline-flex items-center gap-0.5" aria-hidden>
+                                      {[1, 2, 3, 4, 5].map((n) => {
+                                        const has = property.tenantStarSummary.reviewCount > 0;
+                                        const filled = has && n <= Math.round(property.tenantStarSummary.avgStars);
+                                        return (
+                                          <Star
+                                            key={n}
+                                            className={`h-3 w-3 ${filled ? 'fill-amber-400 text-amber-500' : 'text-gray-300'}`}
+                                          />
+                                        );
+                                      })}
+                                      <span className="pl-0.5 text-[11px] text-gray-500">
+                                        {property.tenantStarSummary.reviewCount > 0
+                                          ? property.tenantStarSummary.avgStars.toFixed(1)
+                                          : chatT.noRating}
+                                      </span>
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            ) : null}
                             <div className="flex justify-between gap-3">
                               <span>{landlordT.monthlyRent}</span>
                               <span className="font-medium text-gray-900">${property.price}</span>
                             </div>
-                            <div className="flex justify-between gap-3">
-                              <span>{landlordT.tenant}</span>
-                              <span>{property.tenantName ?? landlordT.noTenant}</span>
-                            </div>
+                            {property.status === 'rented' && (property.tenantProfileLabel || property.tenantName) ? null : (
+                              <div className="flex justify-between gap-3">
+                                <span>{landlordT.tenant}</span>
+                                <span>{property.tenantName ?? landlordT.noTenant}</span>
+                              </div>
+                            )}
                             <div className="flex justify-between gap-3">
                               <span>{landlordT.nextRentDue}</span>
                               <span>{property.nextDueDate}</span>
@@ -611,6 +677,7 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
                           >
                             {landlordT.manageLease}
                           </Button>
+                            {property.status === 'rented' ? (
                             <Button
                               type="button"
                               variant="outline"
@@ -623,6 +690,17 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
                               <FileUp className="mr-2 h-4 w-4 shrink-0" />
                               {landlordT.uploadUtilityBills}
                             </Button>
+                            ) : (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="w-full min-h-11 flex-1 border-dashed sm:min-h-10 sm:min-w-full sm:flex-[1_1_100%]"
+                              onClick={() => setEditListingProperty(property)}
+                            >
+                              <Pencil className="mr-2 h-4 w-4 shrink-0" />
+                              {landlordT.editListing}
+                            </Button>
+                            )}
                           </div>
                             </>
                           )}
@@ -793,6 +871,28 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
         </DialogContent>
       </Dialog>
 
+      <Dialog open={showAddProperty} onOpenChange={setShowAddProperty}>
+        <DialogContent className="mx-auto max-h-[90vh] max-w-lg overflow-y-auto sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>{landlordT.listPropertyTitle}</DialogTitle>
+            <DialogDescription>{landlordT.listPropertyDesc}</DialogDescription>
+          </DialogHeader>
+          {currentLandlordId ? (
+            <ListPropertyWizard
+              key={showAddProperty ? 'open' : 'closed'}
+              landlordId={currentLandlordId}
+              onCancel={() => setShowAddProperty(false)}
+              onSuccess={async () => {
+                await loadLandlordProperties({ silent: true });
+                setShowAddProperty(false);
+              }}
+            />
+          ) : (
+            <p className="py-8 text-center text-sm text-gray-500">{landlordT.signInToList}</p>
+          )}
+        </DialogContent>
+      </Dialog>
+
       <NoticeDialog open={noticeOpen} onOpenChange={setNoticeOpen} userRole="landlord" onOpenChat={onChatClick} />
       <PropertyManagementDialog
         open={managementOpen}
@@ -822,6 +922,21 @@ export function LandlordHome({ onSignOut, onPropertyClick, onChatClick, onProfil
           onSuccess={async () => {
             await loadLandlordProperties({ silent: true });
             setResubmitProperty(null);
+          }}
+        />
+      ) : null}
+      {currentLandlordId && editListingProperty ? (
+        <EditListingMediaDialog
+          open
+          onOpenChange={(o) => {
+            if (!o) setEditListingProperty(null);
+          }}
+          landlordId={currentLandlordId}
+          propertyId={editListingProperty.id}
+          propertyTitle={localizePropertyTitle(editListingProperty.title)}
+          onSuccess={async () => {
+            await loadLandlordProperties({ silent: true });
+            setEditListingProperty(null);
           }}
         />
       ) : null}

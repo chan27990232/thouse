@@ -19,14 +19,16 @@ const propertyZhTW = {
   amenityLift: '升降機',
   amenitySecurity: '保安',
   contactLandlord: '聯絡業主',
+  bookViewing: '預約睇樓',
   signNow: '立即簽約',
   missingLandlordError: '此物業缺少業主資料，無法通知業主。請重新從列表進入。',
-  tenantVerificationRequired: '請先完成實名驗證，方可聯絡業主或簽約。可到個人資料提交申請。',
+  tenantVerificationRequired: '請先完成實名驗證，方可聯絡業主或預約睇樓。可到個人資料提交申請。',
   goToVerification: '前往實名驗證',
   landlordLabel: '業主',
   landlordLoading: '載入中…',
   landlordProfileTitle: '業主資料',
   viewLandlordProfile: '查看業主資料',
+  photoIndex: '{current} / {total}',
 } as const;
 
 export type PropertyMessages = typeof propertyZhTW;
@@ -49,14 +51,16 @@ const propertyZhCN: PropertyMessages = {
   amenityLift: '升降机',
   amenitySecurity: '保安',
   contactLandlord: '联络业主',
+  bookViewing: '预约睇楼',
   signNow: '立即签约',
   missingLandlordError: '此物业缺少业主资料，无法通知业主。请重新从列表进入。',
-  tenantVerificationRequired: '请先完成实名验证，方可联络业主或签约。可到个人资料提交申请。',
+  tenantVerificationRequired: '请先完成实名验证，方可联络业主或预约睇楼。可到个人资料提交申请。',
   goToVerification: '前往实名验证',
   landlordLabel: '业主',
   landlordLoading: '加载中…',
   landlordProfileTitle: '业主资料',
   viewLandlordProfile: '查看业主资料',
+  photoIndex: '{current} / {total}',
 };
 
 const propertyEn: PropertyMessages = {
@@ -77,15 +81,17 @@ const propertyEn: PropertyMessages = {
   amenityLift: 'Lift',
   amenitySecurity: 'Security',
   contactLandlord: 'Contact Landlord',
+  bookViewing: 'Book a Viewing',
   signNow: 'Apply Now',
   missingLandlordError: 'Landlord information is missing. Please open this listing again from the list.',
   tenantVerificationRequired:
-    'Please complete identity verification before contacting the landlord or applying. You can submit it from your profile.',
+    'Please complete identity verification before contacting the landlord or booking a viewing. You can submit it from your profile.',
   goToVerification: 'Go to verification',
   landlordLabel: 'Landlord',
   landlordLoading: 'Loading…',
   landlordProfileTitle: 'Landlord profile',
   viewLandlordProfile: 'View landlord profile',
+  photoIndex: '{current} / {total}',
 };
 
 export const propertyMessages: Record<AppLocale, PropertyMessages> = {

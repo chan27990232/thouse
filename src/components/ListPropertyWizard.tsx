@@ -40,7 +40,7 @@ import {
   buildingAgeFromBuiltYear,
   parsePropertyYear,
 } from '../lib/propertyFilterFields';
-import { uploadDeedFiles, uploadListingCoverImage, uploadProofPhotoFiles } from '../lib/propertyMediaUpload';
+import { uploadDeedFiles, uploadListingCoverImage, uploadListingPublicImage, uploadProofPhotoFiles } from '../lib/propertyMediaUpload';
 import { assertCurrentUserVerified } from '../lib/identityVerification';
 import { supabase } from '../lib/supabase';
 import { cn } from './ui/utils';
@@ -292,6 +292,13 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
       }
       const proofPaths = await uploadProofPhotoFiles(landlordId, proofFiles);
       const deedPaths = await uploadDeedFiles(landlordId, deedFiles);
+      const galleryUrls: string[] = [];
+      if (imageUrl) galleryUrls.push(imageUrl);
+      for (const file of proofFiles) {
+        if (file.type.startsWith('image/')) {
+          galleryUrls.push(await uploadListingPublicImage(landlordId, file, 'gallery'));
+        }
+      }
 
       const addressLines = [
         `${t.addrEstate}${estateName.trim()}`,
@@ -335,6 +342,7 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
         ].join('\n'),
         status: 'available',
         proof_photo_urls: proofPaths,
+        gallery_urls: galleryUrls,
         property_deed_url: deedPaths[0] ?? '',
         property_deed_urls: deedPaths,
         verification_status: 'pending',
@@ -343,10 +351,10 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
       const { error } = await supabase.from('properties').insert(payload);
       if (error) {
         const m = (error.message || '').toLowerCase();
-        if (m.includes('column') || m.includes('proof_photo') || m.includes('verification') || m.includes('property_deed_urls') || m.includes('built_year') || m.includes('renovation_year')) {
+        if (m.includes('column') || m.includes('proof_photo') || m.includes('gallery_urls') || m.includes('verification') || m.includes('property_deed_urls') || m.includes('built_year') || m.includes('renovation_year')) {
           throw new Error(t.errDbMigration);
         }
-        throw error;
+        throw new Error(error.message || t.errSubmitFailed);
       }
 
       await onSuccess();
@@ -429,7 +437,7 @@ export function ListPropertyWizard({ landlordId, onSuccess, onCancel }: ListProp
                   type="text"
                   inputMode="numeric"
                   className={cn('mt-1.5 bg-white', floorInvalid && 'border-red-500 focus-visible:ring-red-500')}
-                  placeholder="12"
+                  placeholder={t.floorPlaceholder}
                   value={floor}
                   onChange={(e) => {
                     setFloor(e.target.value.replace(/\D/g, ''));

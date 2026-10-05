@@ -1,12 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, MapPin, Bed, Building2, Calendar, Maximize2, ShowerHead } from 'lucide-react';
 import { toast } from 'sonner';
 import { Property } from '../App';
-import { submitLeaseApplication } from '../lib/leaseApplications';
 import { isCurrentUserVerified } from '../lib/identityVerification';
 import { Button } from './ui/button';
-import { RentalApplication, ApplicationData } from './RentalApplication';
-import { PaymentDialog } from './PaymentDialog';
 import { ContactLandlordDialog } from './ContactLandlordDialog';
 import {
   formatPublicLandlordDisplayName,
@@ -15,7 +12,10 @@ import {
 } from './LandlordProfileDialog';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { getPublicLandlordProfile } from '../lib/profiles';
+import { loadPropertyGallery, isPropertyGalleryVideo } from '../lib/properties';
 import { useLocale } from '../context/LocaleContext';
+// 簽約流程保留於 PropertySignLeaseFlow，之後可在其他入口掛載：
+// import { PropertySignLeaseFlow } from './PropertySignLeaseFlow';
 
 interface PropertyDetailProps {
   property: Property;
@@ -61,13 +61,25 @@ export function PropertyDetail({
   const listedRoomFeatures = property.roomFeatures ?? [];
   const listedAmenities = property.amenities ?? [];
   const hasListingFeatures = listedRoomFeatures.length > 0 || listedAmenities.length > 0;
-  const [showRentalApp, setShowRentalApp] = useState(false);
-  const [showPayment, setShowPayment] = useState(false);
   const [showContactDialog, setShowContactDialog] = useState(false);
   const [showLandlordProfile, setShowLandlordProfile] = useState(false);
   const [landlordName, setLandlordName] = useState(contactLandlordT.landlordDefault);
   const [landlordLoading, setLandlordLoading] = useState(Boolean(property.landlordId));
-  const [applicationData, setApplicationData] = useState<ApplicationData | null>(null);
+  const [galleryUrls, setGalleryUrls] = useState<string[]>(property.image ? [property.image] : []);
+  const [galleryIndex, setGalleryIndex] = useState(0);
+  const galleryRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setGalleryUrls(property.image ? [property.image] : []);
+    setGalleryIndex(0);
+    let cancelled = false;
+    void loadPropertyGallery(property.id, property.image).then((urls) => {
+      if (!cancelled && urls.length > 0) setGalleryUrls(urls);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [property.id, property.image]);
 
   useEffect(() => {
     if (!property.landlordId) {
@@ -120,19 +132,6 @@ export function PropertyDetail({
     contactLandlordT,
   ]);
 
-  const handleProceedToPayment = (data: ApplicationData) => {
-    setApplicationData(data);
-    setShowRentalApp(false);
-    setShowPayment(true);
-  };
-
-  const handlePaymentSuccess = () => {
-    setShowPayment(false);
-    setTimeout(() => {
-      onBack();
-    }, 500);
-  };
-
   const requireTenantVerified = async () => {
     if (!isAuthenticated) {
       onRequireAuth();
@@ -154,19 +153,66 @@ export function PropertyDetail({
   return (
     <div className="mx-auto min-h-screen w-full min-w-0 max-w-5xl overflow-x-hidden bg-white">
       <div className="relative">
-        <ImageWithFallback
-          src={property.image}
-          alt={displayTitle}
-          className="h-48 w-full object-cover sm:h-64 md:h-80 lg:h-[26rem]"
-        />
+        <div
+          ref={galleryRef}
+          className="flex snap-x snap-mandatory overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          onScroll={() => {
+            const el = galleryRef.current;
+            if (!el || el.clientWidth <= 0) return;
+            const next = Math.round(el.scrollLeft / el.clientWidth);
+            setGalleryIndex(Math.min(galleryUrls.length - 1, Math.max(0, next)));
+          }}
+        >
+          {galleryUrls.map((src, i) => (
+            <div
+              key={`${src}-${i}`}
+              className="flex h-[min(70vh,32rem)] w-full shrink-0 snap-center items-center justify-center bg-neutral-100 sm:h-[min(75vh,36rem)]"
+            >
+              {isPropertyGalleryVideo(src) ? (
+                <video
+                  src={src}
+                  className="max-h-full max-w-full object-contain"
+                  controls
+                  playsInline
+                  preload="metadata"
+                />
+              ) : (
+                <ImageWithFallback
+                  src={src}
+                  alt={displayTitle}
+                  className="max-h-full max-w-full object-contain"
+                  draggable={false}
+                />
+              )}
+            </div>
+          ))}
+        </div>
         <button
           onClick={onBack}
-          className="absolute left-3 top-3 rounded-full bg-white p-2 shadow-lg hover:bg-gray-100 sm:left-4 sm:top-4"
+          className="absolute left-3 top-3 z-20 rounded-full bg-white p-2 shadow-lg hover:bg-gray-100 sm:left-4 sm:top-4"
           type="button"
           aria-label={commonT.back}
         >
           <ArrowLeft className="h-5 w-5" />
         </button>
+        {galleryUrls.length > 1 ? (
+          <div className="pointer-events-none absolute bottom-3 left-0 right-0 z-10 flex flex-col items-center gap-2">
+            <span className="rounded-full bg-black/60 px-2.5 py-0.5 text-xs text-white">
+              {propertyT.format('photoIndex', {
+                current: galleryIndex + 1,
+                total: galleryUrls.length,
+              })}
+            </span>
+            <div className="flex items-center gap-1.5">
+              {galleryUrls.map((_, i) => (
+                <span
+                  key={i}
+                  className={`h-1.5 rounded-full ${i === galleryIndex ? 'w-4 bg-white' : 'w-1.5 bg-white/50'}`}
+                />
+              ))}
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <div className="p-4 sm:p-6 md:px-8 lg:px-10">
@@ -261,10 +307,9 @@ export function PropertyDetail({
           </div>
         ) : null}
 
-        <div className="mt-6 flex min-h-11 flex-col gap-2.5 sm:flex-row sm:gap-3">
+        <div className="mt-6">
           <Button
-            variant="outline"
-            className="w-full min-h-11 flex-1 sm:min-h-10"
+            className="w-full min-h-11 bg-black text-white hover:bg-gray-800 sm:min-h-10"
             onClick={() => {
               void (async () => {
                 if (!(await requireTenantVerified())) return;
@@ -274,18 +319,6 @@ export function PropertyDetail({
             type="button"
           >
             {propertyT.contactLandlord}
-          </Button>
-          <Button
-            className="w-full min-h-11 flex-1 bg-black text-white hover:bg-gray-800 sm:min-h-10"
-            type="button"
-            onClick={() => {
-              void (async () => {
-                if (!(await requireTenantVerified())) return;
-                setShowRentalApp(true);
-              })();
-            }}
-          >
-            {propertyT.signNow}
           </Button>
         </div>
       </div>
@@ -306,37 +339,6 @@ export function PropertyDetail({
           landlordId={property.landlordId}
         />
       ) : null}
-
-      {showRentalApp && (
-        <RentalApplication
-          open={showRentalApp}
-          onOpenChange={setShowRentalApp}
-          property={property}
-          onProceedToPayment={handleProceedToPayment}
-        />
-      )}
-
-      {showPayment && applicationData && (
-        <PaymentDialog
-          open={showPayment}
-          onOpenChange={setShowPayment}
-          property={property}
-          applicationData={applicationData}
-          onRecordLease={async (payment) => {
-            if (!property.landlordId) {
-              throw new Error(propertyT.missingLandlordError);
-            }
-            return await submitLeaseApplication({
-              propertyId: property.id,
-              landlordId: property.landlordId,
-              monthlyPrice: property.price,
-              applicationData,
-              payment,
-            });
-          }}
-          onPaymentSuccess={handlePaymentSuccess}
-        />
-      )}
     </div>
   );
 }

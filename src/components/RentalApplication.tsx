@@ -12,7 +12,6 @@ import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Checkbox } from './ui/checkbox';
 import { useLocale } from '../context/LocaleContext';
 import { LOCALE_DATE_LOCALE } from '../lib/locale';
-import { cn } from './ui/utils';
 import { PhoneCountryField } from './PhoneCountryField';
 import {
   DEFAULT_PHONE_COUNTRY_CODE,
@@ -20,11 +19,13 @@ import {
   isValidPhoneCountryCode,
   type PhoneCountryLabelKey,
 } from '../lib/phoneCountryCode';
+import { fetchLeaseOfferForConversation, type ConversationLeaseOffer } from '../lib/conversationLeaseOffers';
 
 interface RentalApplicationProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   property: Property;
+  conversationId?: string;
   onProceedToPayment: (applicationData: ApplicationData) => void;
 }
 
@@ -45,10 +46,18 @@ export interface ApplicationData {
   agreedToLeaseTerms: boolean;
 }
 
-export function RentalApplication({ open, onOpenChange, property, onProceedToPayment }: RentalApplicationProps) {
+export function RentalApplication({
+  open,
+  onOpenChange,
+  property,
+  conversationId,
+  onProceedToPayment,
+}: RentalApplicationProps) {
   const { locale, rentalApplicationT: t, localizePropertyTitle } = useLocale();
   const displayTitle = localizePropertyTitle(property.title);
   const [step, setStep] = useState(1);
+  const [leaseOffer, setLeaseOffer] = useState<ConversationLeaseOffer | null>(null);
+  const [leaseLoading, setLeaseLoading] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [fullName, setFullName] = useState('');
   const [phoneCountryCode, setPhoneCountryCode] = useState(DEFAULT_PHONE_COUNTRY_CODE);
@@ -64,7 +73,7 @@ export function RentalApplication({ open, onOpenChange, property, onProceedToPay
   const [additionalNotes, setAdditionalNotes] = useState('');
 
   const handleNext = () => {
-    if (step < 2) {
+    if (step < 3) {
       setStep(step + 1);
     }
   };
@@ -79,7 +88,27 @@ export function RentalApplication({ open, onOpenChange, property, onProceedToPay
     if (!open) return;
     setStep(1);
     setTermsAccepted(false);
-  }, [open]);
+    if (!conversationId) {
+      setLeaseOffer(null);
+      setLeaseLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setLeaseLoading(true);
+    (async () => {
+      try {
+        const offer = await fetchLeaseOfferForConversation(conversationId);
+        if (!cancelled) setLeaseOffer(offer);
+      } catch {
+        if (!cancelled) setLeaseOffer(null);
+      } finally {
+        if (!cancelled) setLeaseLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, conversationId]);
 
   const handleSubmit = () => {
     const applicationData: ApplicationData = {
@@ -101,8 +130,9 @@ export function RentalApplication({ open, onOpenChange, property, onProceedToPay
     onProceedToPayment(applicationData);
   };
 
-  const isStep1Valid = fullName && phone && email && isValidPhoneCountryCode(phoneCountryCode);
-  const isStep2Valid =
+  const isLeaseReady = Boolean(leaseOffer?.fileUrl);
+  const isStep2Valid = fullName && phone && email && isValidPhoneCountryCode(phoneCountryCode);
+  const isStep3Valid =
     Boolean(moveInDate) &&
     Boolean(emergencyContact) &&
     Boolean(emergencyPhone) &&
@@ -119,19 +149,51 @@ export function RentalApplication({ open, onOpenChange, property, onProceedToPay
           </DialogTitle>
           <DialogDescription>{t.description}</DialogDescription>
           <div className="mt-2 flex gap-2 text-xs text-gray-500">
-            <span className={step >= 1 ? 'font-medium text-gray-900' : ''}>{t.step1Label}</span>
+            <span className={step >= 1 ? 'font-medium text-gray-900' : ''}>{t.stepLeaseLabel}</span>
             <span>·</span>
-            <span className={step >= 2 ? 'font-medium text-gray-900' : ''}>{t.step2Label}</span>
+            <span className={step >= 2 ? 'font-medium text-gray-900' : ''}>{t.step1Label}</span>
+            <span>·</span>
+            <span className={step >= 3 ? 'font-medium text-gray-900' : ''}>{t.step2Label}</span>
           </div>
           <div className="mt-2 flex items-center gap-2">
             <div className={`h-1 flex-1 rounded ${step >= 1 ? 'bg-black' : 'bg-gray-200'}`} />
             <div className={`h-1 flex-1 rounded ${step >= 2 ? 'bg-black' : 'bg-gray-200'}`} />
+            <div className={`h-1 flex-1 rounded ${step >= 3 ? 'bg-black' : 'bg-gray-200'}`} />
           </div>
         </DialogHeader>
 
         <div className="space-y-6 py-4">
-          {/* Step 1: Personal Information */}
           {step === 1 && (
+            <div className="space-y-4">
+              <h3 className="flex items-center gap-2 text-base font-semibold">
+                <FileText className="h-5 w-5" />
+                {t.leaseTitle}
+              </h3>
+              {leaseLoading ? (
+                <p className="text-sm text-gray-500">{t.leaseLoading}</p>
+              ) : isLeaseReady && leaseOffer ? (
+                <div className="space-y-3">
+                  <p className="text-sm text-gray-600">{t.leaseFile}</p>
+                  <a
+                    href={leaseOffer.fileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 rounded-lg border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-800 hover:bg-stone-100"
+                  >
+                    <FileText className="h-4 w-4 shrink-0" />
+                    <span className="min-w-0 truncate underline">{leaseOffer.fileName || t.openLease}</span>
+                  </a>
+                </div>
+              ) : (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-5 text-sm text-amber-950">
+                  <p className="font-medium">{t.leaseWaiting}</p>
+                  <p className="mt-1 text-amber-900/80">{t.leaseWaitingHint}</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {step === 2 && (
             <div className="space-y-4">
               <h3 className="flex items-center gap-2 text-base font-semibold">
                 <User className="h-5 w-5" />
@@ -225,8 +287,7 @@ export function RentalApplication({ open, onOpenChange, property, onProceedToPay
             </div>
           )}
 
-          {/* Step 2: Lease Details */}
-          {step === 2 && (
+          {step === 3 && (
             <div className="space-y-4">
               <h3 className="flex items-center gap-2 text-base font-semibold">
                 <FileText className="h-5 w-5" />
@@ -374,14 +435,11 @@ export function RentalApplication({ open, onOpenChange, property, onProceedToPay
                 {t.back}
               </Button>
             )}
-            {step < 2 ? (
+            {step < 3 ? (
               <Button
                 onClick={handleNext}
                 className="flex-1 bg-black text-white hover:bg-gray-800"
-                disabled={
-                  (step === 1 && !isStep1Valid) ||
-                  (step === 2 && !isStep2Valid)
-                }
+                disabled={(step === 1 && !isLeaseReady) || (step === 2 && !isStep2Valid)}
               >
                 {t.next}
                 <ArrowRight className="w-4 h-4 ml-2" />
@@ -390,7 +448,7 @@ export function RentalApplication({ open, onOpenChange, property, onProceedToPay
               <Button
                 onClick={handleSubmit}
                 className="flex-1 bg-black text-white hover:bg-gray-800"
-                disabled={!isStep2Valid}
+                disabled={!isStep3Valid}
               >
                 {t.proceedToPayment}
                 <CreditCard className="ml-2 h-4 w-4" />

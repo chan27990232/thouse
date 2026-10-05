@@ -69,7 +69,7 @@ interface HomeProps {
   onSignOut: () => void;
   onPropertyClick: (property: Property) => void;
   onLandlordDashboard: () => void;
-  onChatClick: () => void;
+  onChatClick: (conversationId?: string) => void;
   onProfileClick: () => void;
   onMyPropertiesClick: () => void;
   onGoHome: () => void;

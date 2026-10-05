@@ -1,10 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, MoreVertical, Search, ChevronLeft, Star } from 'lucide-react';
+import { ArrowLeft, MoreVertical, Search, ChevronLeft, Star, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import type { Property } from '../App';
 import { Input } from './ui/input';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { ChatMessageContent } from './chat/ChatMessageContent';
-import { ChatComposer } from './chat/ChatComposer';
+import { ChatComposer, type ChatComposerQuickAction } from './chat/ChatComposer';
+import { ChatDeletedPlaceholder } from './chat/ChatDeletedPlaceholder';
+import { PropertySignLeaseFlow } from './PropertySignLeaseFlow';
+import { LandlordSignLeaseFlow } from './LandlordSignLeaseFlow';
+import { BookViewingDialog } from './BookViewingDialog';
 import { getChatMessagePreview, type ParsedChatAttachment } from '../lib/chatMessageBody';
 import thouseLogo from 'figma:asset/f0c80b0c66e9c54aea3881bdf7a4eb152cbc4c0b.png';
 import { supabase } from '../lib/supabase';
@@ -15,10 +20,25 @@ import {
   fetchConversationMessages,
   fetchConversationsForLandlord,
   fetchConversationsForTenant,
+  isConversationMessageDeleted,
   markAllConversationsRead,
   markConversationRead,
   sendChatMessage,
+  sendViewingBookingMessage,
+  sendViewingIgnoredMessage,
+  sendViewingSuccessMessage,
+  softDeleteConversationMessage,
 } from '../lib/conversations';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from './ui/alert-dialog';
 import {
   isConversationArchived,
   readArchivedConversationIds,
@@ -26,7 +46,8 @@ import {
   writeChatSettings,
   type ChatSettings,
 } from '../lib/chatInbox';
-import { defaultPropertyImage } from '../lib/properties';
+import { defaultPropertyImage, loadPropertyById, loadPropertyViewingAddress } from '../lib/properties';
+import { isCurrentUserVerified } from '../lib/identityVerification';
 import { getProfileStarSummary, type StarSummary } from '../lib/transactionReviews';
 import {
   THOUSE_SUPPORT_LABEL,
@@ -40,6 +61,13 @@ import {
 import { cn } from './ui/utils';
 import { useLocale } from '../context/LocaleContext';
 import { formatLocaleDateTime } from '../lib/i18nDate';
+import {
+  fetchViewingBookingsForConversation,
+  parseViewingPayload,
+  respondToViewingBooking,
+  type ViewingBooking,
+  type ViewingBookingStatus,
+} from '../lib/viewingBookings';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -60,6 +88,7 @@ import { Label } from './ui/label';
 interface ChatPageProps {
   userRole: 'tenant' | 'landlord';
   onBack: () => void;
+  initialConversationId?: string | null;
 }
 
 function firstLine(text: string) {
@@ -79,7 +108,7 @@ function isSameUserId(a: string, b: string | null): boolean {
   return normalizeAuthId(a) === normalizeAuthId(b);
 }
 
-export function ChatPage({ userRole, onBack }: ChatPageProps) {
+export function ChatPage({ userRole, onBack, initialConversationId }: ChatPageProps) {
   const { locale, chatT, commonT, localizePropertyTitle } = useLocale();
   const [userId, setUserId] = useState<string | null>(null);
   const [listLoading, setListLoading] = useState(true);
@@ -99,6 +128,17 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [inboxActionLoading, setInboxActionLoading] = useState(false);
   const [archivedRevision, setArchivedRevision] = useState(0);
+  const [tenantActionLoading, setTenantActionLoading] = useState(false);
+  const [showSignLease, setShowSignLease] = useState(false);
+  const [signLeaseProperty, setSignLeaseProperty] = useState<Property | null>(null);
+  const [signLeaseConversationId, setSignLeaseConversationId] = useState<string | null>(null);
+  const [signLeaseTenantId, setSignLeaseTenantId] = useState<string | null>(null);
+  const [showLandlordSign, setShowLandlordSign] = useState(false);
+  const [showBookViewing, setShowBookViewing] = useState(false);
+  const [viewingBookings, setViewingBookings] = useState<ViewingBooking[]>([]);
+  const [propertyAddress, setPropertyAddress] = useState('');
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   const isSupportActive = activeId === THOUSE_SUPPORT_PIN_ID;
   const activeThread = isSupportActive ? null : (threads.find((t) => t.conversation.id === activeId) ?? null);
@@ -124,6 +164,11 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
       setListLoading(false);
     }
   }, [userRole, chatT.loadError]);
+
+  useEffect(() => {
+    if (!initialConversationId) return;
+    setActiveId(initialConversationId);
+  }, [initialConversationId]);
 
   const loadSupportTicket = useCallback(async (uid: string) => {
     try {
@@ -182,6 +227,9 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
           const rows = await fetchConversationMessages(activeId);
           if (cancelled) return;
           setMessages(rows);
+          const bookings = await fetchViewingBookingsForConversation(activeId);
+          if (cancelled) return;
+          setViewingBookings(bookings);
           await markConversationRead(activeId);
           await loadThreads(userId);
         }
@@ -189,6 +237,7 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
         if (!cancelled) {
           if (isSupportActive) setSupportMessages([]);
           else setMessages([]);
+          if (!isSupportActive) setViewingBookings([]);
         }
       } finally {
         if (!cancelled) setMsgLoading(false);
@@ -221,6 +270,26 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
       cancelled = true;
     };
   }, [activeTenantIdForLandlord]);
+
+  useEffect(() => {
+    const propertyId = activeThread?.conversation.property_id;
+    if (!propertyId || userRole !== 'landlord') {
+      setPropertyAddress('');
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const address = await loadPropertyViewingAddress(propertyId);
+        if (!cancelled) setPropertyAddress(address);
+      } catch {
+        if (!cancelled) setPropertyAddress('');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeThread?.conversation.property_id, userRole]);
 
   const totalUnread =
     threads.reduce((s, t) => s + t.unreadCount, 0) +
@@ -322,6 +391,288 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
     } catch {
       setDraft(prevDraft);
     }
+  };
+
+  const requireTenantVerified = async () => {
+    const verified = await isCurrentUserVerified();
+    if (!verified) {
+      toast.error(chatT.tenantActionVerificationRequired);
+      return false;
+    }
+    return true;
+  };
+
+  const handleBookViewing = async () => {
+    if (userRole !== 'tenant' || !activeThread || !userId || tenantActionLoading) return;
+    if (!(await requireTenantVerified())) return;
+    setShowBookViewing(true);
+  };
+
+  const handleViewingBooked = async (booking: ViewingBooking) => {
+    if (!userId || !activeId) return;
+    const summary = `${chatT.viewingCardTitle}：${formatLocaleDateTime(booking.startsAt, locale)} – ${formatLocaleDateTime(booking.endsAt, locale)}`;
+    await sendViewingBookingMessage(activeId, userId, booking, summary);
+    setViewingBookings((prev) => [...prev.filter((b) => b.id !== booking.id), booking]);
+    const rows = await fetchConversationMessages(activeId);
+    setMessages(rows);
+    await loadThreads(userId);
+  };
+
+  const handleViewingStatusChange = (bookingId: string, status: ViewingBookingStatus) => {
+    setViewingBookings((prev) => prev.map((b) => (b.id === bookingId ? { ...b, status } : b)));
+  };
+
+  const handleViewingAcceptConfirm = async (bookingId: string) => {
+    if (!userId || !activeId || !activeThread) {
+      throw new Error(chatT.viewingRespondFailed);
+    }
+    const booking = viewingBookings.find((b) => b.id === bookingId);
+    if (!booking) {
+      throw new Error(chatT.viewingRespondFailed);
+    }
+
+    let address = propertyAddress.trim();
+    if (!address) {
+      address = await loadPropertyViewingAddress(activeThread.conversation.property_id);
+      if (address) setPropertyAddress(address);
+    }
+    if (!address) {
+      throw new Error(chatT.viewingAddressLoadFailed);
+    }
+
+    await respondToViewingBooking(bookingId, 'accepted');
+    setViewingBookings((prev) =>
+      prev.map((b) => (b.id === bookingId ? { ...b, status: 'accepted' } : b)),
+    );
+
+    const summary = `${chatT.viewingSuccess}：${formatLocaleDateTime(booking.startsAt, locale)} – ${formatLocaleDateTime(booking.endsAt, locale)}`;
+    await sendViewingSuccessMessage(
+      activeId,
+      userId,
+      { ...booking, status: 'accepted' },
+      summary,
+    );
+    await sendChatMessage(
+      activeId,
+      userId,
+      chatT.format('viewingAddressMessage', { address }),
+    );
+
+    const rows = await fetchConversationMessages(activeId);
+    setMessages(rows);
+    await loadThreads(userId);
+  };
+
+  const handleViewingIgnoreConfirm = async (bookingId: string) => {
+    if (!userId || !activeId) {
+      throw new Error(chatT.viewingRespondFailed);
+    }
+    const booking = viewingBookings.find((b) => b.id === bookingId);
+    if (!booking) {
+      throw new Error(chatT.viewingRespondFailed);
+    }
+    await respondToViewingBooking(bookingId, 'ignored');
+    setViewingBookings((prev) =>
+      prev.map((b) => (b.id === bookingId ? { ...b, status: 'ignored' } : b)),
+    );
+    await sendViewingIgnoredMessage(activeId, userId, { ...booking, status: 'ignored' }, chatT.viewingIgnoredNotice);
+    const rows = await fetchConversationMessages(activeId);
+    setMessages(rows);
+    await loadThreads(userId);
+  };
+
+  const handleSignNow = async () => {
+    if (userRole !== 'tenant' || !activeThread || tenantActionLoading) return;
+    if (!(await requireTenantVerified())) return;
+    setTenantActionLoading(true);
+    try {
+      const property = await loadPropertyById(activeThread.conversation.property_id);
+      if (!property) {
+        toast.error(chatT.signPropertyLoadFailed);
+        return;
+      }
+      setSignLeaseProperty({
+        ...property,
+        landlordId: property.landlordId ?? activeThread.conversation.landlord_id,
+      });
+      setSignLeaseConversationId(activeThread.conversation.id);
+      setShowSignLease(true);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : chatT.signPropertyLoadFailed);
+    } finally {
+      setTenantActionLoading(false);
+    }
+  };
+
+  const handleLandlordSignNow = async () => {
+    if (userRole !== 'landlord' || !activeThread || !userId || tenantActionLoading) return;
+    setTenantActionLoading(true);
+    try {
+      const property = await loadPropertyById(activeThread.conversation.property_id);
+      if (!property) {
+        toast.error(chatT.signPropertyLoadFailed);
+        return;
+      }
+      setSignLeaseProperty({
+        ...property,
+        landlordId: property.landlordId ?? activeThread.conversation.landlord_id,
+      });
+      setSignLeaseConversationId(activeThread.conversation.id);
+      setSignLeaseTenantId(activeThread.conversation.tenant_id);
+      setShowLandlordSign(true);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : chatT.signPropertyLoadFailed);
+    } finally {
+      setTenantActionLoading(false);
+    }
+  };
+
+  const tenantQuickActions: ChatComposerQuickAction[] | undefined =
+    activeThread && !isSupportActive
+      ? userRole === 'tenant'
+        ? [
+            {
+              id: 'book-viewing',
+              label: chatT.bookViewing,
+              onClick: () => void handleBookViewing(),
+              disabled: tenantActionLoading,
+            },
+            {
+              id: 'sign-now',
+              label: chatT.signNow,
+              onClick: () => void handleSignNow(),
+              variant: 'solid',
+              disabled: tenantActionLoading,
+            },
+          ]
+        : [
+            {
+              id: 'sign-now',
+              label: chatT.signNow,
+              onClick: () => void handleLandlordSignNow(),
+              variant: 'solid',
+              disabled: tenantActionLoading,
+            },
+          ]
+      : undefined;
+
+  const viewingById = useMemo(
+    () => new Map(viewingBookings.map((b) => [b.id, b])),
+    [viewingBookings],
+  );
+
+  const isHiddenIgnoredViewing = (body: string) => {
+    if (userRole !== 'tenant') return false;
+    const { viewing } = parseViewingPayload(body);
+    if (!viewing) return false;
+    return viewingById.get(viewing.bookingId)?.status === 'ignored';
+  };
+
+  const renderChatBody = (body: string, isMe?: boolean) => {
+    const { viewing } = parseViewingPayload(body);
+    return (
+      <ChatMessageContent
+        body={body}
+        isMe={isMe}
+        userRole={userRole}
+        viewingBooking={viewing ? viewingById.get(viewing.bookingId) : undefined}
+        propertyAddress={propertyAddress}
+        onViewingStatusChange={handleViewingStatusChange}
+        onViewingAcceptConfirm={handleViewingAcceptConfirm}
+        onViewingIgnoreConfirm={handleViewingIgnoreConfirm}
+      />
+    );
+  };
+
+  const handleConfirmDeleteMessage = async () => {
+    if (!deleteTargetId) return;
+    setDeleteLoading(true);
+    try {
+      await softDeleteConversationMessage(deleteTargetId);
+      const deletedAt = new Date().toISOString();
+      setMessages((prev) =>
+        prev.map((m) => (m.id === deleteTargetId ? { ...m, deleted_at: deletedAt } : m)),
+      );
+      setDeleteTargetId(null);
+      if (userId) await loadThreads(userId);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : chatT.deleteMessageFailed);
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
+  const renderPropertyMessage = (msg: ConversationMessageRow, opts: {
+    isMe: boolean;
+    startOtherBlock: boolean;
+  }) => {
+    const { isMe, startOtherBlock } = opts;
+    const deleted = isConversationMessageDeleted(msg);
+    const bubble = (
+      <div
+        className={cn(
+          'text-sm leading-relaxed',
+          isMe
+            ? 'inline-block max-w-[85%] rounded-[1.1rem] rounded-tr-md bg-slate-200/95 px-3.5 py-2.5 text-left text-slate-900 shadow-sm ring-1 ring-slate-300/25 sm:max-w-[75%]'
+            : 'w-fit min-w-0 max-w-[calc(100%-2.5rem)] rounded-[1.1rem] rounded-tl-md border border-stone-200/90 bg-white px-3.5 py-2.5 text-stone-800 shadow-sm',
+          deleted && (isMe ? 'bg-slate-100/90 text-slate-500 ring-slate-200/40' : 'bg-stone-50 text-stone-400'),
+        )}
+      >
+        {deleted ? <ChatDeletedPlaceholder isMe={isMe} /> : renderChatBody(msg.body, isMe)}
+      </div>
+    );
+
+    if (isMe) {
+      return (
+        <div key={msg.id} className="group w-full text-right" dir="ltr">
+          <div className="inline-flex max-w-full items-center justify-end gap-1">
+            {!deleted ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className="rounded-full p-1 text-stone-400 opacity-100 transition-opacity hover:bg-stone-200/80 hover:text-stone-700 sm:opacity-0 sm:group-hover:opacity-100"
+                    aria-label={chatT.deleteMessage}
+                  >
+                    <MoreVertical className="h-3.5 w-3.5" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-40">
+                  <DropdownMenuItem
+                    className="text-red-600 focus:text-red-600"
+                    onClick={() => setDeleteTargetId(msg.id)}
+                  >
+                    <Trash2 className="mr-2 h-3.5 w-3.5" />
+                    {chatT.deleteMessage}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : null}
+            {bubble}
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div key={msg.id} className="w-full min-w-0">
+        {startOtherBlock && activeThread ? (
+          <p className="mb-1 pl-10 text-[11px] font-medium text-gray-500">{activeThread.peerLabel}</p>
+        ) : null}
+        <div className="flex w-full min-w-0 items-end justify-start gap-2.5">
+          <div className="flex w-8 shrink-0 flex-col items-center justify-end pb-0.5">
+            {startOtherBlock && activeThread ? (
+              <div className="flex h-8 w-8 items-center justify-center rounded-full border border-stone-200 bg-gradient-to-b from-stone-100 to-stone-200 text-xs font-semibold text-stone-700 shadow-sm">
+                {getAvatarText(activeThread.peerLabel)}
+              </div>
+            ) : (
+              <div className="h-8 w-8" aria-hidden />
+            )}
+          </div>
+          {bubble}
+        </div>
+      </div>
+    );
   };
 
   if (userId === null && !listLoading) {
@@ -495,7 +846,11 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
                         </div>
                         <p className="mt-0.5 truncate text-xs text-gray-600">{localizePropertyTitle(item.propertyTitle)}</p>
                         <p className="mt-1 line-clamp-2 text-xs text-gray-500">
-                          {item.lastMessageBody ? firstLine(item.lastMessageBody) : chatT.noMessages}
+                          {item.lastMessageBody
+                            ? item.lastMessageBody.trim() === '[thouse-deleted]'
+                              ? chatT.messageDeleted
+                              : firstLine(item.lastMessageBody)
+                            : chatT.noMessages}
                         </p>
                       </div>
                       <div className="flex shrink-0 flex-col items-end gap-1">
@@ -570,7 +925,7 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
                       return (
                         <div key={msg.id} className="w-full text-right" dir="ltr">
                           <div className="inline-block max-w-[85%] rounded-[1.1rem] rounded-tr-md bg-slate-200/95 px-3.5 py-2.5 text-left text-sm leading-relaxed text-slate-900 shadow-sm ring-1 ring-slate-300/25 sm:max-w-[75%]">
-                            <ChatMessageContent body={msg.body} isMe />
+                            {renderChatBody(msg.body, true)}
                           </div>
                         </div>
                       );
@@ -587,7 +942,7 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
                           )}
                         </div>
                         <div className="w-fit min-w-0 max-w-[calc(100%-2.5rem)] rounded-[1.1rem] rounded-tl-md border border-stone-200/90 bg-white px-3.5 py-2.5 text-sm leading-relaxed text-stone-800 shadow-sm">
-                          <ChatMessageContent body={msg.body} />
+                          {renderChatBody(msg.body)}
                         </div>
                       </div>
                     );
@@ -719,41 +1074,14 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
                   className="min-h-0 w-full min-w-0 flex-1 space-y-3 overflow-y-auto overflow-x-hidden bg-stone-50/90 px-3 py-4 text-left md:px-6"
                 >
                   {msgLoading ? <p className="text-xs text-gray-500">{chatT.loadingMessages}</p> : null}
-                  {messages.map((msg, index) => {
+                  {messages
+                    .filter((msg) => isConversationMessageDeleted(msg) || !isHiddenIgnoredViewing(msg.body))
+                    .map((msg, index, visible) => {
                     const isMe = isSameUserId(msg.sender_id, userId);
-                    const prev = index > 0 ? messages[index - 1] : null;
+                    const prev = index > 0 ? visible[index - 1] : null;
                     const startOtherBlock =
                       !isMe && (!prev || (userId && isSameUserId(prev.sender_id, userId)));
-                    if (isMe) {
-                      return (
-                        <div key={msg.id} className="w-full text-right" dir="ltr">
-                          <div className="inline-block max-w-[85%] rounded-[1.1rem] rounded-tr-md bg-slate-200/95 px-3.5 py-2.5 text-left text-sm leading-relaxed text-slate-900 shadow-sm ring-1 ring-slate-300/25 sm:max-w-[75%]">
-                            <ChatMessageContent body={msg.body} isMe />
-                          </div>
-                        </div>
-                      );
-                    }
-                    return (
-                      <div key={msg.id} className="w-full min-w-0">
-                        {startOtherBlock ? (
-                          <p className="mb-1 pl-10 text-[11px] font-medium text-gray-500">{activeThread.peerLabel}</p>
-                        ) : null}
-                        <div className="flex w-full min-w-0 items-end justify-start gap-2.5">
-                        <div className="flex w-8 shrink-0 flex-col items-center justify-end pb-0.5">
-                          {startOtherBlock ? (
-                            <div className="flex h-8 w-8 items-center justify-center rounded-full border border-stone-200 bg-gradient-to-b from-stone-100 to-stone-200 text-xs font-semibold text-stone-700 shadow-sm">
-                              {getAvatarText(activeThread.peerLabel)}
-                            </div>
-                          ) : (
-                            <div className="h-8 w-8" aria-hidden />
-                          )}
-                        </div>
-                        <div className="w-fit min-w-0 max-w-[calc(100%-2.5rem)] rounded-[1.1rem] rounded-tl-md border border-stone-200/90 bg-white px-3.5 py-2.5 text-sm leading-relaxed text-stone-800 shadow-sm">
-                          <ChatMessageContent body={msg.body} />
-                        </div>
-                        </div>
-                      </div>
-                    );
+                    return renderPropertyMessage(msg, { isMe, startOtherBlock });
                   })}
                 </div>
 
@@ -765,6 +1093,7 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
                       onSend={send}
                       placeholder={chatT.messagePlaceholder}
                       userId={userId}
+                      quickActions={tenantQuickActions}
                     />
                   ) : null}
                 </div>
@@ -773,6 +1102,54 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
           </section>
         </div>
       </div>
+
+      {userRole === 'tenant' && activeThread && userId ? (
+        <BookViewingDialog
+          open={showBookViewing}
+          onOpenChange={setShowBookViewing}
+          conversationId={activeThread.conversation.id}
+          propertyId={activeThread.conversation.property_id}
+          landlordId={activeThread.conversation.landlord_id}
+          tenantId={userId}
+          propertyTitle={localizePropertyTitle(activeThread.propertyTitle)}
+          onBooked={handleViewingBooked}
+        />
+      ) : null}
+
+      {userRole === 'tenant' && signLeaseProperty && signLeaseConversationId ? (
+        <PropertySignLeaseFlow
+          open={showSignLease}
+          onOpenChange={setShowSignLease}
+          property={signLeaseProperty}
+          conversationId={signLeaseConversationId}
+          onCompleted={() => {
+            setShowSignLease(false);
+            setSignLeaseProperty(null);
+            setSignLeaseConversationId(null);
+          }}
+        />
+      ) : null}
+
+      {userRole === 'landlord' && signLeaseProperty && signLeaseConversationId && signLeaseTenantId && userId ? (
+        <LandlordSignLeaseFlow
+          open={showLandlordSign}
+          onOpenChange={(next) => {
+            setShowLandlordSign(next);
+            if (!next) {
+              setSignLeaseProperty(null);
+              setSignLeaseConversationId(null);
+              setSignLeaseTenantId(null);
+            }
+          }}
+          property={signLeaseProperty}
+          conversationId={signLeaseConversationId}
+          landlordId={userId}
+          tenantId={signLeaseTenantId}
+          onSubmitted={async (payload) => {
+            await send({ text: payload.text, attachment: payload.attachment });
+          }}
+        />
+      ) : null}
 
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
         <DialogContent className="max-w-sm">
@@ -792,6 +1169,33 @@ export function ChatPage({ userRole, onBack }: ChatPageProps) {
           </div>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={Boolean(deleteTargetId)}
+        onOpenChange={(open) => {
+          if (!open && !deleteLoading) setDeleteTargetId(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{chatT.deleteMessage}</AlertDialogTitle>
+            <AlertDialogDescription>{chatT.deleteMessageHint}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteLoading}>{chatT.viewingAcceptConfirmCancel}</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleteLoading}
+              className="bg-red-600 text-white hover:bg-red-700"
+              onClick={(e) => {
+                e.preventDefault();
+                void handleConfirmDeleteMessage();
+              }}
+            >
+              {chatT.deleteMessage}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

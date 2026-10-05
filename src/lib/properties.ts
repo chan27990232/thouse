@@ -2,6 +2,7 @@ import type { Property } from '../App';
 import type { PropertyBuildingAge } from './propertyFilterFields';
 import { buildingAgeFromBuiltYear } from './propertyFilterFields';
 import { supabase } from './supabase';
+import { signedUrlForVerificationPath } from './propertyMediaUpload';
 
 /** 物業未上傳圖片時使用之佔位圖（非假房源列表） */
 export const defaultPropertyImage =
@@ -149,6 +150,76 @@ function mapProperty(row: PropertyRow): Property {
   };
 }
 
+function parseJsonStringArray(value: unknown): string[] {
+  if (typeof value === 'string') {
+    try {
+      return parseJsonStringArray(JSON.parse(value));
+    } catch {
+      return [];
+    }
+  }
+  if (!Array.isArray(value)) return [];
+  const out: string[] = [];
+  for (const item of value) {
+    const s = String(item ?? '').trim();
+    if (s) out.push(s);
+  }
+  return out;
+}
+
+function uniqueMediaUrls(urls: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const url of urls) {
+    const key = url.split('?')[0];
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(url);
+  }
+  return out;
+}
+
+const VIDEO_EXT = /\.(mp4|mov|m4v|webm)(\?|$)/i;
+
+export function isPropertyGalleryVideo(url: string): boolean {
+  return VIDEO_EXT.test(url);
+}
+
+/** 詳情頁相簿：公開 gallery_urls，若尚未寫入則用實景佐證圖 */
+export async function loadPropertyGallery(propertyId: string, coverImage?: string): Promise<string[]> {
+  const trimmed = propertyId.trim();
+  if (!trimmed) return coverImage ? [coverImage] : [];
+
+  const { data, error } = await supabase
+    .from('properties')
+    .select('image, gallery_urls, proof_photo_urls')
+    .eq('id', trimmed)
+    .maybeSingle();
+
+  if (error || !data) {
+    return coverImage ? uniqueMediaUrls([coverImage]) : [];
+  }
+
+  const cover = String(data.image || coverImage || '').trim();
+  const gallery = parseJsonStringArray(data.gallery_urls);
+  if (gallery.length > 0) {
+    return uniqueMediaUrls([cover, ...gallery].filter(Boolean));
+  }
+
+  const proofPaths = parseJsonStringArray(data.proof_photo_urls);
+  const extras: string[] = [];
+  for (const path of proofPaths) {
+    if (/^https?:\/\//i.test(path)) {
+      extras.push(path);
+      continue;
+    }
+    const signed = await signedUrlForVerificationPath(path);
+    if (signed) extras.push(signed);
+  }
+
+  return uniqueMediaUrls([cover, ...extras].filter(Boolean));
+}
+
 function compareHomepageProperties(a: PropertyRow, b: PropertyRow): number {
   const aRented = isRentedStatus(a.status);
   const bRented = isRentedStatus(b.status);
@@ -197,4 +268,53 @@ export async function loadPropertyById(id: string): Promise<Property | null> {
 
   if (error || !data) return null;
   return mapProperty(data as PropertyRow);
+}
+
+const INTERNAL_ADDRESS_HEADERS = ['地址（內部）：', '地址（内部）：', 'Address (internal):'] as const;
+
+/** 從物業 description 抽出內部地址；沒有則以地區／標題／樓層組成。 */
+export function extractPropertyViewingAddress(input: {
+  description?: string | null;
+  title?: string | null;
+  district?: string | null;
+  floor?: number | string | null;
+}): string {
+  const description = (input.description ?? '').trim();
+  for (const header of INTERNAL_ADDRESS_HEADERS) {
+    const idx = description.indexOf(header);
+    if (idx >= 0) {
+      const block = description.slice(idx + header.length).trim();
+      if (block) return block;
+    }
+  }
+
+  const parts: string[] = [];
+  const district = (input.district ?? '').trim();
+  const title = (input.title ?? '').trim();
+  const floorNum = Number(input.floor);
+  if (district) parts.push(district);
+  if (title) parts.push(title);
+  if (Number.isFinite(floorNum) && floorNum > 0) parts.push(`${floorNum} 樓`);
+  return parts.join('\n');
+}
+
+/** 載入接受睇樓預約時要發送給租客的地址文字 */
+export async function loadPropertyViewingAddress(propertyId: string): Promise<string> {
+  const trimmed = propertyId.trim();
+  if (!trimmed) return '';
+
+  const { data, error } = await supabase
+    .from('properties')
+    .select('title,district,floor,description')
+    .eq('id', trimmed)
+    .maybeSingle();
+
+  if (error || !data) return '';
+
+  return extractPropertyViewingAddress({
+    description: data.description as string | null,
+    title: data.title as string | null,
+    district: data.district as string | null,
+    floor: data.floor as number | string | null,
+  });
 }

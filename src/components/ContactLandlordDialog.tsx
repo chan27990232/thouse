@@ -21,9 +21,17 @@ interface ContactLandlordDialogProps {
   onOpenChange: (open: boolean) => void;
   property: Property;
   isAuthenticated: boolean;
+  /** 開啟時預填訊息（例如預約睇樓） */
+  initialMessage?: string;
 }
 
-export function ContactLandlordDialog({ open, onOpenChange, property, isAuthenticated }: ContactLandlordDialogProps) {
+export function ContactLandlordDialog({
+  open,
+  onOpenChange,
+  property,
+  isAuthenticated,
+  initialMessage = '',
+}: ContactLandlordDialogProps) {
   const { locale, commonT, profileT, contactLandlordT, localizePropertyTitle } = useLocale();
   const displayTitle = localizePropertyTitle(property.title);
   const [messageSent, setMessageSent] = useState(false);
@@ -32,7 +40,7 @@ export function ContactLandlordDialog({ open, onOpenChange, property, isAuthenti
   const [starSummary, setStarSummary] = useState<StarSummary>({ avgStars: 0, reviewCount: 0 });
 
   const [name, setName] = useState('');
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState(initialMessage);
 
   const [sending, setSending] = useState(false);
   const [landlord, setLandlord] = useState({
@@ -66,6 +74,13 @@ export function ContactLandlordDialog({ open, onOpenChange, property, isAuthenti
   useEffect(() => {
     setLandlord((prev) => ({ ...prev, name: contactLandlordT.landlordDefault }));
   }, [contactLandlordT.landlordDefault]);
+
+  useEffect(() => {
+    if (open) {
+      setMessage(initialMessage);
+      setMessageSent(false);
+    }
+  }, [open, initialMessage]);
 
   useEffect(() => {
     let isMounted = true;

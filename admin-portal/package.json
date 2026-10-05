@@ -48,9 +48,24 @@
     "win": {
       "signAndEditExecutable": false,
       "target": [
-        { "target": "nsis", "arch": ["x64"] },
-        { "target": "portable", "arch": ["x64"] }
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
       ]
     }
+  },
+  "allowScripts": {
+    "@swc/core@1.15.30": true,
+    "esbuild@0.25.12": true,
+    "fsevents@2.3.3": true
   }
 }

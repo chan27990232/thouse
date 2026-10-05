@@ -1,6 +1,12 @@
 import { supabase } from './supabase';
 import { archiveConversationLocal, unarchiveConversationLocal } from './chatInbox';
-import { buildChatMessageBody, getChatMessagePreview, type ParsedChatAttachment } from './chatMessageBody';
+import { classifyNoticeKind, isActionNoticeKind, type AppNoticeKind } from './leaseNotice';
+import {
+  buildViewingIgnoredMessageBody,
+  buildViewingMessageBody,
+  buildViewingSuccessMessageBody,
+  type ViewingBooking,
+} from './viewingBookings';
 import {
   buildChatPeerLabel,
   type PublicChatProfile,
@@ -22,6 +28,7 @@ export interface ConversationMessageRow {
   body: string;
   read_at: string | null;
   created_at: string;
+  deleted_at?: string | null;
 }
 
 export interface ConversationWithProperty {
@@ -116,6 +123,60 @@ export async function sendChatMessage(
   if (error) throw error;
 }
 
+export async function sendViewingBookingMessage(
+  conversationId: string,
+  senderId: string,
+  booking: ViewingBooking,
+  summaryText: string,
+) {
+  const body = buildViewingMessageBody(
+    { bookingId: booking.id, startAt: booking.startsAt, endAt: booking.endsAt },
+    summaryText,
+  );
+  const { error } = await supabase.from('conversation_messages').insert({
+    conversation_id: conversationId,
+    sender_id: senderId,
+    body,
+  });
+  if (error) throw error;
+}
+
+export async function sendViewingSuccessMessage(
+  conversationId: string,
+  senderId: string,
+  booking: ViewingBooking,
+  summaryText: string,
+) {
+  const body = buildViewingSuccessMessageBody(
+    { bookingId: booking.id, startAt: booking.startsAt, endAt: booking.endsAt },
+    summaryText,
+  );
+  const { error } = await supabase.from('conversation_messages').insert({
+    conversation_id: conversationId,
+    sender_id: senderId,
+    body,
+  });
+  if (error) throw error;
+}
+
+export async function sendViewingIgnoredMessage(
+  conversationId: string,
+  senderId: string,
+  booking: ViewingBooking,
+  summaryText: string,
+) {
+  const body = buildViewingIgnoredMessageBody(
+    { bookingId: booking.id, startAt: booking.startsAt, endAt: booking.endsAt },
+    summaryText,
+  );
+  const { error } = await supabase.from('conversation_messages').insert({
+    conversation_id: conversationId,
+    sender_id: senderId,
+    body,
+  });
+  if (error) throw error;
+}
+
 export async function fetchUnreadInquiryCount(): Promise<number> {
   const { data, error } = await supabase.rpc('unread_inquiry_count_for_user');
   if (error) {
@@ -167,12 +228,29 @@ export async function archiveConversationForUser(
 export async function fetchConversationMessages(conversationId: string) {
   const { data, error } = await supabase
     .from('conversation_messages')
-    .select('id, conversation_id, sender_id, body, read_at, created_at')
+    .select('id, conversation_id, sender_id, body, read_at, created_at, deleted_at')
     .eq('conversation_id', conversationId)
     .order('created_at', { ascending: true });
 
   if (error) throw error;
   return (data ?? []) as ConversationMessageRow[];
+}
+
+/** Soft-delete: keep the message row; UI shows “已刪除” instead of content. Sender only. */
+export async function softDeleteConversationMessage(messageId: string) {
+  const { error } = await supabase.rpc('soft_delete_conversation_message', {
+    p_message_id: messageId,
+  });
+  if (error) throw error;
+}
+
+export function isConversationMessageDeleted(msg: {
+  deleted_at?: string | null;
+  body?: string | null;
+}): boolean {
+  if (msg.deleted_at) return true;
+  // Fallback marker if older clients wrote a sentinel body
+  return (msg.body ?? '').trim() === '[thouse-deleted]';
 }
 
 function groupMessagesByConversation(
@@ -217,7 +295,7 @@ export async function fetchConversationsForLandlord(landlordId: string): Promise
   const convIds = convs.map((c) => c.id);
   const { data: allMsgs } = await supabase
     .from('conversation_messages')
-    .select('conversation_id, body, sender_id, read_at, created_at')
+    .select('conversation_id, body, sender_id, read_at, created_at, deleted_at')
     .in('conversation_id', convIds);
 
   const msgList = (allMsgs ?? []) as {
@@ -226,6 +304,7 @@ export async function fetchConversationsForLandlord(landlordId: string): Promise
     sender_id: string;
     read_at: string | null;
     created_at: string;
+    deleted_at?: string | null;
   }[];
   const byConv = groupMessagesByConversation(msgList);
 
@@ -250,7 +329,11 @@ export async function fetchConversationsForLandlord(landlordId: string): Promise
       propertyTitle: p?.title ?? '物業',
       propertyImage: p?.image ?? '',
       propertyPrice: p?.price ?? 0,
-      lastMessageBody: last?.body ?? '',
+      lastMessageBody: last
+        ? isConversationMessageDeleted(last)
+          ? '[thouse-deleted]'
+          : last.body
+        : '',
       lastMessageAt: last?.created_at ?? c.updated_at,
       unreadCount,
       peerLabel: buildChatPeerLabel(
@@ -275,7 +358,7 @@ export async function fetchConversationsForTenant(tenantId: string): Promise<Con
   const convIds = convs.map((c) => c.id);
   const { data: allMsgs } = await supabase
     .from('conversation_messages')
-    .select('conversation_id, body, sender_id, read_at, created_at')
+    .select('conversation_id, body, sender_id, read_at, created_at, deleted_at')
     .in('conversation_id', convIds);
 
   const msgList = (allMsgs ?? []) as {
@@ -284,6 +367,7 @@ export async function fetchConversationsForTenant(tenantId: string): Promise<Con
     sender_id: string;
     read_at: string | null;
     created_at: string;
+    deleted_at?: string | null;
   }[];
   const byConv = groupMessagesByConversation(msgList);
 
@@ -295,23 +379,30 @@ export async function fetchConversationsForTenant(tenantId: string): Promise<Con
   const landlordIds = [...new Set(convs.map((c) => c.landlord_id))];
   const landlordProfiles = await loadChatProfileMap(landlordIds);
 
-  return convs.map((c) => {
+  return convs.flatMap((c) => {
     const list = byConv.get(c.id) ?? [];
+    const landlordReplied = list.some((m) => m.sender_id === c.landlord_id);
+    if (!landlordReplied) return [];
+
     const last = list[list.length - 1];
     const unreadCount = list.filter(
       (m) => m.sender_id === c.landlord_id && !m.read_at
     ).length;
     const p = propMap.get(c.property_id);
-    return {
+    return [{
       conversation: c as ConversationRow,
       propertyTitle: p?.title ?? '物業',
       propertyImage: p?.image ?? '',
       propertyPrice: p?.price ?? 0,
-      lastMessageBody: last?.body ?? '',
+      lastMessageBody: last
+        ? isConversationMessageDeleted(last)
+          ? '[thouse-deleted]'
+          : last.body
+        : '',
       lastMessageAt: last?.created_at ?? c.updated_at,
       unreadCount,
       peerLabel: buildChatPeerLabel(landlordProfiles.get(c.landlord_id), '', '業主'),
-    };
+    }];
   });
 }
 
@@ -325,6 +416,16 @@ export interface UnreadNoticeItem {
   preview: string;
   createdAt: string;
   fromLabel: string;
+  kind: AppNoticeKind;
+}
+
+function sortNoticeItems(items: UnreadNoticeItem[]) {
+  items.sort((a, b) => {
+    const aAction = isActionNoticeKind(a.kind) ? 0 : 1;
+    const bAction = isActionNoticeKind(b.kind) ? 0 : 1;
+    if (aAction !== bAction) return aAction - bAction;
+    return a.createdAt < b.createdAt ? 1 : -1;
+  });
 }
 
 export async function fetchUnreadNoticesForLandlord(landlordId: string): Promise<UnreadNoticeItem[]> {
@@ -348,30 +449,33 @@ export async function fetchUnreadNoticesForLandlord(landlordId: string): Promise
   for (const c of convs) {
     const { data: messages } = await supabase
       .from('conversation_messages')
-      .select('id, body, read_at, created_at, sender_id')
+      .select('id, body, read_at, created_at, sender_id, deleted_at')
       .eq('conversation_id', c.id)
       .order('created_at', { ascending: false });
 
     for (const m of messages ?? []) {
       if (m.sender_id !== c.tenant_id) continue;
       if (m.read_at) continue;
+      const deleted = isConversationMessageDeleted(m);
+      const body = deleted ? '[thouse-deleted]' : m.body;
       items.push({
         conversationId: c.id,
         messageId: m.id,
         propertyTitle: titleMap.get(c.property_id) ?? '物業',
-        body: m.body,
-        preview: getChatMessagePreview(m.body) || '新訊息',
+        body,
+        preview: deleted ? '[訊息已刪除]' : getChatMessagePreview(m.body) || '新訊息',
         createdAt: m.created_at,
         fromLabel: buildChatPeerLabel(
           tenantProfiles.get(c.tenant_id),
           (c.tenant_display_name || '租客').trim(),
           '租客',
         ),
+        kind: deleted ? 'message' : classifyNoticeKind(m.body),
       });
     }
   }
 
-  items.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+  sortNoticeItems(items);
   return items;
 }
 
@@ -396,25 +500,28 @@ export async function fetchUnreadNoticesForTenant(tenantId: string): Promise<Unr
   for (const c of convs) {
     const { data: messages } = await supabase
       .from('conversation_messages')
-      .select('id, body, read_at, created_at, sender_id')
+      .select('id, body, read_at, created_at, sender_id, deleted_at')
       .eq('conversation_id', c.id)
       .order('created_at', { ascending: false });
 
     for (const m of messages ?? []) {
       if (m.sender_id !== c.landlord_id) continue;
       if (m.read_at) continue;
+      const deleted = isConversationMessageDeleted(m);
+      const body = deleted ? '[thouse-deleted]' : m.body;
       items.push({
         conversationId: c.id,
         messageId: m.id,
         propertyTitle: titleMap.get(c.property_id) ?? '物業',
-        body: m.body,
-        preview: getChatMessagePreview(m.body) || '新訊息',
+        body,
+        preview: deleted ? '[訊息已刪除]' : getChatMessagePreview(m.body) || '新訊息',
         createdAt: m.created_at,
         fromLabel: buildChatPeerLabel(landlordProfiles.get(c.landlord_id), '', '業主'),
+        kind: deleted ? 'message' : classifyNoticeKind(m.body),
       });
     }
   }
 
-  items.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+  sortNoticeItems(items);
   return items;
 }

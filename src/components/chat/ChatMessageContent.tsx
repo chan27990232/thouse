@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { FileText, Languages, Loader2 } from 'lucide-react';
 import { parseChatMessageBody } from '../../lib/chatMessageBody';
+import { parseViewingIgnoredPayload, parseViewingPayload, parseViewingSuccessPayload } from '../../lib/viewingBookings';
+import { ViewingBookingCard, ViewingIgnoredCard, ViewingSuccessCard } from './ViewingBookingCard';
+import type { ViewingBooking, ViewingBookingStatus } from '../../lib/viewingBookings';
 import { translateTextForLocale } from '../../lib/translateText';
 import { useLocale } from '../../context/LocaleContext';
 import { cn } from '../ui/utils';
@@ -9,14 +12,38 @@ type ChatMessageContentProps = {
   body: string;
   isMe?: boolean;
   className?: string;
+  userRole?: 'tenant' | 'landlord';
+  viewingBooking?: ViewingBooking;
+  propertyAddress?: string;
+  onViewingStatusChange?: (bookingId: string, status: ViewingBookingStatus) => void;
+  onViewingAcceptConfirm?: (bookingId: string) => Promise<void>;
+  onViewingIgnoreConfirm?: (bookingId: string) => Promise<void>;
 };
 
-export function ChatMessageContent({ body, isMe, className }: ChatMessageContentProps) {
+export function ChatMessageContent({
+  body,
+  isMe,
+  className,
+  userRole = 'tenant',
+  viewingBooking,
+  propertyAddress,
+  onViewingStatusChange,
+  onViewingAcceptConfirm,
+  onViewingIgnoreConfirm,
+}: ChatMessageContentProps) {
   const { locale, chatT } = useLocale();
+  const { viewing } = parseViewingPayload(body);
+  const { success } = parseViewingSuccessPayload(body);
+  const { ignored } = parseViewingIgnoredPayload(body);
   const { attachment, text } = parseChatMessageBody(body);
   const [translation, setTranslation] = useState<string | null>(null);
   const [translating, setTranslating] = useState(false);
   const [translateError, setTranslateError] = useState('');
+
+  const viewingStatus = viewingBooking?.status ?? 'pending';
+  if (userRole === 'tenant' && viewing && viewingStatus === 'ignored' && !success && !attachment && !text.trim()) {
+    return null;
+  }
 
   const translateTarget = text.trim() || attachment?.name || '';
 
@@ -38,8 +65,25 @@ export function ChatMessageContent({ body, isMe, className }: ChatMessageContent
     }
   };
 
+  const showViewingCard = Boolean(viewing) && !(userRole === 'tenant' && viewingStatus === 'ignored');
+
   return (
     <div className={cn('space-y-2', className)}>
+      {showViewingCard && viewing ? (
+        <ViewingBookingCard
+          payload={viewing}
+          booking={viewingBooking}
+          userRole={userRole}
+          propertyAddress={propertyAddress}
+          onStatusChange={onViewingStatusChange}
+          onAcceptConfirm={onViewingAcceptConfirm}
+          onIgnoreConfirm={onViewingIgnoreConfirm}
+        />
+      ) : null}
+
+      {success ? <ViewingSuccessCard payload={success} /> : null}
+      {ignored ? <ViewingIgnoredCard payload={ignored} /> : null}
+
       {attachment ? (
         <div className="overflow-hidden rounded-lg border border-stone-200/80 bg-white/80">
           {attachment.kind === 'image' ? (
@@ -68,7 +112,7 @@ export function ChatMessageContent({ body, isMe, className }: ChatMessageContent
         </div>
       ) : null}
 
-      {text.trim() ? <p className="whitespace-pre-wrap break-words">{text}</p> : null}
+      {text.trim() && !viewing && !success ? <p className="whitespace-pre-wrap break-words">{text}</p> : null}
 
       {translation ? (
         <p className="whitespace-pre-wrap break-words border-t border-stone-300/40 pt-2 text-stone-600 italic">

@@ -79,5 +79,10 @@
             "deploy:notify-lease-rejection": "node scripts/deploy-edge-function.mjs notify-lease-rejection --sync-secrets",
             "deploy:signup-verification": "node scripts/deploy-edge-function.mjs signup-verification --sync-secrets",
             "deploy:request-password-reset": "node scripts/deploy-edge-function.mjs request-password-reset --sync-secrets"
+      },
+      "allowScripts": {
+            "@swc/core@1.15.26": true,
+            "esbuild@0.25.12": true,
+            "fsevents@2.3.3": true
       }
 }

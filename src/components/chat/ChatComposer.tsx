@@ -6,6 +6,14 @@ import type { ParsedChatAttachment } from '../../lib/chatMessageBody';
 import { cn } from '../ui/utils';
 import { useLocale } from '../../context/LocaleContext';
 
+export type ChatComposerQuickAction = {
+  id: string;
+  label: string;
+  onClick: () => void;
+  variant?: 'outline' | 'solid';
+  disabled?: boolean;
+};
+
 type ChatComposerProps = {
   value: string;
   onChange: (value: string) => void;
@@ -13,6 +21,8 @@ type ChatComposerProps = {
   placeholder: string;
   userId: string;
   disabled?: boolean;
+  /** 租客對話快捷：預約睇樓／立即簽約等 */
+  quickActions?: ChatComposerQuickAction[];
 };
 
 const ATTACH_MENU_ITEM_IDS = ['document', 'media', 'camera'] as const;
@@ -33,6 +43,7 @@ export function ChatComposer({
   placeholder,
   userId,
   disabled,
+  quickActions,
 }: ChatComposerProps) {
   const { chatT } = useLocale();
   const menuRef = useRef<HTMLDivElement>(null);
@@ -112,6 +123,27 @@ export function ChatComposer({
 
   return (
     <div className="space-y-2">
+      {quickActions && quickActions.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          {quickActions.map((action) => (
+            <button
+              key={action.id}
+              type="button"
+              onClick={action.onClick}
+              disabled={uploading || disabled || action.disabled}
+              className={cn(
+                'rounded-full px-3.5 py-1.5 text-sm transition disabled:opacity-50',
+                action.variant === 'solid'
+                  ? 'bg-black text-white hover:bg-gray-800'
+                  : 'border border-stone-200 bg-white text-stone-800 hover:bg-stone-50',
+              )}
+            >
+              {action.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
       {pendingFile ? (
         <div className="flex items-center gap-2 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-stone-700">
           {pendingKind === 'image' ? (

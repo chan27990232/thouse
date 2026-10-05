@@ -88,6 +88,7 @@ export default function App() {
     'auth-tenant',
   );
   const [openVerificationOnProfile, setOpenVerificationOnProfile] = useState(false);
+  const [chatFocusConversationId, setChatFocusConversationId] = useState<string | null>(null);
   const navRef = useRef({ screen: currentScreen, property: selectedProperty });
   const restoringHistoryRef = useRef(false);
 
@@ -377,7 +378,10 @@ export default function App() {
             onSignOut={handleSignOut}
             onPropertyClick={handlePropertyClick}
             onLandlordDashboard={() => navigate('landlord-dashboard')}
-            onChatClick={() => navigate('chat')}
+            onChatClick={(conversationId) => {
+              setChatFocusConversationId(conversationId ?? null);
+              navigate('chat');
+            }}
             onProfileClick={() => navigate('profile')}
             onMyPropertiesClick={() => navigate('my-properties')}
             onGoHome={() => navigate('home')}
@@ -389,7 +393,10 @@ export default function App() {
           <LandlordHome
             onSignOut={handleSignOut}
             onPropertyClick={handlePropertyClick}
-            onChatClick={() => navigate('chat')}
+            onChatClick={(conversationId) => {
+              setChatFocusConversationId(conversationId ?? null);
+              navigate('chat');
+            }}
             onProfileClick={() => navigate('profile')}
             onGoHome={() => navigate('home')}
           />
@@ -448,6 +455,7 @@ export default function App() {
         <ChatPage
           userRole={userRole === 'landlord' ? 'landlord' : 'tenant'}
           onBack={() => goBack('home')}
+          initialConversationId={chatFocusConversationId}
         />
       )}
       {currentScreen === 'reset-password' && (

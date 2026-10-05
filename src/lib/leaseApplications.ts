@@ -206,6 +206,7 @@ export interface TenantLeaseApplicationSummary {
 export interface LandlordLeaseApplicationSummary {
   id: string;
   propertyId: string;
+  tenantId: string;
   propertyTitle: string;
   applicantName: string;
   phone: string;
@@ -223,6 +224,7 @@ export interface LandlordLeaseApplicationSummary {
 type LeaseAppRowDb = {
   id: string;
   property_id: string;
+  tenant_id: string;
   landlord_id: string;
   created_at: string;
   status: string;
@@ -343,6 +345,7 @@ export async function fetchLeaseApplicationsForLandlord(): Promise<LandlordLease
       `
       id,
       property_id,
+      tenant_id,
       created_at,
       status,
       full_name,
@@ -368,6 +371,7 @@ export async function fetchLeaseApplicationsForLandlord(): Promise<LandlordLease
   return rows.map((raw) => ({
     id: raw.id,
     propertyId: raw.property_id,
+    tenantId: raw.tenant_id,
     propertyTitle: raw.properties?.title?.trim() || '未知物業',
     applicantName: raw.full_name?.trim() || '—',
     phone: raw.phone?.trim() || '—',

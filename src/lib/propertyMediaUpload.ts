@@ -10,11 +10,15 @@ function extFromName(filename: string, fallback: string) {
 }
 
 /**
- * 租盤主圖：公開讀、寫入僅能 userId/ 下
+ * 租盤公開圖（主圖或相簿）：公開讀、寫入僅能 userId/ 下
  */
-export async function uploadListingCoverImage(userId: string, file: File): Promise<string> {
+export async function uploadListingPublicImage(
+  userId: string,
+  file: File,
+  kind: 'cover' | 'gallery' = 'cover',
+): Promise<string> {
   const ext = extFromName(file.name, 'jpg');
-  const path = `${userId}/cover-${Date.now()}-${Math.random().toString(36).slice(2, 10)}.${ext}`;
+  const path = `${userId}/${kind}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}.${ext}`;
   const { error } = await supabase.storage.from(BUCKET_LISTING).upload(path, file, { upsert: false });
   if (error) {
     const m = (error.message || '').toLowerCase();
@@ -31,6 +35,19 @@ export async function uploadListingCoverImage(userId: string, file: File): Promi
   }
   const { data } = supabase.storage.from(BUCKET_LISTING).getPublicUrl(path);
   return data.publicUrl;
+}
+
+/** 租盤主圖：公開讀、寫入僅能 userId/ 下 */
+export async function uploadListingCoverImage(userId: string, file: File): Promise<string> {
+  return uploadListingPublicImage(userId, file, 'cover');
+}
+
+export async function signedUrlForVerificationPath(path: string, expiresIn = 3600): Promise<string | null> {
+  const trimmed = path.trim().replace(/^\/+/, '');
+  if (!trimmed) return null;
+  const { data, error } = await supabase.storage.from(BUCKET_VERIFICATION).createSignedUrl(trimmed, expiresIn);
+  if (error || !data?.signedUrl) return null;
+  return data.signedUrl;
 }
 
 function defaultExtForProof(file: File): string {
